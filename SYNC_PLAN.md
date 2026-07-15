@@ -48,9 +48,9 @@ C'est le même principe que Google Drive/Dropbox, appliqué à nos propres donn�
 Chaque enregistrement synchronisable (`Account`, `Transaction`, plus tard `Debt`,
 etc.) gagne deux champs :
 
-| Champ | Rôle |
-|---|---|
-| `updatedAt` | Déjà présent. Sert à départager qui a raison en cas de modification du même enregistrement sur deux appareils pendant qu'ils étaient hors ligne (le plus récent gagne). |
+| Champ       | Rôle                                                                                                                                                                                                                                                                                         |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `updatedAt` | Déjà présent. Sert à départager qui a raison en cas de modification du même enregistrement sur deux appareils pendant qu'ils étaient hors ligne (le plus récent gagne).                                                                                                                      |
 | `deletedAt` | Nouveau. Une suppression ne retire plus la ligne immédiatement : elle est marquée supprimée (« tombstone ») pour que les autres appareils apprennent qu'il faut la supprimer chez eux aussi à la prochaine synchronisation. Purgée définitivement après un délai raisonnable (ex. 90 jours). |
 
 **Résolution de conflit retenue : dernier écrit gagne, par enregistrement.** Simple,
@@ -61,13 +61,13 @@ concret l'exigeait.)
 
 ## API backend proposée
 
-| Endpoint | Rôle |
-|---|---|
-| `POST /auth/register` | Créer un compte (email + mot de passe) |
-| `POST /auth/login` | Connexion, retourne un jeton de session |
-| `POST /auth/logout` | Invalide le jeton |
+| Endpoint                           | Rôle                                                                     |
+| ---------------------------------- | ------------------------------------------------------------------------ |
+| `POST /auth/register`              | Créer un compte (email + mot de passe)                                   |
+| `POST /auth/login`                 | Connexion, retourne un jeton de session                                  |
+| `POST /auth/logout`                | Invalide le jeton                                                        |
 | `GET /sync/pull?since=<timestamp>` | Renvoie tous les enregistrements créés/modifiés/supprimés depuis `since` |
-| `POST /sync/push` | Envoie les changements locaux (créations/modifications/suppressions) |
+| `POST /sync/push`                  | Envoie les changements locaux (créations/modifications/suppressions)     |
 
 Chaque appareil retient la date de sa dernière synchronisation réussie et ne demande
 que les changements plus récents — pas un renvoi complet de toutes les données à
@@ -97,11 +97,11 @@ Le code du serveur sera écrit et testé ici, mais **il doit ensuite tourner que
 part joignable par vos appareils** — cet environnement ne peut pas héberger un
 service permanent. Options réalistes, du plus simple au plus autonome :
 
-| Option | Coût | Effort de mise en route | Autonomie |
-|---|---|---|---|
-| Railway / Render (offre gratuite) | Gratuit pour un usage personnel | Faible — connecter un dépôt Git, quelques clics | Dépend du fournisseur |
-| Fly.io (offre gratuite) | Gratuit pour un usage personnel | Modéré — passe par leur CLI | Dépend du fournisseur |
-| Serveur personnel (VPS, Raspberry Pi) | Variable (VPS ~3-5 $/mois, ou matériel déjà possédé) | Plus élevé — gestion Linux, HTTPS (Let's Encrypt), mises à jour | Totale |
+| Option                                | Coût                                                 | Effort de mise en route                                         | Autonomie             |
+| ------------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------- | --------------------- |
+| Railway / Render (offre gratuite)     | Gratuit pour un usage personnel                      | Faible — connecter un dépôt Git, quelques clics                 | Dépend du fournisseur |
+| Fly.io (offre gratuite)               | Gratuit pour un usage personnel                      | Modéré — passe par leur CLI                                     | Dépend du fournisseur |
+| Serveur personnel (VPS, Raspberry Pi) | Variable (VPS ~3-5 $/mois, ou matériel déjà possédé) | Plus élevé — gestion Linux, HTTPS (Let's Encrypt), mises à jour | Totale                |
 
 Je recommande **Railway ou Render** pour démarrer : gratuit, rapide à mettre en
 route, largement suffisant pour un usage personnel/familial, et une migration vers

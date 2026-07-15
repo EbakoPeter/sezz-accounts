@@ -37,4 +37,3 @@ export class SezzAccountsDatabase extends Dexie {
 }
 
 export const db = new SezzAccountsDatabase();
-

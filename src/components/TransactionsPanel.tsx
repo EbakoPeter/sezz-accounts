@@ -2,11 +2,17 @@ import { useState, type FormEvent } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { transactionsRepository } from "@/repositories";
 import { useAccountsWithBalances } from "@/hooks/useAccountsWithBalances";
+import { useBudgetSummary } from "@/hooks/useBudgetSummary";
 import { formatFcfa } from "@/lib/money";
 import type { TransactionKind } from "@/types/models";
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+function yearMonthOf(isoDate: string): { year: number; month: number } {
+  const [y, m] = isoDate.split("-").map(Number);
+  return { year: y ?? new Date().getFullYear(), month: m ?? new Date().getMonth() + 1 };
 }
 
 export function TransactionsPanel() {
@@ -18,9 +24,16 @@ export function TransactionsPanel() {
   const [date, setDate] = useState(todayIso());
   const [label, setLabel] = useState("");
   const [amount, setAmount] = useState("");
+  const [subcategoryId, setSubcategoryId] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
 
+  const { year, month } = yearMonthOf(date);
+  const budgetSummary = useBudgetSummary(year, month);
+
   const accountNameById = new Map((accounts ?? []).map((a) => [a.id, a.name]));
+  const subcategoryNameById = new Map(
+    (budgetSummary ?? []).flatMap((c) => c.subcategories.map((s) => [s.subcategoryId, s.name])),
+  );
 
   async function handleCreate(event: FormEvent) {
     event.preventDefault();
@@ -32,9 +45,11 @@ export function TransactionsPanel() {
         date,
         label,
         amount: Number(amount),
+        ...(kind === "expense" && subcategoryId ? { subcategoryId } : {}),
       });
       setLabel("");
       setAmount("");
+      setSubcategoryId("");
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Erreur inattendue.");
     }
@@ -104,6 +119,30 @@ export function TransactionsPanel() {
               onChange={(e) => setAmount(e.target.value)}
             />
           </div>
+          {kind === "expense" && (budgetSummary?.length ?? 0) > 0 && (
+            <div className="field">
+              <label htmlFor="tx-subcategory">Ligne budgétaire</label>
+              <select
+                id="tx-subcategory"
+                value={subcategoryId}
+                onChange={(e) => setSubcategoryId(e.target.value)}
+              >
+                <option value="">Aucune</option>
+                {budgetSummary?.map((category) => (
+                  <optgroup key={category.categoryId} label={category.name}>
+                    {category.subcategories.map((sub) => (
+                      <option key={sub.subcategoryId} value={sub.subcategoryId}>
+                        {sub.name}
+                        {sub.monthlyAllocation > 0
+                          ? ` — reste ${formatFcfa(sub.remaining)} / ${formatFcfa(sub.monthlyAllocation)}`
+                          : " — (non provisionné)"}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </div>
+          )}
           <button type="submit">+ Ajouter</button>
           {formError && (
             <p role="alert" className="form-error">
@@ -124,6 +163,7 @@ export function TransactionsPanel() {
               <th>Date</th>
               <th>Compte</th>
               <th>Libellé</th>
+              <th>Ligne budgétaire</th>
               <th>Montant</th>
               <th />
             </tr>
@@ -134,6 +174,9 @@ export function TransactionsPanel() {
                 <td>{tx.date}</td>
                 <td>{accountNameById.get(tx.accountId) ?? "—"}</td>
                 <td>{tx.label}</td>
+                <td>
+                  {tx.subcategoryId ? (subcategoryNameById.get(tx.subcategoryId) ?? "—") : "—"}
+                </td>
                 <td className={`num ${tx.kind === "expense" ? "negative" : "positive"}`}>
                   {tx.kind === "expense" ? "-" : "+"}
                   {formatFcfa(tx.amount)}
