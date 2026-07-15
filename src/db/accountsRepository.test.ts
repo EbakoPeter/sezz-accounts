@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createTestDatabase } from "@/test/testDatabase";
-import type { LivreDeComptesDatabase } from "@/db/schema";
+import type { SezzAccountsDatabase } from "@/db/schema";
 import { createAccountsRepository, type AccountsRepository } from "./accountsRepository";
 import {
   createTransactionsRepository,
@@ -9,7 +9,7 @@ import {
 import { ValidationError, NotFoundError } from "@/lib/errors";
 
 describe("AccountsRepository", () => {
-  let database: LivreDeComptesDatabase;
+  let database: SezzAccountsDatabase;
   let accounts: AccountsRepository;
   let transactions: TransactionsRepository;
 

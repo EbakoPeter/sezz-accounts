@@ -6,7 +6,7 @@ export function App() {
   return (
     <div className="app">
       <header>
-        <h1>Livre de Comptes</h1>
+        <h1>SEZZ Accounts</h1>
         <p className="tagline">Comptes et opérations — fondation normalisée</p>
       </header>
       <main>

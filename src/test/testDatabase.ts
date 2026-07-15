@@ -1,10 +1,10 @@
-import { LivreDeComptesDatabase } from "@/db/schema";
+import { SezzAccountsDatabase } from "@/db/schema";
 
 let counter = 0;
 
 /** A fresh, isolated database per call — tests never share state, and never
- * touch the real "LivreDeComptesDB" name. */
-export function createTestDatabase(): LivreDeComptesDatabase {
+ * touch the real "SezzAccountsDB" name. */
+export function createTestDatabase(): SezzAccountsDatabase {
   counter += 1;
-  return new LivreDeComptesDatabase(`test-db-${counter}-${Date.now()}`);
+  return new SezzAccountsDatabase(`test-db-${counter}-${Date.now()}`);
 }

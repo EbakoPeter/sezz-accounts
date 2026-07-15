@@ -1,4 +1,4 @@
-import type { LivreDeComptesDatabase } from "./schema";
+import type { SezzAccountsDatabase } from "./schema";
 import { db as defaultDb } from "./schema";
 import type { Account, NewAccount, AccountUpdate } from "@/types/models";
 import { generateId } from "@/lib/id";
@@ -17,7 +17,7 @@ function assertValidName(name: string): string {
  * Factory rather than a singleton class: tests inject an isolated in-memory
  * database instance, while the app uses the shared `db` singleton by default.
  */
-export function createAccountsRepository(database: LivreDeComptesDatabase = defaultDb) {
+export function createAccountsRepository(database: SezzAccountsDatabase = defaultDb) {
   async function assertNameIsUnique(name: string, excludeId?: string): Promise<void> {
     const existing = await database.accounts.where("name").equalsIgnoreCase(name).first();
     if (existing && existing.id !== excludeId) {

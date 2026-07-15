@@ -1,4 +1,4 @@
-import type { LivreDeComptesDatabase } from "./schema";
+import type { SezzAccountsDatabase } from "./schema";
 import { db as defaultDb } from "./schema";
 import type { Transaction, NewTransaction, TransactionUpdate } from "@/types/models";
 import { generateId } from "@/lib/id";
@@ -29,7 +29,7 @@ export interface TransactionFilter {
   to?: string;
 }
 
-export function createTransactionsRepository(database: LivreDeComptesDatabase = defaultDb) {
+export function createTransactionsRepository(database: SezzAccountsDatabase = defaultDb) {
   async function assertAccountExists(accountId: string): Promise<void> {
     const account = await database.accounts.get(accountId);
     if (!account) throw new NotFoundError("Compte", accountId);

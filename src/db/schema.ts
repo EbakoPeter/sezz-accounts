@@ -10,11 +10,11 @@ import type { Account, Transaction } from "@/types/models";
  * which fields exist on the record — Dexie/IndexedDB stores full objects
  * regardless.
  */
-export class LivreDeComptesDatabase extends Dexie {
+export class SezzAccountsDatabase extends Dexie {
   accounts!: EntityTable<Account, "id">;
   transactions!: EntityTable<Transaction, "id">;
 
-  constructor(name = "LivreDeComptesDB") {
+  constructor(name = "SezzAccountsDB") {
     super(name);
     this.version(1).stores({
       accounts: "id, name",
@@ -23,4 +23,4 @@ export class LivreDeComptesDatabase extends Dexie {
   }
 }
 
-export const db = new LivreDeComptesDatabase();
+export const db = new SezzAccountsDatabase();

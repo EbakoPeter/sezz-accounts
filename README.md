@@ -1,4 +1,4 @@
-# Livre de Comptes — réécriture normalisée
+# SEZZ Accounts — réécriture normalisée
 
 Réécriture, depuis zéro, de l'application de gestion budgétaire personnelle, avec les
 standards d'ingénierie applicative : schéma de données normalisé, typage strict,
@@ -7,6 +7,7 @@ tests automatisés, lint/format appliqués, sans Excel ni Capacitor.
 ## État d'avancement
 
 **Fait (Étapes 1 et 2 du plan) :**
+
 - Socle du projet : Vite + React 18 + TypeScript strict, ESLint (flat config), Prettier, Vitest.
 - Couche de données normalisée sur IndexedDB (via Dexie) : `Account` et `Transaction`
   sont deux entités distinctes reliées par un identifiant (`accountId`), et non plus
@@ -20,6 +21,7 @@ tests automatisés, lint/format appliqués, sans Excel ni Capacitor.
 - 57 tests automatisés (dépôts + composants), intégralement verts.
 
 **Pas encore fait (suite du plan) :**
+
 - Budget prévisionnel par catégories/sous-catégories.
 - Dettes & créances, remboursements.
 - Rapport mensuel, recommandations.
