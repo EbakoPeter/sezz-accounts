@@ -6,7 +6,7 @@ tests automatisés, lint/format appliqués, sans Excel ni Capacitor.
 
 ## État d'avancement
 
-**Fait (Étapes 1 et 2 du plan) :**
+**Fait (Étapes 1 et 2 du plan, + installabilité) :**
 
 - Socle du projet : Vite + React 18 + TypeScript strict, ESLint (flat config), Prettier, Vitest.
 - Couche de données normalisée sur IndexedDB (via Dexie) : `Account` et `Transaction`
@@ -18,6 +18,11 @@ tests automatisés, lint/format appliqués, sans Excel ni Capacitor.
   supprimer un compte ayant des opérations sans le demander explicitement).
 - Interface fonctionnelle minimale (Comptes + Opérations), branchée sur cette couche
   de données, avec mise à jour réactive automatique (`dexie-react-hooks`).
+- **Installable comme application (PWA)**, sur ordinateur (Chrome/Edge) et sur
+  Android (Chrome), sans Capacitor ni React Native : manifeste + service worker
+  générés automatiquement (`vite-plugin-pwa`), icônes dédiées (y compris l'icône
+  "maskable" adaptative d'Android). Vérifié par `npm run verify:pwa`, qui contrôle
+  les critères réels que Chrome utilise pour proposer l'installation.
 - 57 tests automatisés (dépôts + composants), intégralement verts.
 
 **Pas encore fait (suite du plan) :**
@@ -26,8 +31,8 @@ tests automatisés, lint/format appliqués, sans Excel ni Capacitor.
 - Dettes & créances, remboursements.
 - Rapport mensuel, recommandations.
 - Chiffrement local (le module sera reconstruit isolément et testé, comme annoncé).
-- Authentification / profils.
-- Portage mobile (sujet séparé, traité après consolidation du web).
+- **Comptes utilisateur et synchronisation entre appareils** — nécessite un serveur
+  backend distinct ; voir la proposition d'architecture partagée séparément.
 
 ## Démarrer
 
@@ -39,7 +44,29 @@ npm run test         # suite de tests (Vitest)
 npm run lint          # ESLint, zéro avertissement toléré
 npm run format:check   # vérifie le formatage Prettier
 npm run typecheck       # tsc --noEmit, mode strict
+npm run verify:pwa       # vérifie que le build respecte les critères d'installabilité
 ```
+
+### Tester l'installation (PWA)
+
+L'installation ne peut pas être testée avec `npm run dev` (le service worker n'y est
+pas actif). Il faut servir le build de production :
+
+```bash
+npm run build
+npm run preview     # sert dist/ sur http://localhost:4173
+```
+
+- **Sur ordinateur (Chrome/Edge)** : ouvrir l'URL, une icône d'installation apparaît
+  dans la barre d'adresse ; cliquer dessus installe l'application dans sa propre
+  fenêtre, sans onglet de navigateur.
+- **Sur Android (Chrome)** : ouvrir l'URL (l'ordinateur et le téléphone doivent être
+  sur le même réseau ; utiliser l'adresse IP locale de l'ordinateur plutôt que
+  `localhost`, ex. `http://192.168.1.x:4173`), puis menu ⋮ → "Ajouter à l'écran
+  d'accueil" / bandeau d'installation automatique.
+- Une fois hébergée en HTTPS (obligatoire pour un vrai déploiement), l'installation
+  fonctionne à l'identique sur les deux plateformes, sans configuration
+  supplémentaire.
 
 ## Structure
 
