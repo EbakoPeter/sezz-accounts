@@ -41,11 +41,17 @@ tests automatisés, lint/format appliqués, sans Excel ni Capacitor.
   dupliquée. Supprimer une dette encore remboursée est bloqué sauf suppression
   forcée (qui supprime alors ses remboursements aussi, contrairement aux
   catégories budgétaires : un remboursement sans sa dette n'a pas de sens).
-- 139 tests automatisés (dépôts + composants), intégralement verts.
+- **Rapport Mensuel** : revenus/dépenses par mois, toujours triés de janvier à
+  décembre, avec solde net et solde cumulé (remis à zéro à chaque nouvelle année),
+  et un graphique en barres. Ne compte volontairement ni les dettes ni les
+  remboursements comme revenu/dépense — emprunter n'est pas un revenu, rembourser
+  le principal n'est pas une dépense courante ; ce choix comptable est documenté
+  directement dans le code.
+- 150 tests automatisés (dépôts + composants), intégralement verts.
 
 **Pas encore fait (suite du plan) :**
 
-- Rapport mensuel, recommandations.
+- Recommandations.
 - Chiffrement local (le module sera reconstruit isolément et testé, comme annoncé).
 - **Comptes utilisateur et synchronisation entre appareils** — nécessite un serveur
   backend distinct ; voir SYNC_PLAN.md. Reporté après la version hors-ligne.
@@ -107,16 +113,19 @@ src/
     debtsRepository.ts             CRUD + référence auto-incrémentale + intégrité référentielle
     debtPaymentsRepository.ts       CRUD des remboursements
     debtSummary.ts                   Restant, statut, mensualité prévisionnelle (lecture pure)
+    monthlyReport.ts                  Revenus/dépenses/solde par mois, janvier→décembre (lecture pure)
     *.test.ts                     Tests des dépôts (base isolée par test)
   hooks/
     useAccountsWithBalances.ts    Comptes + solde calculé, réactif
     useBudgetSummary.ts            Résumé budgétaire du mois choisi, réactif
     useDebtSummaries.ts             Résumé des dettes/créances, réactif
+    useMonthlyReport.ts               Rapport du mois choisi, réactif
   components/
     AccountsPanel.tsx / .test.tsx
     TransactionsPanel.tsx / .test.tsx
     BudgetPanel.tsx / .test.tsx
     DebtsPanel.tsx / .test.tsx
+    MonthlyReportPanel.tsx / .test.tsx
   repositories.ts             Instances des dépôts liées à la base réelle
   App.tsx, main.tsx, App.css
 ```
@@ -138,8 +147,8 @@ src/
 
 ## Prochaine étape proposée
 
-Rapport Mensuel (revenus/dépenses par mois, triés chronologiquement, avec un
-graphique) puis Recommandations (analyse automatique fondée sur les données déjà
-présentes — taux d'épargne, dépassements de budget, retards de remboursement),
-en gardant la même discipline (dépôt/calcul typé + tests d'abord, composant
-ensuite).
+Recommandations : analyse automatique fondée uniquement sur les données déjà
+présentes (taux d'épargne du mois via `monthlyReport.ts`, dépassements de budget
+via `budgetSummary.ts`, dettes en retard via `debtSummary.ts`) — un module de
+calcul plutôt qu'un nouveau dépôt, puisqu'aucune nouvelle donnée n'a besoin d'être
+stockée. Même discipline : calcul typé + tests d'abord, composant ensuite.
