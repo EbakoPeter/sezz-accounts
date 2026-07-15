@@ -4,6 +4,7 @@ import type { Account, NewAccount, AccountUpdate } from "@/types/models";
 import { generateId } from "@/lib/id";
 import { assertNonNegativeAmount } from "@/lib/money";
 import { ValidationError, NotFoundError } from "@/lib/errors";
+import { getAccountFlows, netOf } from "./accountFlows";
 
 function assertValidName(name: string): string {
   const trimmed = name.trim();
@@ -70,43 +71,58 @@ export function createAccountsRepository(database: SezzAccountsDatabase = defaul
     },
 
     /**
-     * Deletes an account. Refuses if any transaction still references it,
-     * to protect referential integrity — this is the exact class of bug the
-     * previous (string-keyed) version of this app was exposed to. Pass
-     * `{ force: true }` to delete the account and all its transactions
-     * together, as an explicit, intentional action.
+     * Deletes an account. Refuses if any transaction or debt still
+     * references it, to protect referential integrity — this is the exact
+     * class of bug the previous (string-keyed) version of this app was
+     * exposed to. Pass `{ force: true }` to delete the account and
+     * everything attached to it (transactions, debts, and those debts'
+     * payments) together, as an explicit, intentional action.
      */
     async remove(id: string, options: { force?: boolean } = {}): Promise<void> {
       const existing = await database.accounts.get(id);
       if (!existing) throw new NotFoundError("Compte", id);
 
-      const dependentCount = await database.transactions.where("accountId").equals(id).count();
-      if (dependentCount > 0 && !options.force) {
+      const [dependentTransactionsCount, dependentDebts] = await Promise.all([
+        database.transactions.where("accountId").equals(id).count(),
+        database.debts.where("accountId").equals(id).toArray(),
+      ]);
+      const totalDependents = dependentTransactionsCount + dependentDebts.length;
+      if (totalDependents > 0 && !options.force) {
         throw new ValidationError(
-          `Impossible de supprimer « ${existing.name} » : ${dependentCount} opération(s) y sont encore rattachée(s).`,
+          `Impossible de supprimer « ${existing.name} » : ${totalDependents} élément(s) (opérations et/ou dettes) y sont encore rattaché(s).`,
         );
       }
 
-      await database.transaction("rw", database.accounts, database.transactions, async () => {
-        if (dependentCount > 0) {
-          await database.transactions.where("accountId").equals(id).delete();
-        }
-        await database.accounts.delete(id);
-      });
+      await database.transaction(
+        "rw",
+        database.accounts,
+        database.transactions,
+        database.debts,
+        database.debtPayments,
+        async () => {
+          if (dependentTransactionsCount > 0) {
+            await database.transactions.where("accountId").equals(id).delete();
+          }
+          for (const debt of dependentDebts) {
+            await database.debtPayments.where("debtId").equals(debt.id).delete();
+          }
+          if (dependentDebts.length > 0) {
+            await database.debts.where("accountId").equals(id).delete();
+          }
+          await database.accounts.delete(id);
+        },
+      );
     },
 
-    /** Current balance = opening balance + income − expenses. Always derived,
-     * never stored, so it can never drift out of sync with the transactions. */
+    /** Current balance = opening balance + every inflow − every outflow
+     * across transactions, debts, and debt payments (see accountFlows.ts).
+     * Always derived, never stored, so it can never drift out of sync. */
     async getBalance(id: string): Promise<number> {
       const account = await database.accounts.get(id);
       if (!account) throw new NotFoundError("Compte", id);
 
-      const rows = await database.transactions.where("accountId").equals(id).toArray();
-      const net = rows.reduce(
-        (sum, tx) => sum + (tx.kind === "income" ? tx.amount : -tx.amount),
-        0,
-      );
-      return account.initialBalance + net;
+      const flows = await getAccountFlows(database);
+      return account.initialBalance + netOf(flows.get(id));
     },
   };
 }

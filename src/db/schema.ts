@@ -1,5 +1,12 @@
 import Dexie, { type EntityTable } from "dexie";
-import type { Account, Transaction, BudgetCategory, BudgetSubcategory } from "@/types/models";
+import type {
+  Account,
+  Transaction,
+  BudgetCategory,
+  BudgetSubcategory,
+  Debt,
+  DebtPayment,
+} from "@/types/models";
 
 /**
  * IndexedDB schema, versioned via Dexie. Each `.version(n).stores(...)` call
@@ -15,6 +22,8 @@ export class SezzAccountsDatabase extends Dexie {
   transactions!: EntityTable<Transaction, "id">;
   budgetCategories!: EntityTable<BudgetCategory, "id">;
   budgetSubcategories!: EntityTable<BudgetSubcategory, "id">;
+  debts!: EntityTable<Debt, "id">;
+  debtPayments!: EntityTable<DebtPayment, "id">;
 
   constructor(name = "SezzAccountsDB") {
     super(name);
@@ -32,6 +41,17 @@ export class SezzAccountsDatabase extends Dexie {
       transactions: "id, accountId, kind, date, subcategoryId, [accountId+date]",
       budgetCategories: "id, name",
       budgetSubcategories: "id, categoryId, name",
+    });
+    // v3: debts and debt payments. Note debtPayments references debts by
+    // `debtId` (a real foreign key) rather than by the human-facing
+    // `reference` string on Debt — that string is display-only.
+    this.version(3).stores({
+      accounts: "id, name",
+      transactions: "id, accountId, kind, date, subcategoryId, [accountId+date]",
+      budgetCategories: "id, name",
+      budgetSubcategories: "id, categoryId, name",
+      debts: "id, accountId, kind, reference, date",
+      debtPayments: "id, debtId, accountId, date",
     });
   }
 }

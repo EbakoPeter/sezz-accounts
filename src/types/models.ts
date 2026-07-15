@@ -69,6 +69,41 @@ export interface BudgetSubcategory {
   updatedAt: Timestamp;
 }
 
+/** "debt" = money the user owes to someone; "receivable" = money someone
+ * owes the user. Kept as an English discriminator internally; the UI is
+ * free to label these "Dette" / "Créance" without that leaking into the
+ * data model. */
+export type DebtKind = "debt" | "receivable";
+
+export interface Debt {
+  id: string;
+  /** Short, human-facing, auto-incrementing label ("D01", "D02", ...).
+   * Display-only — every actual relationship (payments) is by `id`, never
+   * by this reference, so it is safe to show, copy, or print without it
+   * ever being used as a join key. */
+  reference: string;
+  kind: DebtKind;
+  counterparty: string;
+  accountId: string;
+  /** Original amount, whole FCFA, always positive regardless of kind. */
+  amount: number;
+  date: IsoDate;
+  dueDate?: IsoDate;
+  description?: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface DebtPayment {
+  id: string;
+  debtId: string;
+  accountId: string;
+  amount: number;
+  date: IsoDate;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
 /** Fields a caller may set when creating an Account; identifiers and
  * timestamps are always assigned by the repository, never by the caller. */
 export type NewAccount = Pick<Account, "name" | "initialBalance">;
@@ -90,3 +125,14 @@ export type NewBudgetSubcategory = Pick<
 export type BudgetSubcategoryUpdate = Partial<
   Pick<BudgetSubcategory, "name" | "monthlyAllocation">
 >;
+
+/** `reference` is deliberately excluded: it is always auto-assigned by the
+ * repository, never chosen by the caller (see DebtsRepository.create). */
+export type NewDebt = Pick<Debt, "kind" | "counterparty" | "accountId" | "amount" | "date"> &
+  Partial<Pick<Debt, "dueDate" | "description">>;
+export type DebtUpdate = Partial<
+  Pick<Debt, "counterparty" | "accountId" | "amount" | "date" | "dueDate" | "description">
+>;
+
+export type NewDebtPayment = Pick<DebtPayment, "debtId" | "accountId" | "amount" | "date">;
+export type DebtPaymentUpdate = Partial<Pick<DebtPayment, "accountId" | "amount" | "date">>;

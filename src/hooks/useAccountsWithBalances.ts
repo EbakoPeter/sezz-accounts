@@ -1,41 +1,27 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/db/schema";
-import type { Account, Transaction } from "@/types/models";
+import { getAccountFlows, netOf } from "@/db/accountFlows";
+import type { Account } from "@/types/models";
 
 export interface AccountWithBalance extends Account {
   balance: number;
 }
 
-function computeBalance(account: Account, transactions: Transaction[]): number {
-  const net = transactions.reduce(
-    (sum, tx) => sum + (tx.kind === "income" ? tx.amount : -tx.amount),
-    0,
-  );
-  return account.initialBalance + net;
-}
-
 /**
- * Reads both tables once per change and derives balances in memory, rather
- * than issuing one query per account — cheap for a personal dataset and
- * keeps this the single place that knows how a balance is computed on the
- * read side (mirrors AccountsRepository.getBalance's formula exactly; see
- * that function's tests for the authoritative behaviour).
+ * Reads accounts plus everything that can affect a balance (transactions,
+ * debts, debt payments) once per change, via the same `getAccountFlows`
+ * function `AccountsRepository.getBalance` uses — one formula, one place,
+ * not reimplemented here.
  */
 export function useAccountsWithBalances(): AccountWithBalance[] | undefined {
   return useLiveQuery(async () => {
-    const [accounts, transactions] = await Promise.all([
+    const [accounts, flows] = await Promise.all([
       db.accounts.orderBy("name").toArray(),
-      db.transactions.toArray(),
+      getAccountFlows(db),
     ]);
-    const byAccount = new Map<string, Transaction[]>();
-    for (const tx of transactions) {
-      const bucket = byAccount.get(tx.accountId);
-      if (bucket) bucket.push(tx);
-      else byAccount.set(tx.accountId, [tx]);
-    }
     return accounts.map((account) => ({
       ...account,
-      balance: computeBalance(account, byAccount.get(account.id) ?? []),
+      balance: account.initialBalance + netOf(flows.get(account.id)),
     }));
   }, []);
 }
