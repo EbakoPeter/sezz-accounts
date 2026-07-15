@@ -40,10 +40,31 @@ export interface Transaction {
   label: string;
   /** Always a positive integer; direction is carried by `kind`, never by sign. */
   amount: number;
-  /** Foreign key to a future BudgetSubcategory. Optional because income rows
-   * and not-yet-categorized expenses may not have one. */
-  categoryId?: string;
+  /** Foreign key to a BudgetSubcategory. Optional because income rows and
+   * not-yet-categorized expenses may not have one. Named `subcategoryId`
+   * (not `categoryId`) because the monthly allocation and the actual/gap
+   * comparison both live at the subcategory level — see BudgetSubcategory
+   * below. A BudgetCategory is purely a grouping label with no amount of
+   * its own; its totals are always the sum of its subcategories. */
+  subcategoryId?: string;
   note?: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface BudgetCategory {
+  id: string;
+  name: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface BudgetSubcategory {
+  id: string;
+  categoryId: string;
+  name: string;
+  /** Planned spend per month, in whole FCFA. Zero means "not provisioned". */
+  monthlyAllocation: number;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -54,7 +75,18 @@ export type NewAccount = Pick<Account, "name" | "initialBalance">;
 export type AccountUpdate = Partial<Pick<Account, "name" | "initialBalance">>;
 
 export type NewTransaction = Pick<Transaction, "accountId" | "kind" | "date" | "label" | "amount"> &
-  Partial<Pick<Transaction, "categoryId" | "note">>;
+  Partial<Pick<Transaction, "subcategoryId" | "note">>;
 export type TransactionUpdate = Partial<
-  Pick<Transaction, "date" | "label" | "amount" | "categoryId" | "note">
+  Pick<Transaction, "date" | "label" | "amount" | "subcategoryId" | "note">
+>;
+
+export type NewBudgetCategory = Pick<BudgetCategory, "name">;
+export type BudgetCategoryUpdate = Partial<Pick<BudgetCategory, "name">>;
+
+export type NewBudgetSubcategory = Pick<
+  BudgetSubcategory,
+  "categoryId" | "name" | "monthlyAllocation"
+>;
+export type BudgetSubcategoryUpdate = Partial<
+  Pick<BudgetSubcategory, "name" | "monthlyAllocation">
 >;

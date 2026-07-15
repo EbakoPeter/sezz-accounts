@@ -50,7 +50,7 @@ export function createTransactionsRepository(database: SezzAccountsDatabase = de
         date: input.date,
         label,
         amount: input.amount,
-        ...(input.categoryId !== undefined ? { categoryId: input.categoryId } : {}),
+        ...(input.subcategoryId !== undefined ? { subcategoryId: input.subcategoryId } : {}),
         ...(input.note !== undefined ? { note: input.note } : {}),
         createdAt: now,
         updatedAt: now,
@@ -91,8 +91,8 @@ export function createTransactionsRepository(database: SezzAccountsDatabase = de
       if (patch.label !== undefined) {
         next.label = assertValidLabel(patch.label);
       }
-      if (patch.categoryId !== undefined) {
-        next.categoryId = patch.categoryId;
+      if (patch.subcategoryId !== undefined) {
+        next.subcategoryId = patch.subcategoryId;
       }
       if (patch.note !== undefined) {
         next.note = patch.note;

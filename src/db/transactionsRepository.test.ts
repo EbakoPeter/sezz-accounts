@@ -90,10 +90,10 @@ describe("TransactionsRepository", () => {
         date: "2026-01-01",
         label: "Carburant",
         amount: 5000,
-        categoryId: "cat-transport",
+        subcategoryId: "cat-transport",
         note: "Plein complet",
       });
-      expect(tx.categoryId).toBe("cat-transport");
+      expect(tx.subcategoryId).toBe("cat-transport");
       expect(tx.note).toBe("Plein complet");
     });
   });
