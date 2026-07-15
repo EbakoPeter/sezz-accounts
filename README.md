@@ -31,11 +31,20 @@ tests automatisés, lint/format appliqués, sans Excel ni Capacitor.
   concernées plutôt que de les supprimer). Le formulaire de dépense affiche, comme
   dans l'ancienne version, le montant restant disponible sur chaque ligne avant
   de la choisir.
-- 88 tests automatisés (dépôts + composants), intégralement verts.
+- **Dettes & Créances** : référence auto-incrémentale (D01, D02…) purement
+  d'affichage — le lien réel entre un remboursement et sa dette est un identifiant,
+  jamais cette référence. Mensualité prévisionnelle calculée automatiquement
+  (montant ÷ mois jusqu'à l'échéance), statut dérivé (Soldé / En retard / En cours).
+  Une dette/créance affecte immédiatement le solde du compte concerné, un
+  remboursement dans le sens inverse — logique désormais centralisée dans
+  `accountFlows.ts` (voir "Principes de conception" ci-dessous) plutôt que
+  dupliquée. Supprimer une dette encore remboursée est bloqué sauf suppression
+  forcée (qui supprime alors ses remboursements aussi, contrairement aux
+  catégories budgétaires : un remboursement sans sa dette n'a pas de sens).
+- 139 tests automatisés (dépôts + composants), intégralement verts.
 
 **Pas encore fait (suite du plan) :**
 
-- Dettes & créances, remboursements.
 - Rapport mensuel, recommandations.
 - Chiffrement local (le module sera reconstruit isolément et testé, comme annoncé).
 - **Comptes utilisateur et synchronisation entre appareils** — nécessite un serveur
@@ -79,26 +88,35 @@ npm run preview     # sert dist/ sur http://localhost:4173
 
 ```
 src/
-  types/models.ts          Types du domaine (Account, Transaction, BudgetCategory, BudgetSubcategory)
+  types/models.ts          Types du domaine (Account, Transaction, BudgetCategory,
+                            BudgetSubcategory, Debt, DebtPayment)
   lib/
     money.ts                Arithmétique et formatage monétaire (entiers uniquement)
     errors.ts                ValidationError, NotFoundError
     id.ts                     Génération d'identifiants
   db/
     schema.ts                 Schéma Dexie (source de vérité des tables/index, versionné)
+    accountFlows.ts            Calcul centralisé de ce qui affecte un solde de compte
+                                (transactions + dettes + remboursements) — une seule
+                                formule, utilisée par le dépôt ET par le hook réactif
     accountsRepository.ts       CRUD + intégrité référentielle pour les comptes
     transactionsRepository.ts    CRUD + filtres pour les opérations
     budgetCategoriesRepository.ts  CRUD + intégrité référentielle pour les catégories
     budgetSubcategoriesRepository.ts CRUD + intégrité référentielle pour les sous-catégories
     budgetSummary.ts              Calcul prévisionnel/réel par mois (lecture pure)
+    debtsRepository.ts             CRUD + référence auto-incrémentale + intégrité référentielle
+    debtPaymentsRepository.ts       CRUD des remboursements
+    debtSummary.ts                   Restant, statut, mensualité prévisionnelle (lecture pure)
     *.test.ts                     Tests des dépôts (base isolée par test)
   hooks/
     useAccountsWithBalances.ts    Comptes + solde calculé, réactif
     useBudgetSummary.ts            Résumé budgétaire du mois choisi, réactif
+    useDebtSummaries.ts             Résumé des dettes/créances, réactif
   components/
     AccountsPanel.tsx / .test.tsx
     TransactionsPanel.tsx / .test.tsx
     BudgetPanel.tsx / .test.tsx
+    DebtsPanel.tsx / .test.tsx
   repositories.ts             Instances des dépôts liées à la base réelle
   App.tsx, main.tsx, App.css
 ```
@@ -120,7 +138,8 @@ src/
 
 ## Prochaine étape proposée
 
-Poursuivre le même schéma pour Dettes & Créances (référence auto-incrémentale,
-mensualité prévisionnelle calculée, remboursements imputés sur une ligne budgétaire
-dédiée — voir l'ancienne version pour les règles de gestion à reprendre), en gardant
-la même discipline (dépôt typé + tests d'abord, composant ensuite).
+Rapport Mensuel (revenus/dépenses par mois, triés chronologiquement, avec un
+graphique) puis Recommandations (analyse automatique fondée sur les données déjà
+présentes — taux d'épargne, dépassements de budget, retards de remboursement),
+en gardant la même discipline (dépôt/calcul typé + tests d'abord, composant
+ensuite).
