@@ -1,26 +1,28 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AccountsPanel } from "./AccountsPanel";
 import { db } from "@/db/schema";
+import { renderAuthenticated } from "@/test/renderAuthenticated";
 
 // These tests exercise the panel against the app's real singleton database
 // (backed by fake-indexeddb in the test environment — see src/test/setup.ts).
 // Tables are cleared after every test so state never leaks between tests.
 afterEach(async () => {
+  await db.users.clear();
   await db.transactions.clear();
   await db.accounts.clear();
 });
 
 describe("AccountsPanel", () => {
   it("shows an empty state with no accounts", async () => {
-    render(<AccountsPanel />);
+    await renderAuthenticated(<AccountsPanel />);
     expect(await screen.findByText(/aucun compte/i)).toBeInTheDocument();
   });
 
   it("creates an account through the form and lists it with its balance", async () => {
     const user = userEvent.setup();
-    render(<AccountsPanel />);
+    await renderAuthenticated(<AccountsPanel />);
 
     await user.type(screen.getByLabelText(/nom du compte/i), "Compte Principal");
     await user.clear(screen.getByLabelText(/solde initial/i));
@@ -35,7 +37,7 @@ describe("AccountsPanel", () => {
 
   it("shows a validation error inline instead of throwing, and does not add the row", async () => {
     const user = userEvent.setup();
-    render(<AccountsPanel />);
+    await renderAuthenticated(<AccountsPanel />);
 
     await user.click(screen.getByRole("button", { name: /ajouter/i }));
 
@@ -45,7 +47,7 @@ describe("AccountsPanel", () => {
 
   it("rejects a duplicate account name with a clear message", async () => {
     const user = userEvent.setup();
-    render(<AccountsPanel />);
+    await renderAuthenticated(<AccountsPanel />);
 
     await user.type(screen.getByLabelText(/nom du compte/i), "Caisse");
     await user.click(screen.getByRole("button", { name: /ajouter/i }));
@@ -82,12 +84,39 @@ describe("AccountsPanel", () => {
     void account;
 
     const user = userEvent.setup();
-    render(<AccountsPanel />);
+    await renderAuthenticated(<AccountsPanel />);
 
     const deleteButton = await screen.findByRole("button", { name: /supprimer/i });
     await user.click(deleteButton);
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/opération/i);
     expect(screen.getByText("Avec opérations")).toBeInTheDocument();
+  });
+
+  describe("permission gating", () => {
+    it("hides the create form and delete buttons for a user without manageAccounts", async () => {
+      await db.accounts.add({
+        id: "acc-1",
+        name: "Compte Existant",
+        initialBalance: 5000,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      } as never);
+
+      await renderAuthenticated(<AccountsPanel />, { role: "viewer" });
+
+      expect(await screen.findByText("Compte Existant")).toBeInTheDocument();
+      expect(screen.getByText(/pas la permission/i)).toBeInTheDocument();
+      expect(screen.queryByLabelText(/nom du compte/i)).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /supprimer/i })).not.toBeInTheDocument();
+    });
+
+    it("shows the create form for a user with manageAccounts explicitly granted", async () => {
+      await renderAuthenticated(<AccountsPanel />, {
+        role: "viewer",
+        permissionOverrides: { manageAccounts: true },
+      });
+      expect(await screen.findByLabelText(/nom du compte/i)).toBeInTheDocument();
+    });
   });
 });

@@ -18,3 +18,14 @@ export class NotFoundError extends Error {
     this.name = "NotFoundError";
   }
 }
+
+/** Raised when a login attempt fails (unknown username or wrong password).
+ * Deliberately does not distinguish which of the two in its message — that
+ * distinction is exactly the kind of detail that helps an attacker
+ * enumerate valid usernames. */
+export class AuthenticationError extends Error {
+  constructor(message = "Nom d'utilisateur ou mot de passe incorrect.") {
+    super(message);
+    this.name = "AuthenticationError";
+  }
+}

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMonthlyReport } from "@/hooks/useMonthlyReport";
+import { useAuth } from "@/auth/AuthContext";
 import { formatFcfa } from "@/lib/money";
 
 const MONTH_NAMES = [
@@ -76,10 +77,22 @@ function BarChart({ rows }: { rows: { income: number; expense: number }[] }) {
 export function MonthlyReportPanel() {
   const [year, setYear] = useState(new Date().getFullYear());
   const rows = useMonthlyReport(year);
+  const { currentUser } = useAuth();
 
   const totalIncome = rows?.reduce((sum, r) => sum + r.income, 0) ?? 0;
   const totalExpense = rows?.reduce((sum, r) => sum + r.expense, 0) ?? 0;
   const finalCumulative = rows?.at(-1)?.cumulativeNet ?? 0;
+
+  if (!currentUser?.permissions.viewReports) {
+    return (
+      <section aria-labelledby="monthly-report-heading">
+        <h2 id="monthly-report-heading">Rapport Mensuel</h2>
+        <p className="permission-notice">
+          Vous n&apos;avez pas la permission de consulter les rapports.
+        </p>
+      </section>
+    );
+  }
 
   return (
     <section aria-labelledby="monthly-report-heading">

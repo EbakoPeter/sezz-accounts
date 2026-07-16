@@ -3,6 +3,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { transactionsRepository } from "@/repositories";
 import { useAccountsWithBalances } from "@/hooks/useAccountsWithBalances";
 import { useBudgetSummary } from "@/hooks/useBudgetSummary";
+import { useAuth } from "@/auth/AuthContext";
 import { formatFcfa } from "@/lib/money";
 import type { TransactionKind } from "@/types/models";
 
@@ -18,6 +19,8 @@ function yearMonthOf(isoDate: string): { year: number; month: number } {
 export function TransactionsPanel() {
   const accounts = useAccountsWithBalances();
   const transactions = useLiveQuery(() => transactionsRepository.list(), []);
+  const { currentUser } = useAuth();
+  const canManage = currentUser?.permissions.manageTransactions ?? false;
 
   const [accountId, setAccountId] = useState("");
   const [kind, setKind] = useState<TransactionKind>("expense");
@@ -65,8 +68,14 @@ export function TransactionsPanel() {
     <section aria-labelledby="transactions-heading">
       <h2 id="transactions-heading">Opérations</h2>
 
-      {!hasAccounts ? (
-        <p className="empty">Créez d'abord un compte pour pouvoir enregistrer une opération.</p>
+      {!canManage ? (
+        <p className="permission-notice">
+          Vous n&apos;avez pas la permission d&apos;enregistrer des opérations.
+        </p>
+      ) : !hasAccounts ? (
+        <p className="empty">
+          Créez d&apos;abord un compte pour pouvoir enregistrer une opération.
+        </p>
       ) : (
         <form onSubmit={handleCreate} aria-label="Ajouter une opération">
           <div className="field">
@@ -182,9 +191,11 @@ export function TransactionsPanel() {
                   {formatFcfa(tx.amount)}
                 </td>
                 <td>
-                  <button type="button" onClick={() => handleDelete(tx.id)}>
-                    Supprimer
-                  </button>
+                  {canManage && (
+                    <button type="button" onClick={() => handleDelete(tx.id)}>
+                      Supprimer
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

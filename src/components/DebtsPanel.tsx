@@ -3,6 +3,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { debtsRepository, debtPaymentsRepository } from "@/repositories";
 import { useAccountsWithBalances } from "@/hooks/useAccountsWithBalances";
 import { useDebtSummaries } from "@/hooks/useDebtSummaries";
+import { useAuth } from "@/auth/AuthContext";
 import { formatFcfa } from "@/lib/money";
 import type { DebtKind } from "@/types/models";
 import type { DebtStatus } from "@/db/debtSummary";
@@ -21,6 +22,8 @@ export function DebtsPanel() {
   const accounts = useAccountsWithBalances();
   const summaries = useDebtSummaries();
   const debtsForPaymentForm = useLiveQuery(() => debtsRepository.list(), []);
+  const { currentUser } = useAuth();
+  const canManage = currentUser?.permissions.manageDebts ?? false;
 
   const [kind, setKind] = useState<DebtKind>("debt");
   const [counterparty, setCounterparty] = useState("");
@@ -85,7 +88,11 @@ export function DebtsPanel() {
         « Dette » = argent que vous devez · « Créance » = argent qu&apos;on vous doit.
       </p>
 
-      {!hasAccounts ? (
+      {!canManage ? (
+        <p className="permission-notice">
+          Vous n&apos;avez pas la permission de gérer les dettes et créances.
+        </p>
+      ) : !hasAccounts ? (
         <p className="empty">Créez d&apos;abord un compte.</p>
       ) : (
         <form onSubmit={handleCreateDebt} aria-label="Ajouter une dette ou créance">
@@ -194,9 +201,11 @@ export function DebtsPanel() {
                 </td>
                 <td>{STATUS_LABELS[status]}</td>
                 <td>
-                  <button type="button" onClick={() => handleDeleteDebt(debt.id)}>
-                    Supprimer
-                  </button>
+                  {canManage && (
+                    <button type="button" onClick={() => handleDeleteDebt(debt.id)}>
+                      Supprimer
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -204,7 +213,7 @@ export function DebtsPanel() {
         </table>
       )}
 
-      {(debtsForPaymentForm?.length ?? 0) > 0 && (
+      {canManage && (debtsForPaymentForm?.length ?? 0) > 0 && (
         <>
           <h3>Remboursements</h3>
           <form onSubmit={handleCreatePayment} aria-label="Ajouter un remboursement">

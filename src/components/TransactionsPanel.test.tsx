@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TransactionsPanel } from "./TransactionsPanel";
 import { db } from "@/db/schema";
+import { renderAuthenticated } from "@/test/renderAuthenticated";
 
 afterEach(async () => {
+  await db.users.clear();
   await db.transactions.clear();
   await db.accounts.clear();
 });
@@ -21,7 +23,7 @@ async function seedAccount() {
 
 describe("TransactionsPanel", () => {
   it("prompts to create an account first when none exist", async () => {
-    render(<TransactionsPanel />);
+    await renderAuthenticated(<TransactionsPanel />);
     expect(await screen.findByText(/créez d'abord un compte/i)).toBeInTheDocument();
     expect(screen.queryByLabelText(/libellé/i)).not.toBeInTheDocument();
   });
@@ -29,7 +31,7 @@ describe("TransactionsPanel", () => {
   it("creates a transaction against an existing account and lists it", async () => {
     await seedAccount();
     const user = userEvent.setup();
-    render(<TransactionsPanel />);
+    await renderAuthenticated(<TransactionsPanel />);
 
     await screen.findByLabelText(/compte/i);
     await user.selectOptions(screen.getByLabelText(/compte$/i), "acc-1");
@@ -57,7 +59,7 @@ describe("TransactionsPanel", () => {
       updatedAt: Date.now(),
     } as never);
 
-    render(<TransactionsPanel />);
+    await renderAuthenticated(<TransactionsPanel />);
 
     const row = await screen.findByText("Salaire");
     expect(row.closest("tr")!).toHaveTextContent("Compte Test");
@@ -66,7 +68,7 @@ describe("TransactionsPanel", () => {
   it("shows a validation error inline when the amount is invalid", async () => {
     await seedAccount();
     const user = userEvent.setup();
-    render(<TransactionsPanel />);
+    await renderAuthenticated(<TransactionsPanel />);
 
     await screen.findByLabelText(/compte/i);
     await user.selectOptions(screen.getByLabelText(/compte$/i), "acc-1");

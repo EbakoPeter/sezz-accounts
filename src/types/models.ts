@@ -136,3 +136,43 @@ export type DebtUpdate = Partial<
 
 export type NewDebtPayment = Pick<DebtPayment, "debtId" | "accountId" | "amount" | "date">;
 export type DebtPaymentUpdate = Partial<Pick<DebtPayment, "accountId" | "amount" | "date">>;
+
+/**
+ * One flag per protected action. Deliberately explicit and per-user rather
+ * than purely role-derived: `role` provides a sensible starting point
+ * (applied when a user is created or has its role changed), but each flag
+ * can be individually overridden afterwards — this is what makes privileges
+ * "configurable" rather than a fixed, closed set of three tiers.
+ */
+export interface Permissions {
+  manageAccounts: boolean;
+  manageTransactions: boolean;
+  manageBudget: boolean;
+  manageDebts: boolean;
+  viewReports: boolean;
+  /** Create/edit/delete other users, change their role or permissions.
+   * At least one user with this flag set to true must always exist —
+   * enforced by UsersRepository, not by the UI. */
+  manageUsers: boolean;
+}
+
+export type UserRole = "admin" | "standard" | "viewer";
+
+export interface User {
+  id: string;
+  username: string;
+  displayName: string;
+  passwordHash: string;
+  passwordSalt: string;
+  role: UserRole;
+  permissions: Permissions;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export type NewUser = Pick<User, "username" | "displayName" | "role"> & {
+  password: string;
+  /** Defaults to the role's standard permission set when omitted. */
+  permissions?: Permissions;
+};
+export type UserUpdate = Partial<Pick<User, "displayName" | "role" | "permissions">>;

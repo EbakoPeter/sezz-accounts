@@ -1,0 +1,266 @@
+import { useState, type FormEvent } from "react";
+import { useLiveQuery } from "dexie-react-hooks";
+import { usersRepository } from "@/repositories";
+import { useAuth } from "@/auth/AuthContext";
+import { ROLE_LABELS, PERMISSION_LABELS } from "@/lib/permissions";
+import type { Permissions, UserRole } from "@/types/models";
+
+const PERMISSION_KEYS = Object.keys(PERMISSION_LABELS) as (keyof Permissions)[];
+
+export function UsersPanel() {
+  const { currentUser, refresh } = useAuth();
+  const users = useLiveQuery(() => usersRepository.list(), []);
+
+  const [username, setUsername] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [password, setPassword] = useState("");
+  const [role, setRole] = useState<UserRole>("standard");
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editPermissions, setEditPermissions] = useState<Permissions | null>(null);
+  const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null);
+  const [resetPasswordId, setResetPasswordId] = useState<string | null>(null);
+  const [resetPasswordValue, setResetPasswordValue] = useState("");
+
+  if (!currentUser?.permissions.manageUsers) {
+    return (
+      <section aria-labelledby="users-heading">
+        <h2 id="users-heading">Utilisateurs</h2>
+        <p className="permission-notice">
+          Vous n&apos;avez pas la permission de gérer les utilisateurs.
+        </p>
+      </section>
+    );
+  }
+
+  async function handleCreate(event: FormEvent) {
+    event.preventDefault();
+    setCreateError(null);
+    try {
+      await usersRepository.create({ username, displayName, password, role });
+      setUsername("");
+      setDisplayName("");
+      setPassword("");
+      setRole("standard");
+    } catch (error) {
+      setCreateError(error instanceof Error ? error.message : "Erreur inattendue.");
+    }
+  }
+
+  function startEditingPermissions(id: string, permissions: Permissions) {
+    setEditingId(id);
+    setEditPermissions({ ...permissions });
+    setRowError(null);
+  }
+
+  async function saveEditedPermissions(id: string) {
+    if (!editPermissions) return;
+    try {
+      await usersRepository.update(id, { permissions: editPermissions });
+      setEditingId(null);
+      setEditPermissions(null);
+      await refresh();
+    } catch (error) {
+      setRowError({ id, message: error instanceof Error ? error.message : "Erreur inattendue." });
+    }
+  }
+
+  async function handleRoleChange(id: string, newRole: UserRole) {
+    setRowError(null);
+    try {
+      await usersRepository.update(id, { role: newRole });
+      await refresh();
+    } catch (error) {
+      setRowError({ id, message: error instanceof Error ? error.message : "Erreur inattendue." });
+    }
+  }
+
+  async function handleDelete(id: string) {
+    setRowError(null);
+    try {
+      await usersRepository.remove(id);
+    } catch (error) {
+      setRowError({ id, message: error instanceof Error ? error.message : "Erreur inattendue." });
+    }
+  }
+
+  async function handleResetPassword(id: string) {
+    setRowError(null);
+    try {
+      await usersRepository.adminResetPassword(id, resetPasswordValue);
+      setResetPasswordId(null);
+      setResetPasswordValue("");
+    } catch (error) {
+      setRowError({ id, message: error instanceof Error ? error.message : "Erreur inattendue." });
+    }
+  }
+
+  return (
+    <section aria-labelledby="users-heading">
+      <h2 id="users-heading">Utilisateurs</h2>
+      <p className="tagline">
+        Chaque utilisateur a un rôle (point de départ) et des privilèges individuellement
+        modifiables ensuite.
+      </p>
+
+      <form onSubmit={handleCreate} aria-label="Ajouter un utilisateur">
+        <div className="field">
+          <label htmlFor="user-username">Nom d&apos;utilisateur</label>
+          <input
+            id="user-username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="user-display-name">Nom affiché</label>
+          <input
+            id="user-display-name"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="user-password">Mot de passe</label>
+          <input
+            id="user-password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="user-role">Rôle</label>
+          <select id="user-role" value={role} onChange={(e) => setRole(e.target.value as UserRole)}>
+            {(Object.keys(ROLE_LABELS) as UserRole[]).map((r) => (
+              <option key={r} value={r}>
+                {ROLE_LABELS[r]}
+              </option>
+            ))}
+          </select>
+        </div>
+        <button type="submit">+ Ajouter</button>
+        {createError && (
+          <p role="alert" className="form-error">
+            {createError}
+          </p>
+        )}
+      </form>
+
+      {users === undefined ? (
+        <p>Chargement…</p>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Utilisateur</th>
+              <th>Rôle</th>
+              <th>Privilèges</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((user) => (
+              <tr key={user.id}>
+                <td>
+                  {user.displayName} <span className="empty">({user.username})</span>
+                  {user.id === currentUser.id && <span className="empty"> — vous</span>}
+                </td>
+                <td>
+                  <select
+                    aria-label={`Rôle de ${user.displayName}`}
+                    value={user.role}
+                    onChange={(e) => handleRoleChange(user.id, e.target.value as UserRole)}
+                  >
+                    {(Object.keys(ROLE_LABELS) as UserRole[]).map((r) => (
+                      <option key={r} value={r}>
+                        {ROLE_LABELS[r]}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                <td>
+                  {editingId === user.id && editPermissions ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      {PERMISSION_KEYS.map((key) => (
+                        <label key={key} style={{ fontSize: ".8rem" }}>
+                          <input
+                            type="checkbox"
+                            checked={editPermissions[key]}
+                            onChange={(e) =>
+                              setEditPermissions({ ...editPermissions, [key]: e.target.checked })
+                            }
+                          />{" "}
+                          {PERMISSION_LABELS[key]}
+                        </label>
+                      ))}
+                      <div>
+                        <button type="button" onClick={() => saveEditedPermissions(user.id)}>
+                          Enregistrer
+                        </button>{" "}
+                        <button
+                          type="button"
+                          className="ghost"
+                          onClick={() => {
+                            setEditingId(null);
+                            setEditPermissions(null);
+                          }}
+                        >
+                          Annuler
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => startEditingPermissions(user.id, user.permissions)}
+                    >
+                      Modifier les privilèges
+                    </button>
+                  )}
+                </td>
+                <td>
+                  {resetPasswordId === user.id ? (
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <input
+                        type="password"
+                        aria-label={`Nouveau mot de passe pour ${user.displayName}`}
+                        value={resetPasswordValue}
+                        onChange={(e) => setResetPasswordValue(e.target.value)}
+                        style={{ width: 120 }}
+                      />
+                      <button type="button" onClick={() => handleResetPassword(user.id)}>
+                        Confirmer
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setResetPasswordId(user.id);
+                        setResetPasswordValue("");
+                      }}
+                    >
+                      Réinitialiser le mot de passe
+                    </button>
+                  )}{" "}
+                  {user.id !== currentUser.id && (
+                    <button type="button" onClick={() => handleDelete(user.id)}>
+                      Supprimer
+                    </button>
+                  )}
+                  {rowError?.id === user.id && (
+                    <p role="alert" className="form-error">
+                      {rowError.message}
+                    </p>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  );
+}

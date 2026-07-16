@@ -2,6 +2,7 @@ import { Fragment, useState, type FormEvent } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { budgetCategoriesRepository, budgetSubcategoriesRepository } from "@/repositories";
 import { useBudgetSummary } from "@/hooks/useBudgetSummary";
+import { useAuth } from "@/auth/AuthContext";
 import { formatFcfa } from "@/lib/money";
 
 function currentYearMonth(): { year: number; month: number } {
@@ -13,6 +14,8 @@ export function BudgetPanel() {
   const [{ year, month }, setPeriod] = useState(currentYearMonth());
   const summary = useBudgetSummary(year, month);
   const categories = useLiveQuery(() => budgetCategoriesRepository.list(), []);
+  const { currentUser } = useAuth();
+  const canManage = currentUser?.permissions.manageBudget ?? false;
 
   const [categoryName, setCategoryName] = useState("");
   const [categoryError, setCategoryError] = useState<string | null>(null);
@@ -105,63 +108,71 @@ export function BudgetPanel() {
         <span className="empty">{monthLabel}</span>
       </div>
 
-      <form onSubmit={handleCreateCategory} aria-label="Ajouter une catégorie">
-        <div className="field">
-          <label htmlFor="cat-name">Nouvelle catégorie</label>
-          <input
-            id="cat-name"
-            value={categoryName}
-            onChange={(e) => setCategoryName(e.target.value)}
-            placeholder="Ex : Vie Courante"
-          />
-        </div>
-        <button type="submit">+ Ajouter</button>
-        {categoryError && (
-          <p role="alert" className="form-error">
-            {categoryError}
-          </p>
-        )}
-      </form>
+      {!canManage ? (
+        <p className="permission-notice">
+          Vous n&apos;avez pas la permission de modifier le budget prévisionnel.
+        </p>
+      ) : (
+        <>
+          <form onSubmit={handleCreateCategory} aria-label="Ajouter une catégorie">
+            <div className="field">
+              <label htmlFor="cat-name">Nouvelle catégorie</label>
+              <input
+                id="cat-name"
+                value={categoryName}
+                onChange={(e) => setCategoryName(e.target.value)}
+                placeholder="Ex : Vie Courante"
+              />
+            </div>
+            <button type="submit">+ Ajouter</button>
+            {categoryError && (
+              <p role="alert" className="form-error">
+                {categoryError}
+              </p>
+            )}
+          </form>
 
-      {(categories?.length ?? 0) > 0 && (
-        <form onSubmit={handleCreateSubcategory} aria-label="Ajouter une sous-catégorie">
-          <div className="field">
-            <label htmlFor="sub-category">Catégorie</label>
-            <select
-              id="sub-category"
-              value={subCategoryId}
-              onChange={(e) => setSubCategoryId(e.target.value)}
-            >
-              <option value="" disabled>
-                Choisir…
-              </option>
-              {categories?.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="field">
-            <label htmlFor="sub-name">Sous-catégorie</label>
-            <input id="sub-name" value={subName} onChange={(e) => setSubName(e.target.value)} />
-          </div>
-          <div className="field">
-            <label htmlFor="sub-allocation">Budget mensuel</label>
-            <input
-              id="sub-allocation"
-              type="number"
-              value={subAllocation}
-              onChange={(e) => setSubAllocation(e.target.value)}
-            />
-          </div>
-          <button type="submit">+ Ajouter</button>
-          {subError && (
-            <p role="alert" className="form-error">
-              {subError}
-            </p>
+          {(categories?.length ?? 0) > 0 && (
+            <form onSubmit={handleCreateSubcategory} aria-label="Ajouter une sous-catégorie">
+              <div className="field">
+                <label htmlFor="sub-category">Catégorie</label>
+                <select
+                  id="sub-category"
+                  value={subCategoryId}
+                  onChange={(e) => setSubCategoryId(e.target.value)}
+                >
+                  <option value="" disabled>
+                    Choisir…
+                  </option>
+                  {categories?.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="field">
+                <label htmlFor="sub-name">Sous-catégorie</label>
+                <input id="sub-name" value={subName} onChange={(e) => setSubName(e.target.value)} />
+              </div>
+              <div className="field">
+                <label htmlFor="sub-allocation">Budget mensuel</label>
+                <input
+                  id="sub-allocation"
+                  type="number"
+                  value={subAllocation}
+                  onChange={(e) => setSubAllocation(e.target.value)}
+                />
+              </div>
+              <button type="submit">+ Ajouter</button>
+              {subError && (
+                <p role="alert" className="form-error">
+                  {subError}
+                </p>
+              )}
+            </form>
           )}
-        </form>
+        </>
       )}
 
       {summary === undefined ? (
@@ -192,9 +203,14 @@ export function BudgetPanel() {
                   </td>
                   <td />
                   <td>
-                    <button type="button" onClick={() => handleDeleteCategory(category.categoryId)}>
-                      Supprimer
-                    </button>
+                    {canManage && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCategory(category.categoryId)}
+                      >
+                        Supprimer
+                      </button>
+                    )}
                     {rowError?.id === category.categoryId && (
                       <p role="alert" className="form-error">
                         {rowError.message}
@@ -206,13 +222,17 @@ export function BudgetPanel() {
                   <tr key={sub.subcategoryId}>
                     <td style={{ paddingLeft: 24 }}>{sub.name}</td>
                     <td className="num">
-                      <input
-                        type="number"
-                        defaultValue={sub.monthlyAllocation}
-                        aria-label={`Budget mensuel de ${sub.name}`}
-                        onBlur={(e) => handleAllocationChange(sub.subcategoryId, e.target.value)}
-                        style={{ width: 100, textAlign: "right" }}
-                      />
+                      {canManage ? (
+                        <input
+                          type="number"
+                          defaultValue={sub.monthlyAllocation}
+                          aria-label={`Budget mensuel de ${sub.name}`}
+                          onBlur={(e) => handleAllocationChange(sub.subcategoryId, e.target.value)}
+                          style={{ width: 100, textAlign: "right" }}
+                        />
+                      ) : (
+                        formatFcfa(sub.monthlyAllocation)
+                      )}
                     </td>
                     <td className="num">{formatFcfa(sub.actual)}</td>
                     <td className={`num ${sub.remaining < 0 ? "negative" : ""}`}>
@@ -222,12 +242,14 @@ export function BudgetPanel() {
                       {sub.percentUsed === null ? "—" : `${sub.percentUsed.toFixed(0)}%`}
                     </td>
                     <td>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteSubcategory(sub.subcategoryId)}
-                      >
-                        Supprimer
-                      </button>
+                      {canManage && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteSubcategory(sub.subcategoryId)}
+                        >
+                          Supprimer
+                        </button>
+                      )}
                       {rowError?.id === sub.subcategoryId && (
                         <p role="alert" className="form-error">
                           {rowError.message}

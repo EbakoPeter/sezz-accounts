@@ -4,6 +4,7 @@ import { createBudgetCategoriesRepository } from "@/db/budgetCategoriesRepositor
 import { createBudgetSubcategoriesRepository } from "@/db/budgetSubcategoriesRepository";
 import { createDebtsRepository } from "@/db/debtsRepository";
 import { createDebtPaymentsRepository } from "@/db/debtPaymentsRepository";
+import { createUsersRepository } from "@/db/usersRepository";
 
 /** The app's single set of repositories, bound to the real IndexedDB-backed
  * database. Tests never import this file — they build their own repository
@@ -14,3 +15,4 @@ export const budgetCategoriesRepository = createBudgetCategoriesRepository();
 export const budgetSubcategoriesRepository = createBudgetSubcategoriesRepository();
 export const debtsRepository = createDebtsRepository();
 export const debtPaymentsRepository = createDebtPaymentsRepository();
+export const usersRepository = createUsersRepository();

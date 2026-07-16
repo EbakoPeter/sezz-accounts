@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BudgetPanel } from "./BudgetPanel";
 import { db } from "@/db/schema";
+import { renderAuthenticated } from "@/test/renderAuthenticated";
 
 afterEach(async () => {
+  await db.users.clear();
   await db.transactions.clear();
   await db.budgetSubcategories.clear();
   await db.budgetCategories.clear();
@@ -13,13 +15,13 @@ afterEach(async () => {
 
 describe("BudgetPanel", () => {
   it("shows an empty state with no categories", async () => {
-    render(<BudgetPanel />);
+    await renderAuthenticated(<BudgetPanel />);
     expect(await screen.findByText(/aucune catégorie/i)).toBeInTheDocument();
   });
 
   it("creates a category through the form", async () => {
     const user = userEvent.setup();
-    render(<BudgetPanel />);
+    await renderAuthenticated(<BudgetPanel />);
 
     await user.type(screen.getByLabelText(/nouvelle catégorie/i), "Vie Courante");
     await user.click(screen.getAllByRole("button", { name: /ajouter/i })[0]!);
@@ -29,7 +31,7 @@ describe("BudgetPanel", () => {
 
   it("rejects a duplicate category name inline", async () => {
     const user = userEvent.setup();
-    render(<BudgetPanel />);
+    await renderAuthenticated(<BudgetPanel />);
 
     await user.type(screen.getByLabelText(/nouvelle catégorie/i), "Logement");
     await user.click(screen.getAllByRole("button", { name: /ajouter/i })[0]!);
@@ -43,7 +45,7 @@ describe("BudgetPanel", () => {
 
   it("creates a subcategory once a category exists, and shows it under that category", async () => {
     const user = userEvent.setup();
-    render(<BudgetPanel />);
+    await renderAuthenticated(<BudgetPanel />);
 
     await user.type(screen.getByLabelText(/nouvelle catégorie/i), "Vie Courante");
     await user.click(screen.getAllByRole("button", { name: /ajouter/i })[0]!);
@@ -77,7 +79,7 @@ describe("BudgetPanel", () => {
     void categoryId;
 
     const user = userEvent.setup();
-    render(<BudgetPanel />);
+    await renderAuthenticated(<BudgetPanel />);
 
     const input = await screen.findByLabelText("Budget mensuel de Transport");
     expect(input).toHaveValue(10000);
@@ -126,7 +128,7 @@ describe("BudgetPanel", () => {
     } as never);
 
     const user = userEvent.setup();
-    render(<BudgetPanel />);
+    await renderAuthenticated(<BudgetPanel />);
 
     await screen.findByText("Transport");
     const deleteButtons = await screen.findAllByRole("button", { name: /supprimer/i });

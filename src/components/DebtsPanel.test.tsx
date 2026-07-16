@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DebtsPanel } from "./DebtsPanel";
 import { db } from "@/db/schema";
+import { renderAuthenticated } from "@/test/renderAuthenticated";
 
 afterEach(async () => {
+  await db.users.clear();
   await db.debtPayments.clear();
   await db.debts.clear();
   await db.accounts.clear();
@@ -22,20 +24,20 @@ async function seedAccount() {
 
 describe("DebtsPanel", () => {
   it("prompts to create an account first when none exist", async () => {
-    render(<DebtsPanel />);
+    await renderAuthenticated(<DebtsPanel />);
     expect(await screen.findByText(/créez d'abord un compte/i)).toBeInTheDocument();
   });
 
   it("shows an empty state with no debts", async () => {
     await seedAccount();
-    render(<DebtsPanel />);
+    await renderAuthenticated(<DebtsPanel />);
     expect(await screen.findByText(/aucune dette ou créance/i)).toBeInTheDocument();
   });
 
   it("creates a debt with an auto-assigned reference and shows the planned monthly payment", async () => {
     await seedAccount();
     const user = userEvent.setup();
-    render(<DebtsPanel />);
+    await renderAuthenticated(<DebtsPanel />);
 
     await screen.findByLabelText(/^type$/i);
     await user.selectOptions(screen.getByLabelText(/^type$/i), "debt");
@@ -57,7 +59,7 @@ describe("DebtsPanel", () => {
   it("shows a validation error inline for an empty counterparty", async () => {
     await seedAccount();
     const user = userEvent.setup();
-    render(<DebtsPanel />);
+    await renderAuthenticated(<DebtsPanel />);
 
     await screen.findByLabelText(/compte concerné/i);
     await user.selectOptions(screen.getByLabelText(/compte concerné/i), "acc-1");
@@ -82,7 +84,7 @@ describe("DebtsPanel", () => {
     } as never);
 
     const user = userEvent.setup();
-    render(<DebtsPanel />);
+    await renderAuthenticated(<DebtsPanel />);
 
     await screen.findByText("D01");
     await user.selectOptions(screen.getByLabelText(/dette \/ créance/i), "debt-1");

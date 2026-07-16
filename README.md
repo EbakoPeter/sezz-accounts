@@ -47,14 +47,29 @@ tests automatisés, lint/format appliqués, sans Excel ni Capacitor.
   remboursements comme revenu/dépense — emprunter n'est pas un revenu, rembourser
   le principal n'est pas une dépense courante ; ce choix comptable est documenté
   directement dans le code.
-- 150 tests automatisés (dépôts + composants), intégralement verts.
+- **Recommandations** : analyse automatique du mois en cours (taux d'épargne,
+  hausse des dépenses par rapport au mois précédent, dépassements de budget,
+  soldes de comptes négatifs, dettes en retard), entièrement calculée à partir des
+  modules déjà présents — aucune nouvelle donnée stockée.
+- **Comptes utilisateur et privilèges configurables** : profils locaux protégés par
+  mot de passe (haché via PBKDF2, 150 000 itérations — jamais stocké en clair),
+  avec un rôle de départ (Administrateur / Standard / Lecture seule) dont chaque
+  privilège individuel (gérer les comptes, les opérations, le budget, les dettes,
+  consulter les rapports, gérer les utilisateurs) reste modifiable indépendamment
+  ensuite — les rôles ne sont que des préréglages, pas une liste fermée. Le système
+  refuse de retirer le dernier utilisateur capable de gérer les utilisateurs, pour
+  qu'il ne soit jamais possible de verrouiller sa propre administration.
+  Session en mémoire uniquement (choix délibéré : aucun jeton persisté, donc
+  reconnexion obligatoire à chaque ouverture — voir le composant `LoginScreen`).
+- 215 tests automatisés (dépôts + composants), intégralement verts.
 
 **Pas encore fait (suite du plan) :**
 
-- Recommandations.
 - Chiffrement local (le module sera reconstruit isolément et testé, comme annoncé).
-- **Comptes utilisateur et synchronisation entre appareils** — nécessite un serveur
-  backend distinct ; voir SYNC_PLAN.md. Reporté après la version hors-ligne.
+- **Synchronisation entre appareils** — nécessite un serveur backend distinct ;
+  voir SYNC_PLAN.md. Reporté après la version hors-ligne. (Les comptes utilisateur
+  eux-mêmes sont faits ; c'est la synchronisation multi-appareils qui reste liée
+  à ce chantier.)
 
 ## Démarrer
 
@@ -95,11 +110,14 @@ npm run preview     # sert dist/ sur http://localhost:4173
 ```
 src/
   types/models.ts          Types du domaine (Account, Transaction, BudgetCategory,
-                            BudgetSubcategory, Debt, DebtPayment)
+                            BudgetSubcategory, Debt, DebtPayment, User, Permissions)
   lib/
     money.ts                Arithmétique et formatage monétaire (entiers uniquement)
-    errors.ts                ValidationError, NotFoundError
+    errors.ts                ValidationError, NotFoundError, AuthenticationError
     id.ts                     Génération d'identifiants
+    passwordHash.ts            Hachage PBKDF2 (150 000 itérations), jamais de mot de
+                                passe en clair, comparaison en temps constant
+    permissions.ts              Préréglages de rôle (ROLE_DEFAULT_PERMISSIONS) et libellés
   db/
     schema.ts                 Schéma Dexie (source de vérité des tables/index, versionné)
     accountFlows.ts            Calcul centralisé de ce qui affecte un solde de compte
@@ -114,18 +132,29 @@ src/
     debtPaymentsRepository.ts       CRUD des remboursements
     debtSummary.ts                   Restant, statut, mensualité prévisionnelle (lecture pure)
     monthlyReport.ts                  Revenus/dépenses/solde par mois, janvier→décembre (lecture pure)
+    recommendations.ts                 Analyse automatique (lecture pure, aucun stockage)
+    usersRepository.ts                  CRUD utilisateurs, authentification, permissions
     *.test.ts                     Tests des dépôts (base isolée par test)
+  auth/
+    AuthContext.tsx           Session (en mémoire uniquement) + hook useAuth()
   hooks/
     useAccountsWithBalances.ts    Comptes + solde calculé, réactif
     useBudgetSummary.ts            Résumé budgétaire du mois choisi, réactif
     useDebtSummaries.ts             Résumé des dettes/créances, réactif
     useMonthlyReport.ts               Rapport du mois choisi, réactif
+    useRecommendations.ts              Recommandations du mois choisi, réactif
   components/
     AccountsPanel.tsx / .test.tsx
     TransactionsPanel.tsx / .test.tsx
     BudgetPanel.tsx / .test.tsx
     DebtsPanel.tsx / .test.tsx
     MonthlyReportPanel.tsx / .test.tsx
+    RecommendationsPanel.tsx / .test.tsx
+    LoginScreen.tsx / .test.tsx    Première connexion (création admin) et connexions suivantes
+    UsersPanel.tsx / .test.tsx      Gestion des utilisateurs et de leurs privilèges
+  test/
+    testDatabase.ts             Base IndexedDB isolée par test (dépôts)
+    renderAuthenticated.tsx       Rendu de composant dans une session déjà authentifiée
   repositories.ts             Instances des dépôts liées à la base réelle
   App.tsx, main.tsx, App.css
 ```
@@ -144,11 +173,15 @@ src/
 5. **Chaque dépôt est injectable** (`createXRepository(database)`) : les tests
    utilisent une base IndexedDB isolée par test (`fake-indexeddb`), jamais la base
    réelle ni un état partagé entre tests.
+6. **Les rôles sont des préréglages, pas une liste fermée.** Un rôle initialise les
+   privilèges ; chaque privilège reste ensuite modifiable individuellement.
+7. **Impossible de verrouiller sa propre administration.** Le dépôt utilisateurs
+   refuse toute opération (suppression, changement de rôle) qui retirerait le
+   dernier utilisateur capable de gérer les utilisateurs.
 
 ## Prochaine étape proposée
 
-Recommandations : analyse automatique fondée uniquement sur les données déjà
-présentes (taux d'épargne du mois via `monthlyReport.ts`, dépassements de budget
-via `budgetSummary.ts`, dettes en retard via `debtSummary.ts`) — un module de
-calcul plutôt qu'un nouveau dépôt, puisqu'aucune nouvelle donnée n'a besoin d'être
-stockée. Même discipline : calcul typé + tests d'abord, composant ensuite.
+Chiffrement local des données au repos (le module sera reconstruit isolément et
+testé, comme annoncé dès le début de cette réécriture), puis, une fois la version
+hors-ligne jugée complète, le chantier de synchronisation multi-appareils décrit
+dans SYNC_PLAN.md.

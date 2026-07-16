@@ -1,10 +1,13 @@
 import { useState, type FormEvent } from "react";
 import { accountsRepository } from "@/repositories";
 import { useAccountsWithBalances } from "@/hooks/useAccountsWithBalances";
+import { useAuth } from "@/auth/AuthContext";
 import { formatFcfa } from "@/lib/money";
 
 export function AccountsPanel() {
   const accounts = useAccountsWithBalances();
+  const { currentUser } = useAuth();
+  const canManage = currentUser?.permissions.manageAccounts ?? false;
   const [name, setName] = useState("");
   const [initialBalance, setInitialBalance] = useState("0");
   const [formError, setFormError] = useState<string | null>(null);
@@ -41,32 +44,38 @@ export function AccountsPanel() {
     <section aria-labelledby="accounts-heading">
       <h2 id="accounts-heading">Comptes</h2>
 
-      <form onSubmit={handleCreate} aria-label="Ajouter un compte">
-        <div className="field">
-          <label htmlFor="account-name">Nom du compte</label>
-          <input
-            id="account-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Ex : Compte Principal"
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="account-initial">Solde initial</label>
-          <input
-            id="account-initial"
-            type="number"
-            value={initialBalance}
-            onChange={(e) => setInitialBalance(e.target.value)}
-          />
-        </div>
-        <button type="submit">+ Ajouter</button>
-        {formError && (
-          <p role="alert" className="form-error">
-            {formError}
-          </p>
-        )}
-      </form>
+      {!canManage ? (
+        <p className="permission-notice">
+          Vous n&apos;avez pas la permission de créer ou modifier des comptes.
+        </p>
+      ) : (
+        <form onSubmit={handleCreate} aria-label="Ajouter un compte">
+          <div className="field">
+            <label htmlFor="account-name">Nom du compte</label>
+            <input
+              id="account-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Ex : Compte Principal"
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="account-initial">Solde initial</label>
+            <input
+              id="account-initial"
+              type="number"
+              value={initialBalance}
+              onChange={(e) => setInitialBalance(e.target.value)}
+            />
+          </div>
+          <button type="submit">+ Ajouter</button>
+          {formError && (
+            <p role="alert" className="form-error">
+              {formError}
+            </p>
+          )}
+        </form>
+      )}
 
       {accounts === undefined ? (
         <p>Chargement…</p>
@@ -91,9 +100,11 @@ export function AccountsPanel() {
                   {formatFcfa(account.balance)}
                 </td>
                 <td>
-                  <button type="button" onClick={() => handleDelete(account.id)}>
-                    Supprimer
-                  </button>
+                  {canManage && (
+                    <button type="button" onClick={() => handleDelete(account.id)}>
+                      Supprimer
+                    </button>
+                  )}
                   {rowError?.id === account.id && (
                     <p role="alert" className="form-error">
                       {rowError.message}

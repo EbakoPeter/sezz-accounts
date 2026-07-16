@@ -6,6 +6,7 @@ import type {
   BudgetSubcategory,
   Debt,
   DebtPayment,
+  User,
 } from "@/types/models";
 
 /**
@@ -24,6 +25,7 @@ export class SezzAccountsDatabase extends Dexie {
   budgetSubcategories!: EntityTable<BudgetSubcategory, "id">;
   debts!: EntityTable<Debt, "id">;
   debtPayments!: EntityTable<DebtPayment, "id">;
+  users!: EntityTable<User, "id">;
 
   constructor(name = "SezzAccountsDB") {
     super(name);
@@ -52,6 +54,16 @@ export class SezzAccountsDatabase extends Dexie {
       budgetSubcategories: "id, categoryId, name",
       debts: "id, accountId, kind, reference, date",
       debtPayments: "id, debtId, accountId, date",
+    });
+    // v4: local user profiles with configurable per-action permissions.
+    this.version(4).stores({
+      accounts: "id, name",
+      transactions: "id, accountId, kind, date, subcategoryId, [accountId+date]",
+      budgetCategories: "id, name",
+      budgetSubcategories: "id, categoryId, name",
+      debts: "id, accountId, kind, reference, date",
+      debtPayments: "id, debtId, accountId, date",
+      users: "id, username",
     });
   }
 }
