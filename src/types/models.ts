@@ -164,6 +164,13 @@ export interface User {
   displayName: string;
   passwordHash: string;
   passwordSalt: string;
+  /** This user's own copy of the shared Data Encryption Key, wrapped
+   * (encrypted) under a key derived from their password + dekSalt. Every
+   * user has their own wrapped copy of the *same* underlying DEK — see
+   * src/lib/encryption.ts for why data is protected this way rather than
+   * with a key derived directly from one user's password. */
+  wrappedDek: { iv: string; data: string };
+  dekSalt: string;
   role: UserRole;
   permissions: Permissions;
   createdAt: Timestamp;

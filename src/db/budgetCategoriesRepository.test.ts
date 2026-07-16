@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
+import { useTestEncryptionSession } from "@/test/testDek";
 import { createTestDatabase } from "@/test/testDatabase";
 import type { SezzAccountsDatabase } from "@/db/schema";
 import {
@@ -17,6 +18,7 @@ import {
 import { ValidationError, NotFoundError } from "@/lib/errors";
 
 describe("BudgetCategoriesRepository", () => {
+  useTestEncryptionSession();
   let database: SezzAccountsDatabase;
   let categories: BudgetCategoriesRepository;
   let subcategories: BudgetSubcategoriesRepository;

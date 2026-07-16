@@ -1,5 +1,7 @@
 import type { SezzAccountsDatabase } from "./schema";
 import { db as defaultDb } from "./schema";
+import { fromStorageRows } from "./encryptedRecord";
+import type { BudgetCategory, BudgetSubcategory, Transaction } from "@/types/models";
 
 export interface SubcategorySummary {
   subcategoryId: string;
@@ -37,11 +39,19 @@ export async function getBudgetSummary(
   month: number,
   database: SezzAccountsDatabase = defaultDb,
 ): Promise<CategorySummary[]> {
-  const [categories, subcategories, transactions] = await Promise.all([
-    database.budgetCategories.orderBy("name").toArray(),
+  const [categoryRows, subcategoryRows, transactionRows] = await Promise.all([
+    database.budgetCategories.toArray(),
     database.budgetSubcategories.toArray(),
     database.transactions.where("kind").equals("expense").toArray(),
   ]);
+  const [categoriesUnsorted, subcategories, transactions] = await Promise.all([
+    fromStorageRows<BudgetCategory>(categoryRows),
+    fromStorageRows<BudgetSubcategory>(subcategoryRows),
+    fromStorageRows<Transaction>(transactionRows),
+  ]);
+  // `name` is encrypted, so it can no longer be a Dexie index — sorted in
+  // memory after decryption instead.
+  const categories = categoriesUnsorted.sort((a, b) => a.name.localeCompare(b.name));
 
   const actualBySubcategory = new Map<string, number>();
   for (const tx of transactions) {

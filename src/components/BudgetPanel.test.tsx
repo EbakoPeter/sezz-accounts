@@ -3,7 +3,11 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BudgetPanel } from "./BudgetPanel";
 import { db } from "@/db/schema";
-import { renderAuthenticated } from "@/test/renderAuthenticated";
+import { clearActiveDek } from "@/lib/encryptionSession";
+import { fromStorageRow } from "@/db/encryptedRecord";
+import { encryptedFixture } from "@/test/encryptedFixture";
+import { createTestUser, renderWithSession, renderAuthenticated } from "@/test/renderAuthenticated";
+import type { BudgetSubcategory, Transaction } from "@/types/models";
 
 afterEach(async () => {
   await db.users.clear();
@@ -11,6 +15,7 @@ afterEach(async () => {
   await db.budgetSubcategories.clear();
   await db.budgetCategories.clear();
   await db.accounts.clear();
+  clearActiveDek();
 });
 
 describe("BudgetPanel", () => {
@@ -62,24 +67,29 @@ describe("BudgetPanel", () => {
   });
 
   it("updates an allocation inline and reflects it live", async () => {
-    const categoryId = await db.budgetCategories.add({
-      id: "cat-1",
-      name: "Vie Courante",
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    } as never);
-    await db.budgetSubcategories.add({
-      id: "sub-1",
-      categoryId: "cat-1",
-      name: "Transport",
-      monthlyAllocation: 10000,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    } as never);
-    void categoryId;
+    const session = await createTestUser("admin");
+    await db.budgetCategories.add(
+      await encryptedFixture(
+        { id: "cat-1", name: "Vie Courante", createdAt: Date.now(), updatedAt: Date.now() },
+        ["name"] as const,
+      ),
+    );
+    await db.budgetSubcategories.add(
+      await encryptedFixture(
+        {
+          id: "sub-1",
+          categoryId: "cat-1",
+          name: "Transport",
+          monthlyAllocation: 10000,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        },
+        ["name", "monthlyAllocation"] as const,
+      ),
+    );
 
     const user = userEvent.setup();
-    await renderAuthenticated(<BudgetPanel />);
+    renderWithSession(<BudgetPanel />, session);
 
     const input = await screen.findByLabelText("Budget mensuel de Transport");
     expect(input).toHaveValue(10000);
@@ -88,47 +98,64 @@ describe("BudgetPanel", () => {
     await user.tab(); // triggers onBlur
 
     await waitFor(async () => {
-      const updated = await db.budgetSubcategories.get("sub-1");
+      const row = await db.budgetSubcategories.get("sub-1");
+      const updated = row && (await fromStorageRow<BudgetSubcategory>(row));
       expect(updated?.monthlyAllocation).toBe(30000);
     });
   });
 
   it("blocks deleting a subcategory still referenced by a transaction", async () => {
-    await db.accounts.add({
-      id: "acc-1",
-      name: "Compte",
-      initialBalance: 0,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    } as never);
-    await db.budgetCategories.add({
-      id: "cat-1",
-      name: "Vie Courante",
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    } as never);
-    await db.budgetSubcategories.add({
-      id: "sub-1",
-      categoryId: "cat-1",
-      name: "Transport",
-      monthlyAllocation: 10000,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    } as never);
-    await db.transactions.add({
-      id: "tx-1",
-      accountId: "acc-1",
-      kind: "expense",
-      date: "2020-01-01",
-      label: "Vieux",
-      amount: 100,
-      subcategoryId: "sub-1",
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    } as never);
+    const session = await createTestUser("admin");
+    await db.accounts.add(
+      await encryptedFixture(
+        {
+          id: "acc-1",
+          name: "Compte",
+          initialBalance: 0,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        },
+        ["name", "initialBalance"] as const,
+      ),
+    );
+    await db.budgetCategories.add(
+      await encryptedFixture(
+        { id: "cat-1", name: "Vie Courante", createdAt: Date.now(), updatedAt: Date.now() },
+        ["name"] as const,
+      ),
+    );
+    await db.budgetSubcategories.add(
+      await encryptedFixture(
+        {
+          id: "sub-1",
+          categoryId: "cat-1",
+          name: "Transport",
+          monthlyAllocation: 10000,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        },
+        ["name", "monthlyAllocation"] as const,
+      ),
+    );
+    await db.transactions.add(
+      await encryptedFixture<Transaction, "label" | "amount" | "note">(
+        {
+          id: "tx-1",
+          accountId: "acc-1",
+          kind: "expense",
+          date: "2020-01-01",
+          label: "Vieux",
+          amount: 100,
+          subcategoryId: "sub-1",
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        },
+        ["label", "amount", "note"] as const,
+      ),
+    );
 
     const user = userEvent.setup();
-    await renderAuthenticated(<BudgetPanel />);
+    renderWithSession(<BudgetPanel />, session);
 
     await screen.findByText("Transport");
     const deleteButtons = await screen.findAllByRole("button", { name: /supprimer/i });

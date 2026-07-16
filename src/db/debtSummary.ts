@@ -1,5 +1,6 @@
 import type { SezzAccountsDatabase } from "./schema";
-import type { Debt } from "@/types/models";
+import { fromStorageRow, fromStorageRows } from "./encryptedRecord";
+import type { Debt, DebtPayment } from "@/types/models";
 
 export type DebtStatus = "settled" | "overdue" | "ongoing";
 
@@ -35,10 +36,12 @@ export async function getDebtSummary(
   database: SezzAccountsDatabase,
   today: string = new Date().toISOString().slice(0, 10),
 ): Promise<DebtSummary | undefined> {
-  const debt = await database.debts.get(debtId);
-  if (!debt) return undefined;
+  const row = await database.debts.get(debtId);
+  if (!row) return undefined;
+  const debt = await fromStorageRow<Debt>(row);
 
-  const payments = await database.debtPayments.where("debtId").equals(debtId).toArray();
+  const paymentRows = await database.debtPayments.where("debtId").equals(debtId).toArray();
+  const payments = await fromStorageRows<DebtPayment>(paymentRows);
   const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
   const remaining = debt.amount - totalPaid;
 
@@ -57,9 +60,13 @@ export async function getAllDebtSummaries(
   database: SezzAccountsDatabase,
   today: string = new Date().toISOString().slice(0, 10),
 ): Promise<DebtSummary[]> {
-  const [debts, payments] = await Promise.all([
+  const [debtRows, paymentRows] = await Promise.all([
     database.debts.toArray(),
     database.debtPayments.toArray(),
+  ]);
+  const [debts, payments] = await Promise.all([
+    fromStorageRows<Debt>(debtRows),
+    fromStorageRows<DebtPayment>(paymentRows),
   ]);
 
   const paidByDebt = new Map<string, number>();

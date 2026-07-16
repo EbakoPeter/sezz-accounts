@@ -1,9 +1,12 @@
-import type { SezzAccountsDatabase } from "./schema";
+import type { SezzAccountsDatabase, DebtPaymentRow } from "./schema";
 import { db as defaultDb } from "./schema";
 import type { DebtPayment, NewDebtPayment, DebtPaymentUpdate } from "@/types/models";
 import { generateId } from "@/lib/id";
 import { assertPositiveAmount } from "@/lib/money";
 import { ValidationError, NotFoundError } from "@/lib/errors";
+import { toStorageRow, fromStorageRow, fromStorageRows } from "./encryptedRecord";
+
+const SENSITIVE_PAYMENT_FIELDS = ["amount"] as const;
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -14,6 +17,13 @@ function assertValidDate(date: string): void {
 }
 
 export function createDebtPaymentsRepository(database: SezzAccountsDatabase = defaultDb) {
+  async function decryptPayment(row: DebtPaymentRow): Promise<DebtPayment> {
+    return fromStorageRow<DebtPayment>(row);
+  }
+  async function decryptPayments(rows: DebtPaymentRow[]): Promise<DebtPayment[]> {
+    return fromStorageRows<DebtPayment>(rows);
+  }
+
   async function assertDebtExists(debtId: string): Promise<void> {
     const debt = await database.debts.get(debtId);
     if (!debt) throw new NotFoundError("Dette", debtId);
@@ -44,12 +54,12 @@ export function createDebtPaymentsRepository(database: SezzAccountsDatabase = de
         createdAt: now,
         updatedAt: now,
       };
-      await database.debtPayments.add(payment);
+      await database.debtPayments.add(await toStorageRow(payment, SENSITIVE_PAYMENT_FIELDS));
       return payment;
     },
 
     async list(filter: { debtId?: string; accountId?: string } = {}): Promise<DebtPayment[]> {
-      let rows: DebtPayment[];
+      let rows: DebtPaymentRow[];
       if (filter.debtId) {
         rows = await database.debtPayments.where("debtId").equals(filter.debtId).toArray();
       } else if (filter.accountId) {
@@ -57,16 +67,19 @@ export function createDebtPaymentsRepository(database: SezzAccountsDatabase = de
       } else {
         rows = await database.debtPayments.toArray();
       }
-      return rows.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+      const payments = await decryptPayments(rows);
+      return payments.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
     },
 
     async getById(id: string): Promise<DebtPayment | undefined> {
-      return database.debtPayments.get(id);
+      const row = await database.debtPayments.get(id);
+      return row ? decryptPayment(row) : undefined;
     },
 
     async update(id: string, patch: DebtPaymentUpdate): Promise<DebtPayment> {
-      const existing = await database.debtPayments.get(id);
-      if (!existing) throw new NotFoundError("Remboursement", id);
+      const row = await database.debtPayments.get(id);
+      if (!row) throw new NotFoundError("Remboursement", id);
+      const existing = await decryptPayment(row);
 
       const next: DebtPayment = { ...existing, updatedAt: Date.now() };
       if (patch.accountId !== undefined) {
@@ -81,7 +94,7 @@ export function createDebtPaymentsRepository(database: SezzAccountsDatabase = de
         assertPositiveAmount(patch.amount);
         next.amount = patch.amount;
       }
-      await database.debtPayments.put(next);
+      await database.debtPayments.put(await toStorageRow(next, SENSITIVE_PAYMENT_FIELDS));
       return next;
     },
 

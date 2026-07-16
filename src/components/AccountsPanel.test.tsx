@@ -3,7 +3,10 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AccountsPanel } from "./AccountsPanel";
 import { db } from "@/db/schema";
-import { renderAuthenticated } from "@/test/renderAuthenticated";
+import { clearActiveDek } from "@/lib/encryptionSession";
+import { encryptedFixture } from "@/test/encryptedFixture";
+import { createTestUser, renderWithSession, renderAuthenticated } from "@/test/renderAuthenticated";
+import type { Transaction } from "@/types/models";
 
 // These tests exercise the panel against the app's real singleton database
 // (backed by fake-indexeddb in the test environment — see src/test/setup.ts).
@@ -12,6 +15,7 @@ afterEach(async () => {
   await db.users.clear();
   await db.transactions.clear();
   await db.accounts.clear();
+  clearActiveDek();
 });
 
 describe("AccountsPanel", () => {
@@ -64,27 +68,37 @@ describe("AccountsPanel", () => {
   });
 
   it("blocks deleting an account that still has transactions, with an explanatory message", async () => {
-    const account = await db.accounts.add({
-      id: "acc-1",
-      name: "Avec opérations",
-      initialBalance: 0,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    } as never);
-    await db.transactions.add({
-      id: "tx-1",
-      accountId: "acc-1",
-      kind: "expense",
-      date: "2026-01-01",
-      label: "Test",
-      amount: 100,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    } as never);
-    void account;
+    const session = await createTestUser("admin");
+    await db.accounts.add(
+      await encryptedFixture(
+        {
+          id: "acc-1",
+          name: "Avec opérations",
+          initialBalance: 0,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        },
+        ["name", "initialBalance"] as const,
+      ),
+    );
+    await db.transactions.add(
+      await encryptedFixture<Transaction, "label" | "amount" | "note">(
+        {
+          id: "tx-1",
+          accountId: "acc-1",
+          kind: "expense",
+          date: "2026-01-01",
+          label: "Test",
+          amount: 100,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        },
+        ["label", "amount", "note"] as const,
+      ),
+    );
 
     const user = userEvent.setup();
-    await renderAuthenticated(<AccountsPanel />);
+    renderWithSession(<AccountsPanel />, session);
 
     const deleteButton = await screen.findByRole("button", { name: /supprimer/i });
     await user.click(deleteButton);
@@ -95,15 +109,21 @@ describe("AccountsPanel", () => {
 
   describe("permission gating", () => {
     it("hides the create form and delete buttons for a user without manageAccounts", async () => {
-      await db.accounts.add({
-        id: "acc-1",
-        name: "Compte Existant",
-        initialBalance: 5000,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      } as never);
+      const session = await createTestUser("viewer");
+      await db.accounts.add(
+        await encryptedFixture(
+          {
+            id: "acc-1",
+            name: "Compte Existant",
+            initialBalance: 5000,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          },
+          ["name", "initialBalance"] as const,
+        ),
+      );
 
-      await renderAuthenticated(<AccountsPanel />, { role: "viewer" });
+      renderWithSession(<AccountsPanel />, session);
 
       expect(await screen.findByText("Compte Existant")).toBeInTheDocument();
       expect(screen.getByText(/pas la permission/i)).toBeInTheDocument();

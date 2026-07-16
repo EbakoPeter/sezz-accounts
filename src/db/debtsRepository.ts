@@ -1,9 +1,12 @@
-import type { SezzAccountsDatabase } from "./schema";
+import type { SezzAccountsDatabase, DebtRow } from "./schema";
 import { db as defaultDb } from "./schema";
 import type { Debt, NewDebt, DebtUpdate } from "@/types/models";
 import { generateId } from "@/lib/id";
 import { assertPositiveAmount } from "@/lib/money";
 import { ValidationError, NotFoundError } from "@/lib/errors";
+import { toStorageRow, fromStorageRow, fromStorageRows } from "./encryptedRecord";
+
+const SENSITIVE_DEBT_FIELDS = ["counterparty", "amount", "dueDate", "description"] as const;
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -22,11 +25,21 @@ function assertValidCounterparty(name: string): string {
 }
 
 export function createDebtsRepository(database: SezzAccountsDatabase = defaultDb) {
+  async function decryptDebt(row: DebtRow): Promise<Debt> {
+    return fromStorageRow<Debt>(row);
+  }
+  async function decryptDebts(rows: DebtRow[]): Promise<Debt[]> {
+    return fromStorageRows<Debt>(rows);
+  }
+
   async function assertAccountExists(accountId: string): Promise<void> {
     const account = await database.accounts.get(accountId);
     if (!account) throw new NotFoundError("Compte", accountId);
   }
 
+  // `reference` (D01, D02, ...) is structural/clear specifically so this
+  // scan-for-the-max doesn't require decrypting every debt just to number
+  // the next one.
   async function nextReference(): Promise<string> {
     const all = await database.debts.toArray();
     let max = 0;
@@ -66,7 +79,7 @@ export function createDebtsRepository(database: SezzAccountsDatabase = defaultDb
         createdAt: now,
         updatedAt: now,
       };
-      await database.debts.add(debt);
+      await database.debts.add(await toStorageRow(debt, SENSITIVE_DEBT_FIELDS));
       return debt;
     },
 
@@ -75,16 +88,19 @@ export function createDebtsRepository(database: SezzAccountsDatabase = defaultDb
         ? await database.debts.where("accountId").equals(filter.accountId).toArray()
         : await database.debts.toArray();
       if (filter.kind) rows = rows.filter((d) => d.kind === filter.kind);
-      return rows.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+      const debts = await decryptDebts(rows);
+      return debts.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
     },
 
     async getById(id: string): Promise<Debt | undefined> {
-      return database.debts.get(id);
+      const row = await database.debts.get(id);
+      return row ? decryptDebt(row) : undefined;
     },
 
     async update(id: string, patch: DebtUpdate): Promise<Debt> {
-      const existing = await database.debts.get(id);
-      if (!existing) throw new NotFoundError("Dette", id);
+      const row = await database.debts.get(id);
+      if (!row) throw new NotFoundError("Dette", id);
+      const existing = await decryptDebt(row);
 
       const next: Debt = { ...existing, updatedAt: Date.now() };
       if (patch.accountId !== undefined) {
@@ -113,7 +129,7 @@ export function createDebtsRepository(database: SezzAccountsDatabase = defaultDb
         throw new ValidationError("L'échéance ne peut pas être antérieure à la date de la dette.");
       }
 
-      await database.debts.put(next);
+      await database.debts.put(await toStorageRow(next, SENSITIVE_DEBT_FIELDS));
       return next;
     },
 
@@ -122,8 +138,9 @@ export function createDebtsRepository(database: SezzAccountsDatabase = defaultDb
      * payment can never meaningfully exist without the debt it repays, so
      * (unlike budget subcategories) this cascades by deletion, not unlinking. */
     async remove(id: string, options: { force?: boolean } = {}): Promise<void> {
-      const existing = await database.debts.get(id);
-      if (!existing) throw new NotFoundError("Dette", id);
+      const row = await database.debts.get(id);
+      if (!row) throw new NotFoundError("Dette", id);
+      const existing = await decryptDebt(row);
 
       const paymentCount = await database.debtPayments.where("debtId").equals(id).count();
       if (paymentCount > 0 && !options.force) {

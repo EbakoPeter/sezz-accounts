@@ -1,11 +1,42 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createTestDatabase } from "@/test/testDatabase";
+import { useTestEncryptionSession } from "@/test/testDek";
+import { encryptedFixture } from "@/test/encryptedFixture";
 import type { SezzAccountsDatabase } from "@/db/schema";
 import { createAccountsRepository } from "./accountsRepository";
 import { createTransactionsRepository } from "./transactionsRepository";
 import { getAccountFlows, netOf } from "./accountFlows";
+import type { Debt, DebtPayment } from "@/types/models";
+
+const SENSITIVE_DEBT_FIELDS = ["counterparty", "amount", "dueDate", "description"] as const;
+const SENSITIVE_PAYMENT_FIELDS = ["amount"] as const;
+
+function debtFixture(overrides: Partial<Debt> & Pick<Debt, "id" | "kind" | "accountId">): Debt {
+  return {
+    reference: "D01",
+    counterparty: "Tiers",
+    date: "2026-01-01",
+    amount: 0,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    ...overrides,
+  };
+}
+
+function paymentFixture(
+  overrides: Partial<DebtPayment> & Pick<DebtPayment, "id" | "debtId" | "accountId">,
+): DebtPayment {
+  return {
+    date: "2026-01-01",
+    amount: 0,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    ...overrides,
+  };
+}
 
 describe("getAccountFlows", () => {
+  useTestEncryptionSession();
   let database: SezzAccountsDatabase;
   let accountId: string;
 
@@ -43,60 +74,42 @@ describe("getAccountFlows", () => {
   });
 
   it("counts a 'debt' as an inflow (money borrowed arrives in the account)", async () => {
-    await database.debts.add({
-      id: "d1",
-      reference: "D01",
-      kind: "debt",
-      counterparty: "Banque",
-      accountId,
-      amount: 5000,
-      date: "2026-01-01",
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
+    await database.debts.add(
+      await encryptedFixture(
+        debtFixture({ id: "d1", kind: "debt", counterparty: "Banque", accountId, amount: 5000 }),
+        SENSITIVE_DEBT_FIELDS,
+      ),
+    );
 
     const flows = await getAccountFlows(database);
     expect(flows.get(accountId)).toEqual({ inflow: 5000, outflow: 0 });
   });
 
   it("counts a 'receivable' as an outflow (money lent out leaves the account)", async () => {
-    await database.debts.add({
-      id: "d1",
-      reference: "D01",
-      kind: "receivable",
-      counterparty: "Ami",
-      accountId,
-      amount: 2000,
-      date: "2026-01-01",
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
+    await database.debts.add(
+      await encryptedFixture(
+        debtFixture({ id: "d1", kind: "receivable", counterparty: "Ami", accountId, amount: 2000 }),
+        SENSITIVE_DEBT_FIELDS,
+      ),
+    );
 
     const flows = await getAccountFlows(database);
     expect(flows.get(accountId)).toEqual({ inflow: 0, outflow: 2000 });
   });
 
   it("counts a payment on a 'debt' as an outflow (paying back what you owe)", async () => {
-    await database.debts.add({
-      id: "d1",
-      reference: "D01",
-      kind: "debt",
-      counterparty: "Banque",
-      accountId,
-      amount: 5000,
-      date: "2026-01-01",
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
-    await database.debtPayments.add({
-      id: "p1",
-      debtId: "d1",
-      accountId,
-      amount: 1000,
-      date: "2026-02-01",
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
+    await database.debts.add(
+      await encryptedFixture(
+        debtFixture({ id: "d1", kind: "debt", counterparty: "Banque", accountId, amount: 5000 }),
+        SENSITIVE_DEBT_FIELDS,
+      ),
+    );
+    await database.debtPayments.add(
+      await encryptedFixture(
+        paymentFixture({ id: "p1", debtId: "d1", accountId, amount: 1000, date: "2026-02-01" }),
+        SENSITIVE_PAYMENT_FIELDS,
+      ),
+    );
 
     const flows = await getAccountFlows(database);
     expect(flows.get(accountId)).toEqual({ inflow: 5000, outflow: 1000 });
@@ -104,41 +117,30 @@ describe("getAccountFlows", () => {
   });
 
   it("counts a payment on a 'receivable' as an inflow (receiving what you're owed)", async () => {
-    await database.debts.add({
-      id: "d1",
-      reference: "D01",
-      kind: "receivable",
-      counterparty: "Ami",
-      accountId,
-      amount: 2000,
-      date: "2026-01-01",
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
-    await database.debtPayments.add({
-      id: "p1",
-      debtId: "d1",
-      accountId,
-      amount: 500,
-      date: "2026-02-01",
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
+    await database.debts.add(
+      await encryptedFixture(
+        debtFixture({ id: "d1", kind: "receivable", counterparty: "Ami", accountId, amount: 2000 }),
+        SENSITIVE_DEBT_FIELDS,
+      ),
+    );
+    await database.debtPayments.add(
+      await encryptedFixture(
+        paymentFixture({ id: "p1", debtId: "d1", accountId, amount: 500, date: "2026-02-01" }),
+        SENSITIVE_PAYMENT_FIELDS,
+      ),
+    );
 
     const flows = await getAccountFlows(database);
     expect(flows.get(accountId)).toEqual({ inflow: 500, outflow: 2000 });
   });
 
   it("ignores a payment referencing a debt that no longer exists rather than throwing", async () => {
-    await database.debtPayments.add({
-      id: "orphan-payment",
-      debtId: "no-such-debt",
-      accountId,
-      amount: 999,
-      date: "2026-01-01",
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
+    await database.debtPayments.add(
+      await encryptedFixture(
+        paymentFixture({ id: "orphan-payment", debtId: "no-such-debt", accountId, amount: 999 }),
+        SENSITIVE_PAYMENT_FIELDS,
+      ),
+    );
 
     await expect(getAccountFlows(database)).resolves.toBeDefined();
     const flows = await getAccountFlows(database);

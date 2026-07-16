@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
 import type { User } from "@/types/models";
 import { usersRepository } from "@/repositories";
+import { setActiveDek, clearActiveDek } from "@/lib/encryptionSession";
 
 interface AuthContextValue {
   currentUser: User | null;
@@ -18,30 +19,40 @@ const AuthContext = createContext<AuthContextValue | null>(null);
  * Deliberately in-memory only, exactly like the previous app version: no
  * session token is persisted anywhere, so closing or reloading the app
  * always requires logging in again. This is a conscious choice, not an
- * oversight — see README for the reasoning.
+ * oversight — see README for the reasoning. The same is true of the
+ * decryption key itself (see src/lib/encryptionSession.ts): it lives only
+ * as long as the session does.
  *
- * `initialUser` exists for tests: it lets a session start already
- * authenticated, synchronously, rather than every test needing to render,
- * wait for an async `login()` call inside a `useEffect`, and only then
- * proceed — which in practice made React Testing Library's `findBy*`/
- * `waitFor` polling unreliable in this environment for the *next* async
- * update a test triggered afterwards. The real app never passes it.
+ * `initialUser`/`initialDek` exist for tests: they let a session start
+ * already authenticated and already holding an active DEK, synchronously,
+ * rather than every test needing to render, wait for an async `login()`
+ * call inside a `useEffect`, and only then proceed — which in practice made
+ * React Testing Library's `findBy*`/`waitFor` polling unreliable in this
+ * environment for the *next* async update a test triggered afterwards. The
+ * real app never passes either.
  */
 export function AuthProvider({
   children,
   initialUser = null,
+  initialDek,
 }: {
   children: ReactNode;
   initialUser?: User | null;
+  initialDek?: Uint8Array<ArrayBuffer>;
 }) {
-  const [currentUser, setCurrentUser] = useState<User | null>(initialUser);
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    if (initialUser && initialDek) setActiveDek(initialDek);
+    return initialUser;
+  });
 
   const login = useCallback(async (username: string, password: string) => {
-    const user = await usersRepository.authenticate(username, password);
+    const { user, dek } = await usersRepository.authenticate(username, password);
+    setActiveDek(dek);
     setCurrentUser(user);
   }, []);
 
   const logout = useCallback(() => {
+    clearActiveDek();
     setCurrentUser(null);
   }, []);
 

@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
+import { useTestEncryptionSession } from "@/test/testDek";
 import { createTestDatabase } from "@/test/testDatabase";
 import type { SezzAccountsDatabase } from "@/db/schema";
 import { createAccountsRepository } from "./accountsRepository";
@@ -9,6 +10,7 @@ import { createDebtsRepository } from "./debtsRepository";
 import { getRecommendations } from "./recommendations";
 
 describe("getRecommendations", () => {
+  useTestEncryptionSession();
   let database: SezzAccountsDatabase;
   let accountId: string;
 

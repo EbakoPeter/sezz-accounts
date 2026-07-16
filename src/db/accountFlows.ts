@@ -1,4 +1,6 @@
 import type { SezzAccountsDatabase } from "./schema";
+import { fromStorageRows } from "./encryptedRecord";
+import type { Transaction, Debt, DebtPayment } from "@/types/models";
 
 export interface AccountFlow {
   inflow: number;
@@ -26,10 +28,15 @@ export interface AccountFlow {
 export async function getAccountFlows(
   database: SezzAccountsDatabase,
 ): Promise<Map<string, AccountFlow>> {
-  const [transactions, debts, payments] = await Promise.all([
+  const [transactionRows, debtRows, paymentRows] = await Promise.all([
     database.transactions.toArray(),
     database.debts.toArray(),
     database.debtPayments.toArray(),
+  ]);
+  const [transactions, debts, payments] = await Promise.all([
+    fromStorageRows<Transaction>(transactionRows),
+    fromStorageRows<Debt>(debtRows),
+    fromStorageRows<DebtPayment>(paymentRows),
   ]);
 
   const flows = new Map<string, AccountFlow>();

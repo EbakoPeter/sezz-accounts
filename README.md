@@ -61,15 +61,25 @@ tests automatisés, lint/format appliqués, sans Excel ni Capacitor.
   qu'il ne soit jamais possible de verrouiller sa propre administration.
   Session en mémoire uniquement (choix délibéré : aucun jeton persisté, donc
   reconnexion obligatoire à chaque ouverture — voir le composant `LoginScreen`).
-- 215 tests automatisés (dépôts + composants), intégralement verts.
+- **Chiffrement des données au repos.** Chaque champ sensible (noms, montants,
+  libellés, descriptions — tout sauf les identifiants, dates et clés étrangères
+  nécessaires à l'indexation Dexie) est regroupé et chiffré (AES-256-GCM) avant
+  d'atteindre IndexedDB. Une seule clé de chiffrement (DEK) protège l'ensemble des
+  données — partagée, puisque plusieurs utilisateurs peuvent légitimement accéder
+  aux mêmes comptes/opérations — mais jamais stockée en clair : chaque utilisateur
+  détient sa propre copie de cette clé, chiffrée ("enveloppée") sous une clé dérivée
+  de son propre mot de passe (PBKDF2). Changer son mot de passe ne re-chiffre donc
+  jamais les données elles-mêmes, seulement l'enveloppe de cet utilisateur. Voir
+  SECURITY.md pour le modèle de menace complet (ce que ce chiffrement protège,
+  et ce qu'il ne protège délibérément pas).
+- 233 tests automatisés (dépôts + composants), intégralement verts.
 
 **Pas encore fait (suite du plan) :**
 
-- Chiffrement local (le module sera reconstruit isolément et testé, comme annoncé).
 - **Synchronisation entre appareils** — nécessite un serveur backend distinct ;
   voir SYNC_PLAN.md. Reporté après la version hors-ligne. (Les comptes utilisateur
-  eux-mêmes sont faits ; c'est la synchronisation multi-appareils qui reste liée
-  à ce chantier.)
+  et le chiffrement sont faits ; c'est la synchronisation multi-appareils qui reste
+  liée à ce chantier — et qui devra composer avec la clé partagée : voir SECURITY.md.)
 
 ## Démarrer
 
@@ -118,8 +128,18 @@ src/
     passwordHash.ts            Hachage PBKDF2 (150 000 itérations), jamais de mot de
                                 passe en clair, comparaison en temps constant
     permissions.ts              Préréglages de rôle (ROLE_DEFAULT_PERMISSIONS) et libellés
+    encryption.ts                 Primitives : DEK, enveloppement par mot de passe,
+                                    chiffrement/déchiffrement AES-256-GCM d'un objet
+    encryptionSession.ts            Détient la DEK active en mémoire uniquement (jamais
+                                     persistée) — miroir de AuthContext pour les dépôts,
+                                     qui ne sont pas des composants React
   db/
-    schema.ts                 Schéma Dexie (source de vérité des tables/index, versionné)
+    schema.ts                 Schéma Dexie (source de vérité des tables/index, versionné) ;
+                                définit aussi les types "Row" (forme réellement stockée,
+                                champs sensibles regroupés dans un blob chiffré `_enc`)
+    encryptedRecord.ts          toStorageRow/fromStorageRow : convertit entre la forme
+                                 logique (Account, Transaction, ...) et sa forme stockée,
+                                 chiffrée — le seul endroit qui connaît ce découpage
     accountFlows.ts            Calcul centralisé de ce qui affecte un solde de compte
                                 (transactions + dettes + remboursements) — une seule
                                 formule, utilisée par le dépôt ET par le hook réactif
@@ -133,7 +153,7 @@ src/
     debtSummary.ts                   Restant, statut, mensualité prévisionnelle (lecture pure)
     monthlyReport.ts                  Revenus/dépenses/solde par mois, janvier→décembre (lecture pure)
     recommendations.ts                 Analyse automatique (lecture pure, aucun stockage)
-    usersRepository.ts                  CRUD utilisateurs, authentification, permissions
+    usersRepository.ts                  CRUD utilisateurs, authentification, gestion de la DEK
     *.test.ts                     Tests des dépôts (base isolée par test)
   auth/
     AuthContext.tsx           Session (en mémoire uniquement) + hook useAuth()
@@ -154,7 +174,13 @@ src/
     UsersPanel.tsx / .test.tsx      Gestion des utilisateurs et de leurs privilèges
   test/
     testDatabase.ts             Base IndexedDB isolée par test (dépôts)
+    testDek.ts                    Active une DEK de test (dépôts, qui ne passent jamais
+                                   par usersRepository) — voir useTestEncryptionSession()
+    encryptedFixture.ts             Construit une ligne chiffrée pour les tests de
+                                     composants qui insèrent une donnée directement
+                                     (avec un id précis) plutôt que via le dépôt
     renderAuthenticated.tsx       Rendu de composant dans une session déjà authentifiée
+                                   (utilisateur + DEK actifs avant même le premier rendu)
   repositories.ts             Instances des dépôts liées à la base réelle
   App.tsx, main.tsx, App.css
 ```
@@ -178,10 +204,14 @@ src/
 7. **Impossible de verrouiller sa propre administration.** Le dépôt utilisateurs
    refuse toute opération (suppression, changement de rôle) qui retirerait le
    dernier utilisateur capable de gérer les utilisateurs.
+8. **Le chiffrement vit dans la couche dépôt, jamais dans l'UI ni le schéma.**
+   Chaque dépôt convertit vers/depuis la forme chiffrée (`toStorageRow`/
+   `fromStorageRow`) ; le reste de l'application continue de manipuler les mêmes
+   types (`Account`, `Transaction`, ...) qu'avant le chiffrement, inchangés.
 
 ## Prochaine étape proposée
 
-Chiffrement local des données au repos (le module sera reconstruit isolément et
-testé, comme annoncé dès le début de cette réécriture), puis, une fois la version
-hors-ligne jugée complète, le chantier de synchronisation multi-appareils décrit
-dans SYNC_PLAN.md.
+Une fois la version hors-ligne jugée complète, le chantier de synchronisation
+multi-appareils décrit dans SYNC_PLAN.md — qui devra composer avec la clé
+partagée décrite dans SECURITY.md plutôt qu'avec un chiffrement par mot de passe
+unique.

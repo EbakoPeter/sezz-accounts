@@ -1,9 +1,12 @@
-import type { SezzAccountsDatabase } from "./schema";
+import type { SezzAccountsDatabase, TransactionRow } from "./schema";
 import { db as defaultDb } from "./schema";
 import type { Transaction, NewTransaction, TransactionUpdate } from "@/types/models";
 import { generateId } from "@/lib/id";
 import { assertPositiveAmount } from "@/lib/money";
 import { ValidationError, NotFoundError } from "@/lib/errors";
+import { toStorageRow, fromStorageRow, fromStorageRows } from "./encryptedRecord";
+
+const SENSITIVE_TRANSACTION_FIELDS = ["label", "amount", "note"] as const;
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -30,6 +33,13 @@ export interface TransactionFilter {
 }
 
 export function createTransactionsRepository(database: SezzAccountsDatabase = defaultDb) {
+  async function decryptTransaction(row: TransactionRow): Promise<Transaction> {
+    return fromStorageRow<Transaction>(row);
+  }
+  async function decryptTransactions(rows: TransactionRow[]): Promise<Transaction[]> {
+    return fromStorageRows<Transaction>(rows);
+  }
+
   async function assertAccountExists(accountId: string): Promise<void> {
     const account = await database.accounts.get(accountId);
     if (!account) throw new NotFoundError("Compte", accountId);
@@ -55,7 +65,9 @@ export function createTransactionsRepository(database: SezzAccountsDatabase = de
         createdAt: now,
         updatedAt: now,
       };
-      await database.transactions.add(transaction);
+      await database.transactions.add(
+        await toStorageRow(transaction, SENSITIVE_TRANSACTION_FIELDS),
+      );
       return transaction;
     },
 
@@ -68,16 +80,19 @@ export function createTransactionsRepository(database: SezzAccountsDatabase = de
       if (filter.from) rows = rows.filter((tx) => tx.date >= filter.from!);
       if (filter.to) rows = rows.filter((tx) => tx.date <= filter.to!);
 
-      return rows.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+      const transactions = await decryptTransactions(rows);
+      return transactions.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
     },
 
     async getById(id: string): Promise<Transaction | undefined> {
-      return database.transactions.get(id);
+      const row = await database.transactions.get(id);
+      return row ? decryptTransaction(row) : undefined;
     },
 
     async update(id: string, patch: TransactionUpdate): Promise<Transaction> {
-      const existing = await database.transactions.get(id);
-      if (!existing) throw new NotFoundError("Opération", id);
+      const row = await database.transactions.get(id);
+      if (!row) throw new NotFoundError("Opération", id);
+      const existing = await decryptTransaction(row);
 
       const next: Transaction = { ...existing, updatedAt: Date.now() };
       if (patch.date !== undefined) {
@@ -98,7 +113,7 @@ export function createTransactionsRepository(database: SezzAccountsDatabase = de
         next.note = patch.note;
       }
 
-      await database.transactions.put(next);
+      await database.transactions.put(await toStorageRow(next, SENSITIVE_TRANSACTION_FIELDS));
       return next;
     },
 

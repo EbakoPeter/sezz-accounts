@@ -3,7 +3,9 @@ import { getMonthlyReport } from "./monthlyReport";
 import { getBudgetSummary } from "./budgetSummary";
 import { getAllDebtSummaries } from "./debtSummary";
 import { getAccountFlows, netOf } from "./accountFlows";
+import { fromStorageRows } from "./encryptedRecord";
 import { formatFcfa } from "@/lib/money";
+import type { Account } from "@/types/models";
 
 export type InsightSeverity = "success" | "info" | "warning";
 
@@ -96,7 +98,8 @@ export async function getRecommendations(
     }
   }
 
-  const accounts = await database.accounts.toArray();
+  const accountRows = await database.accounts.toArray();
+  const accounts = await fromStorageRows<Account>(accountRows);
   const flows = await getAccountFlows(database);
   for (const account of accounts) {
     const balance = account.initialBalance + netOf(flows.get(account.id));

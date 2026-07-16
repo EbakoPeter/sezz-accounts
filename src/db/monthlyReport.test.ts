@@ -1,11 +1,15 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createTestDatabase } from "@/test/testDatabase";
+import { useTestEncryptionSession } from "@/test/testDek";
+import { encryptedFixture } from "@/test/encryptedFixture";
 import type { SezzAccountsDatabase } from "@/db/schema";
 import { createAccountsRepository } from "./accountsRepository";
 import { createTransactionsRepository } from "./transactionsRepository";
 import { getMonthlyReport } from "./monthlyReport";
+import type { Debt, DebtPayment, Transaction } from "@/types/models";
 
 describe("getMonthlyReport", () => {
+  useTestEncryptionSession();
   let database: SezzAccountsDatabase;
   let accountId: string;
 
@@ -113,7 +117,7 @@ describe("getMonthlyReport", () => {
   });
 
   it("does NOT count debts or debt payments as income/expense", async () => {
-    await database.debts.add({
+    const debt: Debt = {
       id: "d1",
       reference: "D01",
       kind: "debt",
@@ -123,8 +127,11 @@ describe("getMonthlyReport", () => {
       date: "2026-01-01",
       createdAt: Date.now(),
       updatedAt: Date.now(),
-    });
-    await database.debtPayments.add({
+    };
+    await database.debts.add(
+      await encryptedFixture(debt, ["counterparty", "amount", "dueDate", "description"] as const),
+    );
+    const payment: DebtPayment = {
       id: "p1",
       debtId: "d1",
       accountId,
@@ -132,14 +139,15 @@ describe("getMonthlyReport", () => {
       date: "2026-02-01",
       createdAt: Date.now(),
       updatedAt: Date.now(),
-    });
+    };
+    await database.debtPayments.add(await encryptedFixture(payment, ["amount"] as const));
 
     const rows = await getMonthlyReport(2026, database);
     expect(rows.every((r) => r.income === 0 && r.expense === 0)).toBe(true);
   });
 
   it("ignores a malformed/empty date defensively rather than throwing", async () => {
-    await database.transactions.add({
+    const tx: Transaction = {
       id: "bad-tx",
       accountId,
       kind: "income",
@@ -148,7 +156,10 @@ describe("getMonthlyReport", () => {
       amount: 100,
       createdAt: Date.now(),
       updatedAt: Date.now(),
-    });
+    };
+    await database.transactions.add(
+      await encryptedFixture(tx, ["label", "amount", "note"] as const),
+    );
     await expect(getMonthlyReport(2026, database)).resolves.toBeDefined();
   });
 });

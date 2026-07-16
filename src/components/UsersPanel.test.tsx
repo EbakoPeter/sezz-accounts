@@ -4,11 +4,13 @@ import userEvent from "@testing-library/user-event";
 import { UsersPanel } from "./UsersPanel";
 import { AuthProvider } from "@/auth/AuthContext";
 import { db } from "@/db/schema";
+import { clearActiveDek } from "@/lib/encryptionSession";
 import { usersRepository } from "@/repositories";
 import { renderAuthenticated } from "@/test/renderAuthenticated";
 
 afterEach(async () => {
   await db.users.clear();
+  clearActiveDek();
 });
 
 async function renderAsAdminAndReturnUser() {

@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { LoginScreen } from "./LoginScreen";
 import { AuthProvider } from "@/auth/AuthContext";
 import { db } from "@/db/schema";
+import { clearActiveDek } from "@/lib/encryptionSession";
 import { usersRepository } from "@/repositories";
 
 beforeEach(async () => {
@@ -12,6 +13,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await db.users.clear();
+  clearActiveDek();
 });
 
 function renderLoginScreen() {

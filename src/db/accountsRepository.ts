@@ -1,10 +1,13 @@
-import type { SezzAccountsDatabase } from "./schema";
+import type { SezzAccountsDatabase, AccountRow } from "./schema";
 import { db as defaultDb } from "./schema";
 import type { Account, NewAccount, AccountUpdate } from "@/types/models";
 import { generateId } from "@/lib/id";
 import { assertNonNegativeAmount } from "@/lib/money";
 import { ValidationError, NotFoundError } from "@/lib/errors";
 import { getAccountFlows, netOf } from "./accountFlows";
+import { toStorageRow, fromStorageRow, fromStorageRows } from "./encryptedRecord";
+
+const SENSITIVE_ACCOUNT_FIELDS = ["name", "initialBalance"] as const;
 
 function assertValidName(name: string): string {
   const trimmed = name.trim();
@@ -19,9 +22,22 @@ function assertValidName(name: string): string {
  * database instance, while the app uses the shared `db` singleton by default.
  */
 export function createAccountsRepository(database: SezzAccountsDatabase = defaultDb) {
+  async function decryptAccount(row: AccountRow): Promise<Account> {
+    return fromStorageRow<Account>(row);
+  }
+  async function decryptAccounts(rows: AccountRow[]): Promise<Account[]> {
+    return fromStorageRows<Account>(rows);
+  }
+
+  // `name` is encrypted (not indexable), so uniqueness is checked by
+  // decrypting every account and comparing in memory — perfectly fine at
+  // the scale of a personal finance app's account list.
   async function assertNameIsUnique(name: string, excludeId?: string): Promise<void> {
-    const existing = await database.accounts.where("name").equalsIgnoreCase(name).first();
-    if (existing && existing.id !== excludeId) {
+    const all = await decryptAccounts(await database.accounts.toArray());
+    const collision = all.find(
+      (a) => a.id !== excludeId && a.name.toLowerCase() === name.toLowerCase(),
+    );
+    if (collision) {
       throw new ValidationError(`Un compte nommé « ${name} » existe déjà.`);
     }
   }
@@ -40,21 +56,24 @@ export function createAccountsRepository(database: SezzAccountsDatabase = defaul
         createdAt: now,
         updatedAt: now,
       };
-      await database.accounts.add(account);
+      await database.accounts.add(await toStorageRow(account, SENSITIVE_ACCOUNT_FIELDS));
       return account;
     },
 
     async list(): Promise<Account[]> {
-      return database.accounts.orderBy("name").toArray();
+      const accounts = await decryptAccounts(await database.accounts.toArray());
+      return accounts.sort((a, b) => a.name.localeCompare(b.name));
     },
 
     async getById(id: string): Promise<Account | undefined> {
-      return database.accounts.get(id);
+      const row = await database.accounts.get(id);
+      return row ? decryptAccount(row) : undefined;
     },
 
     async update(id: string, patch: AccountUpdate): Promise<Account> {
-      const existing = await database.accounts.get(id);
-      if (!existing) throw new NotFoundError("Compte", id);
+      const row = await database.accounts.get(id);
+      if (!row) throw new NotFoundError("Compte", id);
+      const existing = await decryptAccount(row);
 
       const next: Account = { ...existing, updatedAt: Date.now() };
       if (patch.name !== undefined) {
@@ -66,7 +85,7 @@ export function createAccountsRepository(database: SezzAccountsDatabase = defaul
         next.initialBalance = patch.initialBalance;
       }
 
-      await database.accounts.put(next);
+      await database.accounts.put(await toStorageRow(next, SENSITIVE_ACCOUNT_FIELDS));
       return next;
     },
 
@@ -79,8 +98,9 @@ export function createAccountsRepository(database: SezzAccountsDatabase = defaul
      * payments) together, as an explicit, intentional action.
      */
     async remove(id: string, options: { force?: boolean } = {}): Promise<void> {
-      const existing = await database.accounts.get(id);
-      if (!existing) throw new NotFoundError("Compte", id);
+      const row = await database.accounts.get(id);
+      if (!row) throw new NotFoundError("Compte", id);
+      const existing = await decryptAccount(row);
 
       const [dependentTransactionsCount, dependentDebts] = await Promise.all([
         database.transactions.where("accountId").equals(id).count(),
@@ -118,8 +138,9 @@ export function createAccountsRepository(database: SezzAccountsDatabase = defaul
      * across transactions, debts, and debt payments (see accountFlows.ts).
      * Always derived, never stored, so it can never drift out of sync. */
     async getBalance(id: string): Promise<number> {
-      const account = await database.accounts.get(id);
-      if (!account) throw new NotFoundError("Compte", id);
+      const row = await database.accounts.get(id);
+      if (!row) throw new NotFoundError("Compte", id);
+      const account = await decryptAccount(row);
 
       const flows = await getAccountFlows(database);
       return account.initialBalance + netOf(flows.get(id));

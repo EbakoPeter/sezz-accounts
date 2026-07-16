@@ -1,11 +1,13 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createTestDatabase } from "@/test/testDatabase";
+import { useTestEncryptionSession } from "@/test/testDek";
 import type { SezzAccountsDatabase } from "@/db/schema";
 import { createUsersRepository, type UsersRepository } from "./usersRepository";
 import { ROLE_DEFAULT_PERMISSIONS } from "@/lib/permissions";
 import { ValidationError, NotFoundError, AuthenticationError } from "@/lib/errors";
 
 describe("UsersRepository", () => {
+  useTestEncryptionSession();
   let database: SezzAccountsDatabase;
   let users: UsersRepository;
 
@@ -133,12 +135,12 @@ describe("UsersRepository", () => {
     });
 
     it("returns the user on correct credentials", async () => {
-      const user = await users.authenticate("peter", "correct-password");
+      const { user } = await users.authenticate("peter", "correct-password");
       expect(user.username).toBe("peter");
     });
 
     it("is username-case-insensitive", async () => {
-      const user = await users.authenticate("PETER", "correct-password");
+      const { user } = await users.authenticate("PETER", "correct-password");
       expect(user.username).toBe("peter");
     });
 

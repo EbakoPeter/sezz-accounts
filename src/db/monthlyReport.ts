@@ -1,4 +1,6 @@
 import type { SezzAccountsDatabase } from "./schema";
+import { fromStorageRows } from "./encryptedRecord";
+import type { Transaction } from "@/types/models";
 
 export interface MonthlyReportRow {
   year: number;
@@ -34,7 +36,8 @@ export async function getMonthlyReport(
   year: number,
   database: SezzAccountsDatabase,
 ): Promise<MonthlyReportRow[]> {
-  const transactions = await database.transactions.toArray();
+  const transactionRows = await database.transactions.toArray();
+  const transactions = await fromStorageRows<Transaction>(transactionRows);
 
   const incomeByMonth = new Map<number, number>();
   const expenseByMonth = new Map<number, number>();

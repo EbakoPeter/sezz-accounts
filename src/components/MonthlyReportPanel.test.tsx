@@ -2,12 +2,16 @@ import { afterEach, describe, expect, it } from "vitest";
 import { screen, fireEvent, within } from "@testing-library/react";
 import { MonthlyReportPanel } from "./MonthlyReportPanel";
 import { db } from "@/db/schema";
-import { renderAuthenticated } from "@/test/renderAuthenticated";
+import { clearActiveDek } from "@/lib/encryptionSession";
+import { encryptedFixture } from "@/test/encryptedFixture";
+import { createTestUser, renderWithSession, renderAuthenticated } from "@/test/renderAuthenticated";
+import type { Transaction } from "@/types/models";
 
 afterEach(async () => {
   await db.users.clear();
   await db.transactions.clear();
   await db.accounts.clear();
+  clearActiveDek();
 });
 
 describe("MonthlyReportPanel", () => {
@@ -26,25 +30,36 @@ describe("MonthlyReportPanel", () => {
   });
 
   it("shows transaction totals in the correct month row, for the selected year", async () => {
-    await db.accounts.add({
-      id: "acc-1",
-      name: "Compte",
-      initialBalance: 0,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    } as never);
-    await db.transactions.add({
-      id: "tx-1",
-      accountId: "acc-1",
-      kind: "income",
-      date: "2026-05-01",
-      label: "Salaire",
-      amount: 250000,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    } as never);
+    const session = await createTestUser("admin");
+    await db.accounts.add(
+      await encryptedFixture(
+        {
+          id: "acc-1",
+          name: "Compte",
+          initialBalance: 0,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        },
+        ["name", "initialBalance"] as const,
+      ),
+    );
+    await db.transactions.add(
+      await encryptedFixture<Transaction, "label" | "amount" | "note">(
+        {
+          id: "tx-1",
+          accountId: "acc-1",
+          kind: "income",
+          date: "2026-05-01",
+          label: "Salaire",
+          amount: 250000,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        },
+        ["label", "amount", "note"],
+      ),
+    );
 
-    await renderAuthenticated(<MonthlyReportPanel />);
+    renderWithSession(<MonthlyReportPanel />, session);
     fireEvent.change(await screen.findByLabelText(/année/i), { target: { value: "2026" } });
 
     const table = await screen.findByRole("table");
@@ -53,25 +68,36 @@ describe("MonthlyReportPanel", () => {
   });
 
   it("switching the year updates the report", async () => {
-    await db.accounts.add({
-      id: "acc-1",
-      name: "Compte",
-      initialBalance: 0,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    } as never);
-    await db.transactions.add({
-      id: "tx-2025",
-      accountId: "acc-1",
-      kind: "income",
-      date: "2025-06-01",
-      label: "Ancien revenu",
-      amount: 111111,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    } as never);
+    const session = await createTestUser("admin");
+    await db.accounts.add(
+      await encryptedFixture(
+        {
+          id: "acc-1",
+          name: "Compte",
+          initialBalance: 0,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        },
+        ["name", "initialBalance"] as const,
+      ),
+    );
+    await db.transactions.add(
+      await encryptedFixture<Transaction, "label" | "amount" | "note">(
+        {
+          id: "tx-2025",
+          accountId: "acc-1",
+          kind: "income",
+          date: "2025-06-01",
+          label: "Ancien revenu",
+          amount: 111111,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        },
+        ["label", "amount", "note"],
+      ),
+    );
 
-    await renderAuthenticated(<MonthlyReportPanel />);
+    renderWithSession(<MonthlyReportPanel />, session);
     const yearInput = await screen.findByLabelText(/année/i);
     fireEvent.change(yearInput, { target: { value: "2025" } });
 
