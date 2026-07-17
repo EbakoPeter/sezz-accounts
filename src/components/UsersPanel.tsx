@@ -16,12 +16,19 @@ export function UsersPanel() {
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<UserRole>("standard");
   const [createError, setCreateError] = useState<string | null>(null);
+  const [createdRecoveryCode, setCreatedRecoveryCode] = useState<{
+    username: string;
+    code: string;
+  } | null>(null);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editPermissions, setEditPermissions] = useState<Permissions | null>(null);
   const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null);
   const [resetPasswordId, setResetPasswordId] = useState<string | null>(null);
   const [resetPasswordValue, setResetPasswordValue] = useState("");
+  const [regenerateId, setRegenerateId] = useState<string | null>(null);
+  const [regeneratePasswordValue, setRegeneratePasswordValue] = useState("");
+  const [regeneratedCode, setRegeneratedCode] = useState<string | null>(null);
 
   if (!currentUser?.permissions.manageUsers) {
     return (
@@ -38,13 +45,31 @@ export function UsersPanel() {
     event.preventDefault();
     setCreateError(null);
     try {
-      await usersRepository.create({ username, displayName, password, role });
+      const { recoveryCode } = await usersRepository.create({
+        username,
+        displayName,
+        password,
+        role,
+      });
+      setCreatedRecoveryCode({ username, code: recoveryCode });
       setUsername("");
       setDisplayName("");
       setPassword("");
       setRole("standard");
     } catch (error) {
       setCreateError(error instanceof Error ? error.message : "Erreur inattendue.");
+    }
+  }
+
+  async function handleRegenerateRecoveryCode(id: string) {
+    setRowError(null);
+    try {
+      const newCode = await usersRepository.regenerateRecoveryCode(id, regeneratePasswordValue);
+      setRegeneratedCode(newCode);
+      setRegenerateId(null);
+      setRegeneratePasswordValue("");
+    } catch (error) {
+      setRowError({ id, message: error instanceof Error ? error.message : "Erreur inattendue." });
     }
   }
 
@@ -148,6 +173,31 @@ export function UsersPanel() {
         )}
       </form>
 
+      {createdRecoveryCode && (
+        <div className="note-box" role="status">
+          <p>
+            Code de récupération pour <strong>{createdRecoveryCode.username}</strong> —
+            transmettez-le immédiatement à cette personne, il ne sera plus jamais affiché :
+          </p>
+          <p className="recovery-code">{createdRecoveryCode.code}</p>
+          <button type="button" onClick={() => setCreatedRecoveryCode(null)}>
+            J&apos;ai transmis ce code
+          </button>
+        </div>
+      )}
+
+      {regeneratedCode && (
+        <div className="note-box" role="status">
+          <p>
+            Nouveau code de récupération — notez-le immédiatement, il ne sera plus jamais affiché :
+          </p>
+          <p className="recovery-code">{regeneratedCode}</p>
+          <button type="button" onClick={() => setRegeneratedCode(null)}>
+            Je l&apos;ai noté
+          </button>
+        </div>
+      )}
+
       {users === undefined ? (
         <p>Chargement…</p>
       ) : (
@@ -245,6 +295,31 @@ export function UsersPanel() {
                       Réinitialiser le mot de passe
                     </button>
                   )}{" "}
+                  {user.id === currentUser.id &&
+                    (regenerateId === user.id ? (
+                      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                        <input
+                          type="password"
+                          aria-label="Mot de passe actuel pour régénérer le code"
+                          value={regeneratePasswordValue}
+                          onChange={(e) => setRegeneratePasswordValue(e.target.value)}
+                          style={{ width: 120 }}
+                        />
+                        <button type="button" onClick={() => handleRegenerateRecoveryCode(user.id)}>
+                          Confirmer
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRegenerateId(user.id);
+                          setRegeneratePasswordValue("");
+                        }}
+                      >
+                        Régénérer mon code de récupération
+                      </button>
+                    ))}{" "}
                   {user.id !== currentUser.id && (
                     <button type="button" onClick={() => handleDelete(user.id)}>
                       Supprimer

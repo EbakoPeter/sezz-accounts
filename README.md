@@ -72,14 +72,25 @@ tests automatisés, lint/format appliqués, sans Excel ni Capacitor.
   jamais les données elles-mêmes, seulement l'enveloppe de cet utilisateur. Voir
   SECURITY.md pour le modèle de menace complet (ce que ce chiffrement protège,
   et ce qu'il ne protège délibérément pas).
-- 233 tests automatisés (dépôts + composants), intégralement verts.
+- **Limite de tentatives de connexion.** Après 5 échecs consécutifs, blocage
+  temporaire avec un délai qui double à chaque nouvel échec (30 s → 15 min max).
+  Protège l'interface normale, pas un accès direct à la console — voir SECURITY.md
+  pour cette nuance assumée plutôt que cachée.
+- **Mécanisme de récupération.** Chaque utilisateur reçoit, à la création de son
+  compte, un code de récupération à usage unique (affiché une seule fois, jamais
+  stocké en clair — seuls un hachage et une seconde enveloppe de la DEK le sont),
+  permettant de définir un nouveau mot de passe en cas d'oubli sans perdre l'accès
+  aux données. Utiliser le code le fait pivoter automatiquement ; régénérable à
+  tout moment avec le mot de passe actuel.
+- 272 tests automatisés (dépôts + composants), intégralement verts.
 
 **Pas encore fait (suite du plan) :**
 
 - **Synchronisation entre appareils** — nécessite un serveur backend distinct ;
-  voir SYNC_PLAN.md. Reporté après la version hors-ligne. (Les comptes utilisateur
-  et le chiffrement sont faits ; c'est la synchronisation multi-appareils qui reste
-  liée à ce chantier — et qui devra composer avec la clé partagée : voir SECURITY.md.)
+  voir SYNC_PLAN.md. Reporté après la version hors-ligne. (Les comptes utilisateur,
+  le chiffrement, la limite de tentatives et la récupération sont faits ; c'est la
+  synchronisation multi-appareils qui reste liée à ce chantier — et qui devra
+  composer avec la clé partagée : voir SECURITY.md.)
 
 ## Démarrer
 
@@ -123,7 +134,7 @@ src/
                             BudgetSubcategory, Debt, DebtPayment, User, Permissions)
   lib/
     money.ts                Arithmétique et formatage monétaire (entiers uniquement)
-    errors.ts                ValidationError, NotFoundError, AuthenticationError
+    errors.ts                ValidationError, NotFoundError, AuthenticationError, AccountLockedError
     id.ts                     Génération d'identifiants
     passwordHash.ts            Hachage PBKDF2 (150 000 itérations), jamais de mot de
                                 passe en clair, comparaison en temps constant
@@ -133,6 +144,9 @@ src/
     encryptionSession.ts            Détient la DEK active en mémoire uniquement (jamais
                                      persistée) — miroir de AuthContext pour les dépôts,
                                      qui ne sont pas des composants React
+    loginRateLimit.ts                 Calcul pur du blocage progressif (aucun accès
+                                      base de données ici — voir usersRepository.ts)
+    recoveryCode.ts                    Génération et normalisation du code de récupération
   db/
     schema.ts                 Schéma Dexie (source de vérité des tables/index, versionné) ;
                                 définit aussi les types "Row" (forme réellement stockée,
@@ -211,7 +225,10 @@ src/
 
 ## Prochaine étape proposée
 
-Une fois la version hors-ligne jugée complète, le chantier de synchronisation
-multi-appareils décrit dans SYNC_PLAN.md — qui devra composer avec la clé
-partagée décrite dans SECURITY.md plutôt qu'avec un chiffrement par mot de passe
-unique.
+La version hors-ligne couvre désormais tout ce qui était prévu à l'origine :
+comptes, opérations, budget, dettes, rapport, recommandations, comptes
+utilisateur à privilèges configurables, chiffrement au repos, limite de
+tentatives et récupération de mot de passe. La suite naturelle est le
+chantier de synchronisation multi-appareils décrit dans SYNC_PLAN.md — qui
+devra composer avec la clé partagée décrite dans SECURITY.md plutôt qu'avec
+un chiffrement par mot de passe unique.

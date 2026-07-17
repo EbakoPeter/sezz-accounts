@@ -171,6 +171,24 @@ export interface User {
    * with a key derived directly from one user's password. */
   wrappedDek: { iv: string; data: string };
   dekSalt: string;
+  /** A second, independent wrapped copy of the *same* shared DEK, this one
+   * unlockable with the recovery code shown once at account creation
+   * instead of the password — the way back in if the password is
+   * forgotten. Verified/derived exactly like a password (hash+salt,
+   * PBKDF2), never stored or comparable in plain text. */
+  recoveryCodeHash: string;
+  recoveryCodeSalt: string;
+  wrappedDekByRecoveryCode: { iv: string; data: string };
+  recoveryDekSalt: string;
+  /** Consecutive failed login attempts since the last success; resets to 0
+   * on a correct password. Never incremented while already locked out
+   * (see UsersRepository.authenticate) so hammering a locked account
+   * cannot compound its own lockout indefinitely. */
+  failedLoginAttempts: number;
+  /** Set once `failedLoginAttempts` crosses the threshold; authentication
+   * is refused until this moment passes, regardless of whether the
+   * password given is actually correct. */
+  lockedUntil?: Timestamp;
   role: UserRole;
   permissions: Permissions;
   createdAt: Timestamp;

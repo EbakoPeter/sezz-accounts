@@ -11,6 +11,13 @@ interface AuthContextValue {
    * edits their own permissions/role so the in-memory session reflects it
    * immediately rather than on next login. */
   refresh: () => Promise<void>;
+  /** Uses a recovery code to set a new password, in place of a forgotten
+   * one. Deliberately does *not* log the person in itself — it returns the
+   * freshly-rotated recovery code so the caller can show it once and get
+   * acknowledgment, exactly like first-run account creation; the caller
+   * then calls `login()` with the new password as a separate, explicit
+   * step once that's done. */
+  recoverAccount: (username: string, recoveryCode: string, newPassword: string) => Promise<string>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -62,8 +69,16 @@ export function AuthProvider({
     if (fresh) setCurrentUser(fresh);
   }, [currentUser]);
 
+  const recoverAccount = useCallback(
+    async (username: string, recoveryCode: string, newPassword: string): Promise<string> => {
+      const result = await usersRepository.recoverWithCode(username, recoveryCode, newPassword);
+      return result.recoveryCode;
+    },
+    [],
+  );
+
   return (
-    <AuthContext.Provider value={{ currentUser, login, logout, refresh }}>
+    <AuthContext.Provider value={{ currentUser, login, logout, refresh, recoverAccount }}>
       {children}
     </AuthContext.Provider>
   );

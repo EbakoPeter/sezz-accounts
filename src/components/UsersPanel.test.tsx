@@ -50,7 +50,7 @@ describe("UsersPanel", () => {
     // avoidance here: this test needs a scenario with exactly one admin
     // overall, which is exactly what creating a single user in an empty
     // table produces (the repository's "first user is always admin" rule).
-    const soleAdmin = await usersRepository.create({
+    const { user: soleAdmin } = await usersRepository.create({
       username: "solo-admin",
       displayName: "Solo Admin",
       password: "password123",
@@ -100,4 +100,74 @@ describe("UsersPanel", () => {
     await renderAsAdminAndReturnUser();
     expect(screen.queryByRole("button", { name: /^supprimer$/i })).not.toBeInTheDocument();
   });
+
+  it("shows the new user's recovery code once, for the admin to relay", async () => {
+    await renderAsAdminAndReturnUser();
+    const user = userEvent.setup();
+
+    await user.type(screen.getByLabelText(/nom d'utilisateur/i), "newuser");
+    await user.type(screen.getByLabelText(/nom affiché/i), "New User");
+    await user.type(screen.getByLabelText(/^mot de passe$/i), "password123");
+    await user.click(screen.getByRole("button", { name: /\+ ajouter/i }));
+
+    await screen.findByText("New User");
+    const notice = await screen.findByRole("status");
+    expect(notice).toHaveTextContent(/newuser/i);
+    expect(notice.textContent).toMatch(/[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}/);
+
+    await user.click(screen.getByRole("button", { name: /j'ai transmis ce code/i }));
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("lets a user regenerate their own recovery code with their current password", async () => {
+    const session = await renderAsAdminWithKnownPassword();
+    const user = userEvent.setup();
+
+    await user.click(
+      await screen.findByRole("button", { name: /régénérer mon code de récupération/i }),
+    );
+    await user.type(
+      screen.getByLabelText(/mot de passe actuel pour régénérer le code/i),
+      session.password,
+    );
+    await user.click(screen.getByRole("button", { name: /^confirmer$/i }));
+
+    const notice = await screen.findByRole("status");
+    expect(notice.textContent).toMatch(/[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}/);
+  });
+
+  it("refuses to regenerate the recovery code with the wrong current password", async () => {
+    await renderAsAdminAndReturnUser();
+    const user = userEvent.setup();
+
+    await user.click(
+      await screen.findByRole("button", { name: /régénérer mon code de récupération/i }),
+    );
+    await user.type(
+      screen.getByLabelText(/mot de passe actuel pour régénérer le code/i),
+      "wrong-password",
+    );
+    await user.click(screen.getByRole("button", { name: /^confirmer$/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/incorrect/i);
+  });
 });
+
+/** renderAsAdminAndReturnUser() doesn't expose the plaintext password (it's
+ * generated internally by the test helper) — this variant creates the admin
+ * directly so the test can supply, and later re-use, a known password. */
+async function renderAsAdminWithKnownPassword() {
+  const password = "known-password-123";
+  const { user } = await usersRepository.create({
+    username: "admin-with-known-password",
+    displayName: "Admin",
+    password,
+    role: "admin",
+  });
+  render(
+    <AuthProvider initialUser={user}>
+      <UsersPanel />
+    </AuthProvider>,
+  );
+  return { user, password };
+}

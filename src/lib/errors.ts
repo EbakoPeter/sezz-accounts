@@ -29,3 +29,15 @@ export class AuthenticationError extends Error {
     this.name = "AuthenticationError";
   }
 }
+
+/** Raised when an account is temporarily locked out after too many failed
+ * attempts (login or recovery). Kept distinct from AuthenticationError so
+ * the UI can show a specific, actionable message ("try again in N seconds")
+ * rather than the generic wrong-credentials message. */
+export class AccountLockedError extends Error {
+  constructor(public readonly retryAfterMs: number) {
+    const seconds = Math.ceil(retryAfterMs / 1000);
+    super(`Trop de tentatives échouées. Réessayez dans ${seconds} seconde(s).`);
+    this.name = "AccountLockedError";
+  }
+}

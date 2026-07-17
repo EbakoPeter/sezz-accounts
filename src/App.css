@@ -193,3 +193,31 @@ td {
   font-size: 0.8rem;
   margin-top: 6px;
 }
+
+.recovery-code {
+  font-family: "Courier New", monospace;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px dashed var(--gold);
+  border-radius: 6px;
+  padding: 10px 14px;
+  text-align: center;
+  margin: 10px 0;
+  user-select: all;
+}
+
+.note-box {
+  background: #fbf6ec;
+  border: 1px solid var(--gold);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 12px 0;
+  font-size: 0.85rem;
+}
+
+.note-box p {
+  margin: 0 0 6px;
+}

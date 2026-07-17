@@ -57,30 +57,63 @@ privilèges). Cette DEK n'est cependant **jamais stockée en clair** :
   entièrement contre ce scénario.
 - **Une attaque par mot de passe faible.** PBKDF2 à 150 000 itérations
   ralentit sensiblement une attaque par force brute hors-ligne, mais un mot
-  de passe court ou courant reste vulnérable. Aucune limite de tentatives de
-  connexion n'est actuellement implémentée (voir la section suivante).
-- **La perte du dernier mot de passe capable de déballer la DEK, sans aucune
-  sauvegarde.** Il n'existe actuellement aucun mécanisme de récupération
-  (code de récupération, question secrète, etc.) : si tous les utilisateurs
-  oublient leur mot de passe, les données sont irrécupérables. C'est un
-  compromis délibéré de cette étape (voir "Limites connues" ci-dessous),
-  pas une négligence.
+  de passe court ou courant reste vulnérable face à quelqu'un qui
+  contournerait l'interface (voir la limite de tentatives ci-dessous, qui ne
+  protège que l'interface elle-même).
+
+## Limite de tentatives de connexion (implémentée)
+
+Après 5 échecs consécutifs sur un même compte, l'accès est bloqué
+temporairement, avec un délai qui double à chaque nouvel échec (30 s, 1 min,
+2 min, ... jusqu'à un plafond de 15 minutes) — voir `src/lib/loginRateLimit.ts`.
+Une tentative réussie remet le compteur à zéro. Un nom d'utilisateur
+inexistant n'est jamais bloqué (il n'y a rien à protéger derrière).
+
+**Limite honnête de cette protection** : elle ne protège que le passage par
+l'interface de l'application. Une personne ayant accès à la console de
+développement du navigateur pourrait appeler `usersRepository.authenticate()`
+directement et contourner ce compteur — aucun mécanisme purement côté client
+ne peut empêcher cela. Ce verrou augmente le coût d'un essai rapide et
+répété via l'interface normale ; il ne remplace pas un mot de passe robuste.
+
+## Mécanisme de récupération (implémenté)
+
+Chaque utilisateur reçoit, à la création de son compte, un **code de
+récupération** à usage détourné du mot de passe : 16 caractères (alphabet
+sans caractères ambigus), affiché une seule fois, jamais stocké en clair.
+Comme pour le mot de passe, seul un hachage (pour une vérification rapide)
+et une copie de la DEK partagée chiffrée sous une clé dérivée de ce code
+sont conservés.
+
+En cas de mot de passe oublié, ce code permet de définir un nouveau mot de
+passe sans perdre l'accès aux données (voir le lien « Mot de passe oublié ? »
+sur l'écran de connexion). Utiliser le code le fait immédiatement pivoter
+(un nouveau code est généré et affiché) — l'ancien cesse de fonctionner,
+exactement comme un code de sauvegarde à usage unique d'une authentification
+à deux facteurs. Un utilisateur peut aussi régénérer son propre code à tout
+moment (avec son mot de passe actuel) sans attendre d'en avoir besoin.
+
+**Ce que cela ne couvre pas** : si le code de récupération ET le mot de passe
+sont tous deux perdus, l'accès à ce compte est définitivement perdu — il n'y
+a délibérément aucune porte dérobée supplémentaire. Si cet utilisateur était
+le seul administrateur, cela signifie perdre l'accès à l'administration de
+l'application (mais pas aux données elles-mêmes : si un autre utilisateur
+existe, cette personne reste malgré tout connectée avec un accès normal ;
+voir aussi `adminResetPassword`, qui permet à un administrateur de
+réinitialiser le mot de passe d'un autre utilisateur sans son code).
 
 ## Limites connues, non traitées à ce stade
 
-- **Aucune limite de tentatives de connexion** (`usersRepository.authenticate`
-  peut être appelé indéfiniment). Une protection simple (délai croissant ou
-  verrouillage temporaire après quelques échecs) serait la prochaine
-  amélioration de sécurité à apporter avant tout déploiement réel.
-- **Aucun mécanisme de récupération de mot de passe.** L'ancienne version de
-  l'application avait un code de récupération distinct ; cette réécriture ne
-  l'a pas encore réintroduit.
 - **La synchronisation entre appareils (SYNC_PLAN.md), une fois construite,
   devra décider comment un serveur distant traite cette DEK partagée** — soit
   le serveur ne voit jamais la DEK en clair (chiffrement de bout en bout,
   plus complexe), soit on accepte que le serveur soit un tiers de confiance
   qui la voit (plus simple, mais un changement de posture de sécurité qu'il
   faudra documenter explicitement le moment venu).
+- **Aucune protection contre un mot de passe et un code de récupération tous
+  deux compromis simultanément** (par ex. les deux notés au même endroit
+  physique). C'est un compromis inhérent à ce mode de récupération, pas
+  spécifique à cette application.
 
 ## Pourquoi cette architecture plutôt qu'un chiffrement plus simple
 

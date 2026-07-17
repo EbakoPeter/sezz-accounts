@@ -60,7 +60,7 @@ export async function createTestUser(
   counter += 1;
   const username = `test-user-${counter}`;
   const password = "test-password-123";
-  const user = await usersRepository.create({
+  const { user } = await usersRepository.create({
     username,
     displayName: username,
     password,

@@ -3,15 +3,36 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { usersRepository } from "@/repositories";
 import { useAuth } from "@/auth/AuthContext";
 
+type Mode = "login" | "forgot-password";
+
 export function LoginScreen() {
   const userCount = useLiveQuery(() => usersRepository.list().then((list) => list.length), []);
-  const { login } = useAuth();
+  const { login, recoverAccount } = useAuth();
 
+  const [mode, setMode] = useState<Mode>("login");
+
+  // Shared login/first-run fields
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  // Forgot-password fields
+  const [recoverUsername, setRecoverUsername] = useState("");
+  const [recoveryCodeInput, setRecoveryCodeInput] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+
+  // Set once account creation or recovery produces a fresh recovery code
+  // that must be shown and acknowledged before the person can proceed —
+  // both flows funnel through this same mandatory screen.
+  const [pendingRecoveryCode, setPendingRecoveryCode] = useState<{
+    code: string;
+    loginUsername: string;
+    loginPassword: string;
+  } | null>(null);
+  const [codeAcknowledged, setCodeAcknowledged] = useState(false);
 
   if (userCount === undefined) {
     return <p>Chargement…</p>;
@@ -27,13 +48,17 @@ export function LoginScreen() {
       return;
     }
     try {
-      await usersRepository.create({
+      const { recoveryCode } = await usersRepository.create({
         username,
         displayName: displayName || username,
         password,
         role: "admin",
       });
-      await login(username, password);
+      setPendingRecoveryCode({
+        code: recoveryCode,
+        loginUsername: username,
+        loginPassword: password,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur inattendue.");
     }
@@ -47,6 +72,64 @@ export function LoginScreen() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur inattendue.");
     }
+  }
+
+  async function handleRecover(event: FormEvent) {
+    event.preventDefault();
+    setError(null);
+    if (newPassword !== confirmNewPassword) {
+      setError("Les deux mots de passe ne correspondent pas.");
+      return;
+    }
+    try {
+      const newCode = await recoverAccount(recoverUsername, recoveryCodeInput, newPassword);
+      setPendingRecoveryCode({
+        code: newCode,
+        loginUsername: recoverUsername,
+        loginPassword: newPassword,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur inattendue.");
+    }
+  }
+
+  async function handleContinueAfterRecoveryCode() {
+    if (!pendingRecoveryCode) return;
+    await login(pendingRecoveryCode.loginUsername, pendingRecoveryCode.loginPassword);
+  }
+
+  if (pendingRecoveryCode) {
+    return (
+      <div className="login-screen">
+        <div className="login-card">
+          <h1>SEZZ Accounts</h1>
+          <h2>Votre code de récupération</h2>
+          <p className="tagline">
+            Notez ce code et conservez-le en lieu sûr. Il est le seul moyen de retrouver
+            l&apos;accès à vos données si vous oubliez votre mot de passe — il ne sera plus jamais
+            affiché.
+          </p>
+          <p className="recovery-code" data-testid="recovery-code">
+            {pendingRecoveryCode.code}
+          </p>
+          <label className="field" style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <input
+              type="checkbox"
+              checked={codeAcknowledged}
+              onChange={(e) => setCodeAcknowledged(e.target.checked)}
+            />
+            J&apos;ai noté ce code en lieu sûr.
+          </label>
+          <button
+            type="button"
+            disabled={!codeAcknowledged}
+            onClick={handleContinueAfterRecoveryCode}
+          >
+            Continuer
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -99,7 +182,7 @@ export function LoginScreen() {
               )}
             </form>
           </>
-        ) : (
+        ) : mode === "login" ? (
           <form onSubmit={handleLogin} aria-label="Se connecter">
             <div className="field">
               <label htmlFor="login-username">Nom d&apos;utilisateur</label>
@@ -119,6 +202,59 @@ export function LoginScreen() {
               />
             </div>
             <button type="submit">Se connecter</button>
+            <button type="button" className="ghost" onClick={() => setMode("forgot-password")}>
+              Mot de passe oublié ?
+            </button>
+            {error && (
+              <p role="alert" className="form-error">
+                {error}
+              </p>
+            )}
+          </form>
+        ) : (
+          <form onSubmit={handleRecover} aria-label="Récupérer l'accès">
+            <p className="tagline">
+              Utilisez votre code de récupération pour définir un nouveau mot de passe.
+            </p>
+            <div className="field">
+              <label htmlFor="recover-username">Nom d&apos;utilisateur</label>
+              <input
+                id="recover-username"
+                value={recoverUsername}
+                onChange={(e) => setRecoverUsername(e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="recover-code">Code de récupération</label>
+              <input
+                id="recover-code"
+                value={recoveryCodeInput}
+                onChange={(e) => setRecoveryCodeInput(e.target.value)}
+                placeholder="XXXX-XXXX-XXXX-XXXX"
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="recover-new-password">Nouveau mot de passe</label>
+              <input
+                id="recover-new-password"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="recover-confirm-password">Confirmer le nouveau mot de passe</label>
+              <input
+                id="recover-confirm-password"
+                type="password"
+                value={confirmNewPassword}
+                onChange={(e) => setConfirmNewPassword(e.target.value)}
+              />
+            </div>
+            <button type="submit">Réinitialiser et se connecter</button>
+            <button type="button" className="ghost" onClick={() => setMode("login")}>
+              Retour à la connexion
+            </button>
             {error && (
               <p role="alert" className="form-error">
                 {error}
