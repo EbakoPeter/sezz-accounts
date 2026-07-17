@@ -258,30 +258,39 @@ export function createUsersRepository(database: SezzAccountsDatabase = defaultDb
      * their copy of the shared DEK. Throws AuthenticationError (without
      * indicating which part was wrong) on any failure, including an
      * unknown username. Returns both the user and the raw DEK bytes so the
-     * caller (AuthContext) can activate the encrypted session. */
+     * caller (AuthContext) can activate the encrypted session.
+     *
+     * Order matters here: password verification and DEK unwrapping only
+     * ever touch this row's *structural* (unencrypted) fields —
+     * passwordHash, passwordSalt, wrappedDek, dekSalt. Decrypting the full
+     * user record (to read displayName) requires an active session, which
+     * does not exist yet on a genuinely fresh login — so that decryption
+     * must happen *after* the DEK is unwrapped and activated, never before. */
     async authenticate(
       username: string,
       password: string,
     ): Promise<{ user: User; dek: Uint8Array<ArrayBuffer> }> {
       const row = await getRowByUsername(username);
       if (!row) throw new AuthenticationError();
-      const user = await decryptUser(row);
 
       const isCorrect = await verifyPassword(password, {
-        hash: user.passwordHash,
-        salt: user.passwordSalt,
+        hash: row.passwordHash,
+        salt: row.passwordSalt,
       });
       if (!isCorrect) throw new AuthenticationError();
 
       let dek: Uint8Array<ArrayBuffer>;
       try {
-        dek = await unwrapDek(user.wrappedDek, password, user.dekSalt);
+        dek = await unwrapDek(row.wrappedDek, password, row.dekSalt);
       } catch {
         // password hash matched but the DEK failed to unwrap — should not
         // normally happen, but surfacing it as the same generic auth error
         // is safer than a confusing crypto-specific message to the user.
         throw new AuthenticationError();
       }
+
+      setActiveDek(dek);
+      const user = await decryptUser(row);
       return { user, dek };
     },
   };

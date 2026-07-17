@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createTestDatabase } from "@/test/testDatabase";
 import { useTestEncryptionSession } from "@/test/testDek";
+import { clearActiveDek } from "@/lib/encryptionSession";
 import type { SezzAccountsDatabase } from "@/db/schema";
 import { createUsersRepository, type UsersRepository } from "./usersRepository";
 import { ROLE_DEFAULT_PERMISSIONS } from "@/lib/permissions";
@@ -152,6 +153,16 @@ describe("UsersRepository", () => {
 
     it("throws AuthenticationError for an unknown username (same error as wrong password)", async () => {
       await expect(users.authenticate("ghost", "anything")).rejects.toThrow(AuthenticationError);
+    });
+
+    it("succeeds on a genuinely fresh session with no DEK active yet (regression: this exact scenario is what a real app restart looks like)", async () => {
+      // useTestEncryptionSession's beforeEach, and users.create() above,
+      // both leave a DEK active — simulate the real-world case where
+      // nobody has logged in yet this session at all.
+      clearActiveDek();
+      const { user, dek } = await users.authenticate("peter", "correct-password");
+      expect(user.username).toBe("peter");
+      expect(dek).toBeInstanceOf(Uint8Array);
     });
   });
 
