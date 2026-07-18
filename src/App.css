@@ -91,6 +91,21 @@ button {
   font-weight: 600;
 }
 
+button.ghost {
+  background: none;
+  color: var(--ink);
+  border: 1px solid #cbc1aa;
+}
+
+button.ghost:hover {
+  background: #efe8d8;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .password-input {
   display: flex;
   align-items: stretch;

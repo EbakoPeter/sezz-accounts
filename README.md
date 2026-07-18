@@ -94,15 +94,27 @@ tests automatisés, lint/format appliqués, sans Excel ni Capacitor.
   (au rendu ou ailleurs) affiche désormais le message et la pile d'appels
   directement à l'écran au lieu de laisser une page vide sans indice — précieux
   sur mobile, où la console du navigateur n'est pas accessible facilement.
-- 288 tests automatisés (dépôts + composants), intégralement verts.
+- **Synchronisation entre appareils.** Un serveur séparé (`sezz-accounts-server/`)
+  stocke et relaie des données déjà chiffrées entre vos appareils — il ne peut
+  jamais les lire (voir SYNC_PLAN.md pour l'architecture complète, écrite après
+  coup pour refléter ce qui a réellement été construit, pas seulement proposé).
+  Connexion et synchronisation manuelle via l'onglet Synchronisation. Le serveur
+  est prêt et testé contre une vraie base PostgreSQL, mais reste à héberger
+  quelque part d'accessible par vos appareils — voir son propre README.
+- 328 tests automatisés côté client (dépôts + composants) + 22 côté serveur,
+  intégralement verts.
 
-**Pas encore fait (suite du plan) :**
+**Pas encore fait :**
 
-- **Synchronisation entre appareils** — nécessite un serveur backend distinct ;
-  voir SYNC_PLAN.md. Reporté après la version hors-ligne. (Les comptes utilisateur,
-  le chiffrement, la limite de tentatives et la récupération sont faits ; c'est la
-  synchronisation multi-appareils qui reste liée à ce chantier — et qui devra
-  composer avec la clé partagée : voir SECURITY.md.)
+- **Synchronisation automatique en arrière-plan** — actuellement un bouton
+  manuel ; un déclenchement automatique (démarrage, intervalle, reconnexion
+  réseau) reste à construire.
+- **Hébergement réel du serveur de synchronisation** — le code existe et
+  fonctionne, mais aucune instance n'est encore déployée quelque part
+  d'accessible par vos appareils.
+- **Limite de tentatives et récupération pour le compte de synchronisation**
+  (existent déjà pour les utilisateurs locaux, pas encore pour ce second
+  compte — voir les limites listées dans `sezz-accounts-server/README.md`).
 
 ## Démarrer
 
@@ -180,6 +192,8 @@ src/
     monthlyReport.ts                  Revenus/dépenses/solde par mois, janvier→décembre (lecture pure)
     recommendations.ts                 Analyse automatique (lecture pure, aucun stockage)
     usersRepository.ts                  CRUD utilisateurs, authentification, gestion de la DEK
+    deletionLog.ts                       Journal des suppressions locales, pour que le moteur
+                                          de synchronisation sache quoi transformer en tombstone
     *.test.ts                     Tests des dépôts (base isolée par test)
   auth/
     AuthContext.tsx           Session (en mémoire uniquement) + hook useAuth()
@@ -198,6 +212,8 @@ src/
     RecommendationsPanel.tsx / .test.tsx
     LoginScreen.tsx / .test.tsx    Première connexion (création admin) et connexions suivantes
     UsersPanel.tsx / .test.tsx      Gestion des utilisateurs et de leurs privilèges
+    SyncPanel.tsx / .test.tsx        Connexion/déconnexion au serveur de synchronisation,
+                                      déclenchement manuel, affichage du résultat
   test/
     testDatabase.ts             Base IndexedDB isolée par test (dépôts)
     testDek.ts                    Active une DEK de test (dépôts, qui ne passent jamais
@@ -208,6 +224,14 @@ src/
     renderAuthenticated.tsx       Rendu de composant dans une session déjà authentifiée
                                    (utilisateur + DEK actifs avant même le premier rendu)
   repositories.ts             Instances des dépôts liées à la base réelle
+  sync/
+    syncClient.ts                Compte de synchronisation : inscription/connexion/
+                                  déconnexion au serveur, session dans syncConfig
+    syncEngine.ts                  push/pull génériques sur toutes les tables
+                                    synchronisables ; dernier-écrit-gagne des deux côtés
+    syncClient.test.ts, syncEngine.test.ts  Tests (fetch simulé — le vrai
+                                             comportement serveur est vérifié
+                                             indépendamment, voir sezz-accounts-server/)
   App.tsx, main.tsx, App.css
 ```
 
@@ -247,10 +271,13 @@ src/
 
 ## Prochaine étape proposée
 
-La version hors-ligne couvre désormais tout ce qui était prévu à l'origine :
-comptes, opérations, budget, dettes, rapport, recommandations, comptes
-utilisateur à privilèges configurables, chiffrement au repos, limite de
-tentatives et récupération de mot de passe. La suite naturelle est le
-chantier de synchronisation multi-appareils décrit dans SYNC_PLAN.md — qui
-devra composer avec la clé partagée décrite dans SECURITY.md plutôt qu'avec
-un chiffrement par mot de passe unique.
+La version hors-ligne couvre tout ce qui était prévu à l'origine, et la
+synchronisation multi-appareils (SYNC_PLAN.md) est maintenant construite et
+testée des deux côtés — client et serveur. Il ne reste plus de chantier de
+conception majeur, mais deux étapes concrètes avant un usage réel :
+
+1. **Héberger le serveur quelque part d'accessible** (voir
+   `sezz-accounts-server/README.md` pour les options) — sans ça, la
+   synchronisation ne peut être testée qu'en local.
+2. **Synchronisation automatique en arrière-plan**, pour ne plus dépendre du
+   bouton manuel — probablement le morceau le plus utile à construire ensuite.

@@ -1,14 +1,13 @@
-# Architecture proposée : comptes utilisateur et synchronisation entre appareils
+# Synchronisation entre appareils — état de l'implémentation
 
-## Pourquoi ce document existe
+## Statut : implémenté, en attente de déploiement du serveur
 
-L'application actuelle (voir README.md) est **locale uniquement** : chaque appareil a
-sa propre base IndexedDB, indépendante. Avoir un compte utilisateur et une
-synchronisation entre appareils exige un composant qui n'existe pas encore : **un
-serveur backend**, avec sa propre base de données, qui fait autorité sur les données
-d'un compte et que chaque appareil contacte pour se synchroniser.
-
-Ce document décrit l'architecture proposée avant de l'implémenter, pour validation.
+Ce document décrivait à l'origine une proposition d'architecture, avant tout code.
+Le serveur et le moteur de synchronisation client existent maintenant et sont
+testés — voir `sezz-accounts-server/README.md` pour le serveur, et
+`src/sync/` (client) pour la partie qui vient d'être intégrée à l'application.
+Ce qui suit décrit l'architecture **telle que construite**, avec les quelques
+écarts par rapport à la proposition initiale, assumés et expliqués.
 
 ## Vue d'ensemble
 
@@ -30,86 +29,97 @@ Ce document décrit l'architecture proposée avant de l'implémenter, pour valid
                   │   backend     │
                   │  (à héberger) │
                   │               │
-                  │  Base de      │
-                  │  données      │
-                  │  faisant      │
-                  │  autorité     │
+                  │  Ne voit que  │
+                  │  du chiffré   │
                   └───────────────┘
 ```
 
-Principe retenu : **hors-ligne d'abord, synchronisé quand c'est possible.** L'app
-continue de fonctionner sans connexion (elle lit/écrit toujours dans IndexedDB en
-premier) ; une synchronisation en arrière-plan pousse les changements locaux vers le
-serveur et récupère ceux des autres appareils dès qu'une connexion est disponible.
-C'est le même principe que Google Drive/Dropbox, appliqué à nos propres données.
+Principe retenu, inchangé par rapport à la proposition : **hors-ligne d'abord,
+synchronisé quand c'est possible.** L'app continue de fonctionner sans connexion ;
+un bouton « Synchroniser maintenant » (onglet Synchronisation) pousse les
+changements locaux vers le serveur et récupère ceux des autres appareils.
+La synchronisation automatique en arrière-plan n'est pas encore construite —
+voir « Ce qui reste » plus bas.
 
-## Ce qui change dans le modèle de données
+## Écart n°1 : le chiffrement n'a pas été différé
 
-Chaque enregistrement synchronisable (`Account`, `Transaction`, plus tard `Debt`,
-etc.) gagne deux champs :
+La proposition initiale suggérait de commencer sans chiffrement côté serveur
+pour simplifier, quitte à l'ajouter plus tard. Entre-temps, le chiffrement au
+repos a été construit côté client (voir SECURITY.md) — une clé de chiffrement
+partagée (DEK), enveloppée individuellement par mot de passe pour chaque
+utilisateur local. Une fois cette fondation en place, différer le chiffrement
+du serveur aurait été un pas en arrière plutôt qu'une simplification : autant
+préserver dès le départ la propriété « le serveur ne peut jamais lire les
+données », plutôt que de la retirer puis la réintroduire plus tard.
 
-| Champ       | Rôle                                                                                                                                                                                                                                                                                         |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `updatedAt` | Déjà présent. Sert à départager qui a raison en cas de modification du même enregistrement sur deux appareils pendant qu'ils étaient hors ligne (le plus récent gagne).                                                                                                                      |
-| `deletedAt` | Nouveau. Une suppression ne retire plus la ligne immédiatement : elle est marquée supprimée (« tombstone ») pour que les autres appareils apprennent qu'il faut la supprimer chez eux aussi à la prochaine synchronisation. Purgée définitivement après un délai raisonnable (ex. 90 jours). |
+Concrètement : chaque enregistrement synchronisé garde ses champs structurels
+en clair (identifiants, dates, clés étrangères — nécessaires pour filtrer/trier
+côté serveur) et son contenu sensible dans le même blob chiffré `_enc` que le
+client utilise déjà localement. Le serveur stocke et relaie ce blob sans jamais
+le déchiffrer.
 
-**Résolution de conflit retenue : dernier écrit gagne, par enregistrement.** Simple,
-prévisible, suffisant pour un usage personnel/familial à quelques appareils. (Les
-alternatives — CRDT, fusion à trois voies — existent mais sont nettement plus
-complexes à implémenter et à tester correctement ; à envisager seulement si un besoin
-concret l'exigeait.)
+## Écart n°2 : suppressions — un journal plutôt qu'un champ sur chaque table
 
-## API backend proposée
+La proposition suggérait d'ajouter un champ `deletedAt` à chaque enregistrement
+et de filtrer les lignes supprimées partout où elles sont lues. En pratique,
+cela aurait demandé de modifier chaque méthode `list()`/`getById()` de chaque
+dépôt (6+ dépôts), plus chaque module de calcul qui lit les tables directement
+(`accountFlows`, `budgetSummary`, `debtSummary`, `monthlyReport`,
+`recommendations`) — beaucoup de code touché pour une propriété dont seul le
+moteur de synchronisation a besoin.
 
-| Endpoint                           | Rôle                                                                     |
-| ---------------------------------- | ------------------------------------------------------------------------ |
-| `POST /auth/register`              | Créer un compte (email + mot de passe)                                   |
-| `POST /auth/login`                 | Connexion, retourne un jeton de session                                  |
-| `POST /auth/logout`                | Invalide le jeton                                                        |
-| `GET /sync/pull?since=<timestamp>` | Renvoie tous les enregistrements créés/modifiés/supprimés depuis `since` |
-| `POST /sync/push`                  | Envoie les changements locaux (créations/modifications/suppressions)     |
+À la place : un journal de suppressions séparé (`deletionLog`, voir
+`src/db/schema.ts`). Chaque suppression reste une suppression réelle localement
+(comportement inchangé, zéro risque de régression sur le calcul des soldes/
+budgets) ; le dépôt inscrit en plus une ligne dans ce journal, que le moteur de
+synchronisation transforme en tombstone lors de l'envoi, avant de purger
+l'entrée. Même résultat pour la synchronisation, empreinte de code bien plus
+petite.
 
-Chaque appareil retient la date de sa dernière synchronisation réussie et ne demande
-que les changements plus récents — pas un renvoi complet de toutes les données à
-chaque fois.
+## Écart n°3 : bcrypt plutôt qu'Argon2
 
-## Choix techniques proposés
+Choix pragmatique : bcrypt (via `bcryptjs`, en JavaScript pur) évite toute
+dépendance à des binaires natifs compilés, ce qui simplifie le déploiement sur
+n'importe quel hébergeur Node standard. Argon2 reste un choix valide et plus
+moderne ; à reconsidérer si le déploiement choisi le permet facilement.
 
-- **Serveur** : Node.js + Express (ou Fastify) — cohérent avec le reste du projet
-  (TypeScript partagé entre client et serveur), aucune nouvelle compétence requise.
-- **Base de données** : PostgreSQL. Plus robuste que SQLite pour un serveur multi-
-  utilisateurs à terme ; la plupart des hébergeurs ci-dessous en offrent une instance
-  gratuite.
-- **Mots de passe** : hachés avec Argon2 (recommandation actuelle), jamais stockés
-  en clair, jamais consultables même par l'administrateur du serveur.
-- **Authentification** : jeton de session (JWT ou jeton opaque en base), transmis en
-  HTTPS uniquement.
-- **Chiffrement** : à discuter séparément — une fois le serveur en place, on peut soit
-  laisser le serveur voir les données en clair (plus simple, le serveur est "de
-  confiance"), soit chiffrer côté client avant envoi comme le faisait l'ancienne
-  version (le serveur ne stocke alors que du contenu illisible, mais la recherche/le
-  filtrage côté serveur devient impossible). Recommandation : commencer sans
-  chiffrement serveur pour simplifier la mise en route, l'ajouter ensuite si souhaité.
+## Ce qui correspond exactement à la proposition initiale
 
-## Ce qu'il reste à décider avant de coder : l'hébergement
+- **Résolution de conflit : dernier écrit gagne, par enregistrement**, comparé
+  par `updatedAt` — appliqué à la fois côté serveur (`ON CONFLICT ... WHERE`)
+  et côté client (un pull n'écrase jamais un enregistrement local plus récent
+  pas encore poussé).
+- **API** : `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`,
+  `GET /sync/pull?since=<timestamp>`, `POST /sync/push` — exactement comme
+  prévu.
+- **Serveur** : Node.js + TypeScript + Express, PostgreSQL.
+- **Chaque appareil retient sa dernière synchronisation réussie** (curseurs
+  `lastPushedAt`/`lastPulledAt`, stockés dans `syncConfig`) et ne redemande
+  que les changements plus récents.
 
-Le code du serveur sera écrit et testé ici, mais **il doit ensuite tourner quelque
-part joignable par vos appareils** — cet environnement ne peut pas héberger un
-service permanent. Options réalistes, du plus simple au plus autonome :
+## Deux couches d'authentification — à ne pas confondre
 
-| Option                                | Coût                                                 | Effort de mise en route                                         | Autonomie             |
-| ------------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------- | --------------------- |
-| Railway / Render (offre gratuite)     | Gratuit pour un usage personnel                      | Faible — connecter un dépôt Git, quelques clics                 | Dépend du fournisseur |
-| Fly.io (offre gratuite)               | Gratuit pour un usage personnel                      | Modéré — passe par leur CLI                                     | Dépend du fournisseur |
-| Serveur personnel (VPS, Raspberry Pi) | Variable (VPS ~3-5 $/mois, ou matériel déjà possédé) | Plus élevé — gestion Linux, HTTPS (Let's Encrypt), mises à jour | Totale                |
+Voir `sezz-accounts-server/README.md` pour l'explication complète, mais en
+résumé : se connecter à un **compte de synchronisation** (e-mail + mot de
+passe, propre au serveur) ne déchiffre jamais rien. Cela prouve seulement
+qu'un appareil a le droit d'échanger les données chiffrées d'un foyer. Seul un
+mot de passe d'**utilisateur local** (déjà existant : admin/standard/lecteur)
+déverrouille la clé de chiffrement partagée, entièrement côté client.
 
-Je recommande **Railway ou Render** pour démarrer : gratuit, rapide à mettre en
-route, largement suffisant pour un usage personnel/familial, et une migration vers
-un serveur personnel reste possible plus tard sans réécrire le code (Node.js standard
-partout).
+## Ce qui reste
 
-## Prochaine étape
-
-En attente de validation de cette approche (et du choix d'hébergement) avant de
-commencer l'implémentation du serveur — pour éviter d'écrire du code autour d'une
-hypothèse de déploiement qui ne conviendrait pas.
+- **Synchronisation automatique en arrière-plan.** Actuellement manuelle
+  (bouton « Synchroniser maintenant », onglet Synchronisation) — un
+  déclenchement automatique (au démarrage, périodiquement, ou sur détection de
+  reconnexion réseau) serait la prochaine amélioration naturelle.
+- **Hébergement du serveur.** Le code est prêt et testé contre une vraie base
+  PostgreSQL, mais ne tourne encore nulle part d'accessible par vos appareils.
+  Voir `sezz-accounts-server/README.md` pour les options d'hébergement
+  (Render/Railway + une base Postgres gérée comme Neon).
+- **Limite de tentatives sur le compte de synchronisation.** Existe déjà pour
+  les utilisateurs locaux (`loginRateLimit.ts`) ; pas encore pour
+  `/auth/login` côté serveur — noté comme limite connue dans le README du
+  serveur.
+- **Récupération d'un compte de synchronisation oublié.** Aucun mécanisme
+  pour l'instant (contrairement au code de récupération des utilisateurs
+  locaux).

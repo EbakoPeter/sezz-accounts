@@ -6,6 +6,7 @@ import { DebtsPanel } from "@/components/DebtsPanel";
 import { MonthlyReportPanel } from "@/components/MonthlyReportPanel";
 import { RecommendationsPanel } from "@/components/RecommendationsPanel";
 import { UsersPanel } from "@/components/UsersPanel";
+import { SyncPanel } from "@/components/SyncPanel";
 import { LoginScreen } from "@/components/LoginScreen";
 import { useAuth } from "@/auth/AuthContext";
 import { ROLE_LABELS } from "@/lib/permissions";
@@ -13,7 +14,14 @@ import type { Permissions } from "@/types/models";
 import "./App.css";
 
 type TabId =
-  "accounts" | "transactions" | "budget" | "debts" | "report" | "recommendations" | "users";
+  | "accounts"
+  | "transactions"
+  | "budget"
+  | "debts"
+  | "report"
+  | "recommendations"
+  | "users"
+  | "sync";
 
 interface TabDef {
   id: TabId;
@@ -34,6 +42,13 @@ const ALL_TABS: TabDef[] = [
   { id: "report", label: "Rapport Mensuel", requires: "viewReports" },
   { id: "recommendations", label: "Recommandations", requires: "viewReports" },
   { id: "users", label: "Utilisateurs", requires: "manageUsers" },
+  // Reuses manageUsers rather than a dedicated permission: configuring
+  // where this device's data is synced to is an infrastructure-level
+  // decision in the same spirit as managing users, and adding a whole
+  // new permission flag (touching Permissions, ROLE_DEFAULT_PERMISSIONS,
+  // every existing user's stored record, and their tests) for a single
+  // tab wasn't proportionate to build in this first pass.
+  { id: "sync", label: "Synchronisation", requires: "manageUsers" },
 ];
 
 export function App() {
@@ -89,6 +104,7 @@ export function App() {
         {selectedTab === "report" && <MonthlyReportPanel />}
         {selectedTab === "recommendations" && <RecommendationsPanel />}
         {selectedTab === "users" && <UsersPanel />}
+        {selectedTab === "sync" && <SyncPanel />}
       </main>
     </div>
   );

@@ -35,6 +35,7 @@ describe("App tab navigation", () => {
       "Rapport Mensuel",
       "Recommandations",
       "Utilisateurs",
+      "Synchronisation",
     ]);
     expect(screen.getByRole("tab", { name: "Comptes" })).toHaveAttribute("aria-selected", "true");
   });
@@ -58,12 +59,13 @@ describe("App tab navigation", () => {
     );
   });
 
-  it("hides the Utilisateurs tab for a user without manageUsers", async () => {
+  it("hides the Utilisateurs and Synchronisation tabs for a user without manageUsers", async () => {
     const session = await createTestUser("viewer");
     renderWithSession(<App />, session);
 
     await screen.findByRole("tab", { name: "Comptes" });
     expect(screen.queryByRole("tab", { name: "Utilisateurs" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Synchronisation" })).not.toBeInTheDocument();
   });
 
   it("hides the report tabs for a user without viewReports", async () => {
