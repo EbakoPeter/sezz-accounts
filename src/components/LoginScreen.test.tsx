@@ -120,7 +120,7 @@ describe("LoginScreen", () => {
 
     await screen.findByRole("button", { name: /^se connecter$/i });
     await user.type(screen.getByLabelText(/nom d'utilisateur/i), "peter");
-    await user.type(screen.getByLabelText(/mot de passe/i), "wrong-password");
+    await user.type(screen.getByLabelText(/^mot de passe$/i), "wrong-password");
     await user.click(screen.getByRole("button", { name: /^se connecter$/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/incorrect/i);
@@ -141,16 +141,16 @@ describe("LoginScreen", () => {
     for (let i = 0; i < MAX_ATTEMPTS_BEFORE_LOCKOUT; i++) {
       await user.clear(screen.getByLabelText(/nom d'utilisateur/i));
       await user.type(screen.getByLabelText(/nom d'utilisateur/i), "peter");
-      await user.clear(screen.getByLabelText(/mot de passe/i));
-      await user.type(screen.getByLabelText(/mot de passe/i), "wrong-password");
+      await user.clear(screen.getByLabelText(/^mot de passe$/i));
+      await user.type(screen.getByLabelText(/^mot de passe$/i), "wrong-password");
       await user.click(screen.getByRole("button", { name: /^se connecter$/i }));
       await screen.findByRole("alert");
     }
 
     await user.clear(screen.getByLabelText(/nom d'utilisateur/i));
     await user.type(screen.getByLabelText(/nom d'utilisateur/i), "peter");
-    await user.clear(screen.getByLabelText(/mot de passe/i));
-    await user.type(screen.getByLabelText(/mot de passe/i), "correct-password");
+    await user.clear(screen.getByLabelText(/^mot de passe$/i));
+    await user.type(screen.getByLabelText(/^mot de passe$/i), "correct-password");
     await user.click(screen.getByRole("button", { name: /^se connecter$/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/trop de tentatives/i);

@@ -369,6 +369,45 @@ describe("UsersRepository", () => {
     });
   });
 
+  describe("count", () => {
+    it("returns 0 for an empty table", async () => {
+      expect(await users.count()).toBe(0);
+    });
+
+    it("counts users without needing an active encryption session", async () => {
+      await users.create({
+        username: "peter",
+        displayName: "Peter",
+        password: "secret123",
+        role: "admin",
+      });
+      clearActiveDek();
+      // this is the exact situation right after logout, or on any fresh
+      // page load once at least one user already exists — count() must
+      // still work, since it's what decides whether to show "create the
+      // first admin" or "log in" in the first place.
+      await expect(users.count()).resolves.toBe(1);
+    });
+
+    it("updates as users are added and removed", async () => {
+      await users.create({
+        username: "a",
+        displayName: "A",
+        password: "secret123",
+        role: "admin",
+      });
+      const { user: b } = await users.create({
+        username: "b",
+        displayName: "B",
+        password: "secret123",
+        role: "viewer",
+      });
+      expect(await users.count()).toBe(2);
+      await users.remove(b.id);
+      expect(await users.count()).toBe(1);
+    });
+  });
+
   describe("list / getByUsername", () => {
     it("lists users sorted by username", async () => {
       await users.create({

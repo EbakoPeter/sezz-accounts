@@ -2,11 +2,12 @@ import { useState, type FormEvent } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { usersRepository } from "@/repositories";
 import { useAuth } from "@/auth/AuthContext";
+import { PasswordInput } from "@/components/PasswordInput";
 
 type Mode = "login" | "forgot-password";
 
 export function LoginScreen() {
-  const userCount = useLiveQuery(() => usersRepository.list().then((list) => list.length), []);
+  const userCount = useLiveQuery(() => usersRepository.count(), []);
   const { login, recoverAccount } = useAuth();
 
   const [mode, setMode] = useState<Mode>("login");
@@ -158,18 +159,16 @@ export function LoginScreen() {
               </div>
               <div className="field">
                 <label htmlFor="first-password">Mot de passe</label>
-                <input
+                <PasswordInput
                   id="first-password"
-                  type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
               </div>
               <div className="field">
                 <label htmlFor="first-confirm-password">Confirmer le mot de passe</label>
-                <input
+                <PasswordInput
                   id="first-confirm-password"
-                  type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                 />
@@ -194,9 +193,8 @@ export function LoginScreen() {
             </div>
             <div className="field">
               <label htmlFor="login-password">Mot de passe</label>
-              <input
+              <PasswordInput
                 id="login-password"
-                type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
@@ -235,18 +233,16 @@ export function LoginScreen() {
             </div>
             <div className="field">
               <label htmlFor="recover-new-password">Nouveau mot de passe</label>
-              <input
+              <PasswordInput
                 id="recover-new-password"
-                type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
               />
             </div>
             <div className="field">
               <label htmlFor="recover-confirm-password">Confirmer le nouveau mot de passe</label>
-              <input
+              <PasswordInput
                 id="recover-confirm-password"
-                type="password"
                 value={confirmNewPassword}
                 onChange={(e) => setConfirmNewPassword(e.target.value)}
               />

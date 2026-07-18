@@ -82,7 +82,19 @@ tests automatisés, lint/format appliqués, sans Excel ni Capacitor.
   permettant de définir un nouveau mot de passe en cas d'oubli sans perdre l'accès
   aux données. Utiliser le code le fait pivoter automatiquement ; régénérable à
   tout moment avec le mot de passe actuel.
-- 272 tests automatisés (dépôts + composants), intégralement verts.
+- **Interface par onglets.** Chaque fonctionnalité (Comptes, Opérations, Budget,
+  Dettes & Créances, Rapport Mensuel, Recommandations, Utilisateurs) occupe son
+  propre onglet plutôt que d'être empilée sur une seule page ; les onglets sans
+  contenu utile pour l'utilisateur courant (Rapport/Recommandations sans
+  `viewReports`, Utilisateurs sans `manageUsers`) sont simplement absents plutôt
+  que grisés.
+- **Champs de mot de passe avec bouton "afficher/masquer".** Composant unique
+  (`PasswordInput`) réutilisé partout où un mot de passe se saisit.
+- **Écran d'erreur visible plutôt que page blanche.** Une erreur non interceptée
+  (au rendu ou ailleurs) affiche désormais le message et la pile d'appels
+  directement à l'écran au lieu de laisser une page vide sans indice — précieux
+  sur mobile, où la console du navigateur n'est pas accessible facilement.
+- 288 tests automatisés (dépôts + composants), intégralement verts.
 
 **Pas encore fait (suite du plan) :**
 
@@ -222,6 +234,16 @@ src/
    Chaque dépôt convertit vers/depuis la forme chiffrée (`toStorageRow`/
    `fromStorageRow`) ; le reste de l'application continue de manipuler les mêmes
    types (`Account`, `Transaction`, ...) qu'avant le chiffrement, inchangés.
+9. **Une opération qui n'a besoin que d'un fait structurel ne doit jamais exiger
+   de session déchiffrée active.** Détecté après coup : l'écran de connexion
+   utilisait `usersRepository.list()` (qui déchiffre chaque utilisateur) pour
+   simplement savoir si la base était vide — ce qui plantait dès qu'au moins un
+   utilisateur existait déjà mais qu'aucune session n'était active (exactement
+   la situation juste après une déconnexion, ou au rechargement d'un onglet mis
+   en arrière-plan sur mobile). `usersRepository.count()` répond à la même
+   question par un simple comptage Dexie, sans jamais déchiffrer quoi que ce
+   soit — corrigé et couvert par un test qui vérifie explicitement l'absence de
+   session active, pas seulement le résultat.
 
 ## Prochaine étape proposée
 

@@ -91,6 +91,35 @@ button {
   font-weight: 600;
 }
 
+.password-input {
+  position: relative;
+  display: flex;
+}
+
+.password-input input {
+  width: 100%;
+  padding-right: 34px;
+}
+
+.password-input .password-toggle {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 4px;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.password-input .password-toggle:hover {
+  color: var(--ink);
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -185,6 +214,35 @@ td {
 .top-bar .session-info {
   font-size: 0.8rem;
   color: var(--text-dim);
+}
+
+.tab-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  border-bottom: 2px solid var(--ink);
+  margin-bottom: 20px;
+}
+
+.tab-button {
+  background: none;
+  color: var(--text-dim);
+  border: none;
+  border-radius: 6px 6px 0 0;
+  padding: 9px 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tab-button:hover {
+  background: #efe8d8;
+  color: var(--ink);
+}
+
+.tab-button.active {
+  background: var(--ink);
+  color: #f4efe2;
 }
 
 .permission-notice {

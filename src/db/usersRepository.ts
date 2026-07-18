@@ -177,6 +177,18 @@ export function createUsersRepository(database: SezzAccountsDatabase = defaultDb
       return { user, recoveryCode };
     },
 
+    /** Just a row count — deliberately never decrypts anything, so it never
+     * requires an active encryption session. This matters: it's exactly
+     * what a not-yet-logged-in screen needs to decide "is this the very
+     * first run" (see LoginScreen), and that decision has to work with no
+     * session active at all — which describes every fresh page load and
+     * every moment right after logging out. `list()`, by contrast,
+     * decrypts every row (to read displayName) and would throw in exactly
+     * that situation once at least one user already exists. */
+    async count(): Promise<number> {
+      return database.users.count();
+    },
+
     async list(): Promise<User[]> {
       const rows = (await database.users.toArray()) as UserRow[];
       const users = await decryptUsers(rows);
