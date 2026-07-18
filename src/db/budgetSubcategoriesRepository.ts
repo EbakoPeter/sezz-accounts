@@ -9,6 +9,7 @@ import { generateId } from "@/lib/id";
 import { assertNonNegativeAmount } from "@/lib/money";
 import { ValidationError, NotFoundError } from "@/lib/errors";
 import { toStorageRow, fromStorageRow, fromStorageRows } from "./encryptedRecord";
+import { logDeletion } from "./deletionLog";
 
 const SENSITIVE_SUBCATEGORY_FIELDS = ["name", "monthlyAllocation"] as const;
 
@@ -128,12 +129,14 @@ export function createBudgetSubcategoriesRepository(database: SezzAccountsDataba
         "rw",
         database.budgetSubcategories,
         database.transactions,
+        database.deletionLog,
         async () => {
           for (const tx of dependentTransactions) {
             const { subcategoryId: _removed, ...rest } = tx;
             await database.transactions.put({ ...rest, updatedAt: Date.now() });
           }
           await database.budgetSubcategories.delete(id);
+          await logDeletion(database, "budgetSubcategories", id);
         },
       );
     },

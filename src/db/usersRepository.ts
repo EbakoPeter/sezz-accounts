@@ -15,6 +15,7 @@ import { setActiveDek, requireActiveDek } from "@/lib/encryptionSession";
 import { generateRecoveryCode, normalizeRecoveryCode } from "@/lib/recoveryCode";
 import { computeLockoutDurationMs, remainingLockoutMs } from "@/lib/loginRateLimit";
 import { toStorageRow, fromStorageRow, fromStorageRows } from "./encryptedRecord";
+import { logDeletion } from "./deletionLog";
 
 const MIN_PASSWORD_LENGTH = 4;
 const SENSITIVE_USER_FIELDS = ["displayName"] as const;
@@ -313,6 +314,7 @@ export function createUsersRepository(database: SezzAccountsDatabase = defaultDb
         }
       }
       await database.users.delete(id);
+      await logDeletion(database, "users", id);
     },
 
     /** Looks up a user by username, verifies the password, and unwraps

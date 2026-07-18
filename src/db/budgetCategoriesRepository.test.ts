@@ -106,4 +106,33 @@ describe("BudgetCategoriesRepository", () => {
       expect(survivingTx?.label).toBe("Carburant");
     });
   });
+
+  describe("deletion log (for sync)", () => {
+    it("logs the category and its cascaded subcategories, but not merely-unlinked transactions", async () => {
+      const category = await categories.create({ name: "Vie Courante" });
+      const sub = await subcategories.create({
+        categoryId: category.id,
+        name: "Transport",
+        monthlyAllocation: 20000,
+      });
+      const account = await accounts.create({ name: "Compte", initialBalance: 0 });
+      const tx = await transactions.create({
+        accountId: account.id,
+        kind: "expense",
+        date: "2026-01-01",
+        label: "Carburant",
+        amount: 5000,
+        subcategoryId: sub.id,
+      });
+
+      await categories.remove(category.id, { force: true });
+
+      const entries = await database.deletionLog.toArray();
+      const byTable = Object.fromEntries(entries.map((e) => [e.tableName, e.recordId]));
+      expect(byTable["budgetCategories"]).toBe(category.id);
+      expect(byTable["budgetSubcategories"]).toBe(sub.id);
+      expect(byTable["transactions"]).toBeUndefined();
+      void tx;
+    });
+  });
 });

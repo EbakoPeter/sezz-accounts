@@ -367,6 +367,26 @@ describe("UsersRepository", () => {
       });
       await expect(users.remove(second.id)).resolves.toBeUndefined();
     });
+
+    it("logs the deletion for sync", async () => {
+      await users.create({
+        username: "admin1",
+        displayName: "Admin1",
+        password: "secret123",
+        role: "admin",
+      });
+      const { user: viewer } = await users.create({
+        username: "viewer1",
+        displayName: "Viewer",
+        password: "secret123",
+        role: "viewer",
+      });
+      await users.remove(viewer.id);
+
+      const entries = await database.deletionLog.toArray();
+      expect(entries).toHaveLength(1);
+      expect(entries[0]).toMatchObject({ tableName: "users", recordId: viewer.id });
+    });
   });
 
   describe("count", () => {

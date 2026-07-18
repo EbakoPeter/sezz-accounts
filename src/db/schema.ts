@@ -62,6 +62,48 @@ export type UserRow = Pick<
 > &
   WithEncrypted;
 
+/** Every table sync can push/pull, by its Dexie table name — deliberately a
+ * plain string union rather than importing each repository, since this
+ * schema module must not depend on the repository layer. */
+export type SyncableTableName =
+  | "accounts"
+  | "transactions"
+  | "budgetCategories"
+  | "budgetSubcategories"
+  | "debts"
+  | "debtPayments"
+  | "users";
+
+/**
+ * Records "this id, in this table, was deleted locally" — written
+ * alongside a repository's normal (still hard) delete, purely so the sync
+ * engine has something to discover and push as a tombstone later. This is
+ * deliberately not a switch to soft-deletes everywhere: that would mean
+ * touching every repository's list/get query (and every computation
+ * module that reads tables directly) to filter deleted rows out, for a
+ * property only the sync engine actually needs. A small satellite log,
+ * pruned once pushed, gets the same result with far less blast radius.
+ */
+export interface DeletionLogEntry {
+  logId?: number;
+  tableName: SyncableTableName;
+  recordId: string;
+  deletedAt: number;
+  /** Set once this entry has been included in a successful push — entries
+   * with this set are pruned on a later sync rather than kept forever. */
+  pushedAt?: number;
+}
+
+/** Simple key/value store for sync configuration and cursors — which
+ * server, which sync account, the session token, and how far push/pull
+ * have each progressed. Deliberately its own tiny table rather than
+ * localStorage: it keeps every piece of this app's state in one place
+ * (Dexie), inspectable with the same tooling as everything else. */
+export interface SyncConfigEntry {
+  key: "serverUrl" | "token" | "syncAccountId" | "lastPushedAt" | "lastPulledAt";
+  value: string;
+}
+
 /**
  * IndexedDB schema, versioned via Dexie. Each `.version(n).stores(...)` call
  * is an append-only migration step — never edit an already-shipped version's
@@ -79,6 +121,8 @@ export class SezzAccountsDatabase extends Dexie {
   debts!: EntityTable<DebtRow, "id">;
   debtPayments!: EntityTable<DebtPaymentRow, "id">;
   users!: EntityTable<UserRow, "id">;
+  deletionLog!: EntityTable<DeletionLogEntry, "logId">;
+  syncConfig!: EntityTable<SyncConfigEntry, "key">;
 
   constructor(name = "SezzAccountsDB") {
     super(name);
@@ -134,6 +178,22 @@ export class SezzAccountsDatabase extends Dexie {
       debts: "id, accountId, kind, reference, date",
       debtPayments: "id, debtId, accountId, date",
       users: "id, username",
+    });
+    // v6: multi-device sync. deletionLog lets the sync engine discover
+    // local deletions to push as tombstones without every repository's
+    // reads needing to filter a soft-delete flag (see DeletionLogEntry's
+    // own comment for why that tradeoff was made). syncConfig holds the
+    // sync account session and push/pull cursors.
+    this.version(6).stores({
+      accounts: "id",
+      transactions: "id, accountId, kind, date, subcategoryId, [accountId+date]",
+      budgetCategories: "id",
+      budgetSubcategories: "id, categoryId",
+      debts: "id, accountId, kind, reference, date",
+      debtPayments: "id, debtId, accountId, date",
+      users: "id, username",
+      deletionLog: "++logId, tableName, deletedAt, pushedAt",
+      syncConfig: "key",
     });
   }
 }

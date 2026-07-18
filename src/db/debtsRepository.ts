@@ -5,6 +5,7 @@ import { generateId } from "@/lib/id";
 import { assertPositiveAmount } from "@/lib/money";
 import { ValidationError, NotFoundError } from "@/lib/errors";
 import { toStorageRow, fromStorageRow, fromStorageRows } from "./encryptedRecord";
+import { logDeletion } from "./deletionLog";
 
 const SENSITIVE_DEBT_FIELDS = ["counterparty", "amount", "dueDate", "description"] as const;
 
@@ -149,12 +150,23 @@ export function createDebtsRepository(database: SezzAccountsDatabase = defaultDb
         );
       }
 
-      await database.transaction("rw", database.debts, database.debtPayments, async () => {
-        if (paymentCount > 0) {
-          await database.debtPayments.where("debtId").equals(id).delete();
-        }
-        await database.debts.delete(id);
-      });
+      await database.transaction(
+        "rw",
+        database.debts,
+        database.debtPayments,
+        database.deletionLog,
+        async () => {
+          if (paymentCount > 0) {
+            const paymentIds = await database.debtPayments.where("debtId").equals(id).primaryKeys();
+            await database.debtPayments.where("debtId").equals(id).delete();
+            for (const paymentId of paymentIds) {
+              await logDeletion(database, "debtPayments", paymentId);
+            }
+          }
+          await database.debts.delete(id);
+          await logDeletion(database, "debts", id);
+        },
+      );
     },
   };
 }

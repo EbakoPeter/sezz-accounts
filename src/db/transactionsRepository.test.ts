@@ -229,4 +229,21 @@ describe("TransactionsRepository", () => {
       expect(await transactions.netTotal({ accountId: "ghost-account" })).toBe(0);
     });
   });
+
+  describe("deletion log (for sync)", () => {
+    it("logs a deletion", async () => {
+      const tx = await transactions.create({
+        accountId,
+        kind: "expense",
+        date: "2026-01-01",
+        label: "Test",
+        amount: 100,
+      });
+      await transactions.remove(tx.id);
+
+      const entries = await database.deletionLog.toArray();
+      expect(entries).toHaveLength(1);
+      expect(entries[0]).toMatchObject({ tableName: "transactions", recordId: tx.id });
+    });
+  });
 });

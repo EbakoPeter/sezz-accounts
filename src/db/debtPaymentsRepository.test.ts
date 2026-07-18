@@ -115,5 +115,14 @@ describe("DebtPaymentsRepository", () => {
       await payments.remove(payment.id);
       expect(await payments.getById(payment.id)).toBeUndefined();
     });
+
+    it("logs the deletion for sync", async () => {
+      const payment = await payments.create({ debtId, accountId, amount: 100, date: "2026-01-01" });
+      await payments.remove(payment.id);
+
+      const entries = await database.deletionLog.toArray();
+      expect(entries).toHaveLength(1);
+      expect(entries[0]).toMatchObject({ tableName: "debtPayments", recordId: payment.id });
+    });
   });
 });

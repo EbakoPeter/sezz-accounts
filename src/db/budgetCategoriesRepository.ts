@@ -4,6 +4,7 @@ import type { BudgetCategory, NewBudgetCategory, BudgetCategoryUpdate } from "@/
 import { generateId } from "@/lib/id";
 import { ValidationError, NotFoundError } from "@/lib/errors";
 import { toStorageRow, fromStorageRow, fromStorageRows } from "./encryptedRecord";
+import { logDeletion } from "./deletionLog";
 
 const SENSITIVE_CATEGORY_FIELDS = ["name"] as const;
 
@@ -95,6 +96,7 @@ export function createBudgetCategoriesRepository(database: SezzAccountsDatabase 
         database.budgetCategories,
         database.budgetSubcategories,
         database.transactions,
+        database.deletionLog,
         async () => {
           for (const sub of subcategories) {
             const dependentTransactions = await database.transactions
@@ -107,7 +109,11 @@ export function createBudgetCategoriesRepository(database: SezzAccountsDatabase 
             }
           }
           await database.budgetSubcategories.where("categoryId").equals(id).delete();
+          for (const sub of subcategories) {
+            await logDeletion(database, "budgetSubcategories", sub.id);
+          }
           await database.budgetCategories.delete(id);
+          await logDeletion(database, "budgetCategories", id);
         },
       );
     },

@@ -5,6 +5,7 @@ import { generateId } from "@/lib/id";
 import { assertPositiveAmount } from "@/lib/money";
 import { ValidationError, NotFoundError } from "@/lib/errors";
 import { toStorageRow, fromStorageRow, fromStorageRows } from "./encryptedRecord";
+import { logDeletion } from "./deletionLog";
 
 const SENSITIVE_PAYMENT_FIELDS = ["amount"] as const;
 
@@ -102,6 +103,7 @@ export function createDebtPaymentsRepository(database: SezzAccountsDatabase = de
       const existing = await database.debtPayments.get(id);
       if (!existing) throw new NotFoundError("Remboursement", id);
       await database.debtPayments.delete(id);
+      await logDeletion(database, "debtPayments", id);
     },
   };
 }

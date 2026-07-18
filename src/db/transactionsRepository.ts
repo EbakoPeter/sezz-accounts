@@ -5,6 +5,7 @@ import { generateId } from "@/lib/id";
 import { assertPositiveAmount } from "@/lib/money";
 import { ValidationError, NotFoundError } from "@/lib/errors";
 import { toStorageRow, fromStorageRow, fromStorageRows } from "./encryptedRecord";
+import { logDeletion } from "./deletionLog";
 
 const SENSITIVE_TRANSACTION_FIELDS = ["label", "amount", "note"] as const;
 
@@ -121,6 +122,7 @@ export function createTransactionsRepository(database: SezzAccountsDatabase = de
       const existing = await database.transactions.get(id);
       if (!existing) throw new NotFoundError("Opération", id);
       await database.transactions.delete(id);
+      await logDeletion(database, "transactions", id);
     },
 
     /** Sum of income minus sum of expenses for the given filter — the

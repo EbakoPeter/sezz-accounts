@@ -216,4 +216,44 @@ describe("DebtsRepository", () => {
       expect(netOf(flows.get(accountId))).toBe(0);
     });
   });
+
+  describe("deletion log (for sync)", () => {
+    it("logs a plain deletion", async () => {
+      const debt = await debts.create({
+        kind: "debt",
+        counterparty: "Banque",
+        accountId,
+        amount: 10000,
+        date: "2026-01-01",
+      });
+      await debts.remove(debt.id);
+
+      const entries = await database.deletionLog.toArray();
+      expect(entries).toHaveLength(1);
+      expect(entries[0]).toMatchObject({ tableName: "debts", recordId: debt.id });
+    });
+
+    it("logs cascaded payment deletions when force-removing a debt", async () => {
+      const debt = await debts.create({
+        kind: "debt",
+        counterparty: "Banque",
+        accountId,
+        amount: 10000,
+        date: "2026-01-01",
+      });
+      const payment = await payments.create({
+        debtId: debt.id,
+        accountId,
+        amount: 5000,
+        date: "2026-02-01",
+      });
+
+      await debts.remove(debt.id, { force: true });
+
+      const entries = await database.deletionLog.toArray();
+      const byTable = Object.fromEntries(entries.map((e) => [e.tableName, e.recordId]));
+      expect(byTable["debts"]).toBe(debt.id);
+      expect(byTable["debtPayments"]).toBe(payment.id);
+    });
+  });
 });

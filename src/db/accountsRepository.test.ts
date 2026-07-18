@@ -190,4 +190,33 @@ describe("AccountsRepository", () => {
       expect(await accounts.getBalance(account.id)).toBe(-100);
     });
   });
+
+  describe("deletion log (for sync)", () => {
+    it("logs a plain deletion", async () => {
+      const account = await accounts.create({ name: "Solo", initialBalance: 0 });
+      await accounts.remove(account.id);
+
+      const entries = await database.deletionLog.toArray();
+      expect(entries).toHaveLength(1);
+      expect(entries[0]).toMatchObject({ tableName: "accounts", recordId: account.id });
+    });
+
+    it("logs every cascaded deletion, not just the account itself", async () => {
+      const account = await accounts.create({ name: "Avec dépendances", initialBalance: 0 });
+      const tx = await transactions.create({
+        accountId: account.id,
+        kind: "expense",
+        date: "2026-01-01",
+        label: "Test",
+        amount: 100,
+      });
+
+      await accounts.remove(account.id, { force: true });
+
+      const entries = await database.deletionLog.toArray();
+      const byTable = Object.fromEntries(entries.map((e) => [e.tableName, e.recordId]));
+      expect(byTable["accounts"]).toBe(account.id);
+      expect(byTable["transactions"]).toBe(tx.id);
+    });
+  });
 });
