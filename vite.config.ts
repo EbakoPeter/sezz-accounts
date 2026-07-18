@@ -4,6 +4,14 @@ import { VitePWA } from "vite-plugin-pwa";
 import path from "node:path";
 
 export default defineConfig({
+  define: {
+    // Baked in at build time, fresh for every `npm run build` — lets the
+    // running app show exactly which build it is, directly in the UI.
+    // Existed to solve a real, recurring problem: without it, confirming
+    // "is this actually the latest deploy" required comparing minified JS
+    // filenames or stack traces by hand, every single time.
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+  },
   plugins: [
     react(),
     VitePWA({

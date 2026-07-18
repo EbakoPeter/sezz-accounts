@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from "react";
+import { BuildInfo } from "@/components/BuildInfo";
 
 interface Props {
   children: ReactNode;
@@ -68,6 +69,7 @@ export function ErrorScreen({ error, context }: { error: unknown; context: strin
         Cette page décrit l&apos;erreur au lieu de rester blanche, précisément pour pouvoir la
         diagnostiquer. Copiez ce message.
       </p>
+      <BuildInfo />
     </div>
   );
 }

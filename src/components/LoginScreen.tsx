@@ -3,6 +3,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { usersRepository } from "@/repositories";
 import { useAuth } from "@/auth/AuthContext";
 import { PasswordInput } from "@/components/PasswordInput";
+import { BuildInfo } from "@/components/BuildInfo";
 
 type Mode = "login" | "forgot-password";
 
@@ -128,6 +129,7 @@ export function LoginScreen() {
           >
             Continuer
           </button>
+          <BuildInfo />
         </div>
       </div>
     );
@@ -258,6 +260,7 @@ export function LoginScreen() {
             )}
           </form>
         )}
+        <BuildInfo />
       </div>
     </div>
   );
