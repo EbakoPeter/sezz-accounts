@@ -7,7 +7,6 @@ import {
   type SyncSession,
 } from "@/sync/syncClient";
 import { syncNow, type SyncResult } from "@/sync/syncEngine";
-import { PasswordInput } from "@/components/PasswordInput";
 
 type Mode = "register" | "login";
 
@@ -111,7 +110,8 @@ export function SyncPanel() {
           </div>
           <div className="field">
             <label htmlFor="sync-password">Mot de passe</label>
-            <PasswordInput
+            <input
+              type="password"
               id="sync-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}

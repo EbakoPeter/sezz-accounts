@@ -2,7 +2,6 @@ import { useState, type FormEvent } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { usersRepository } from "@/repositories";
 import { useAuth } from "@/auth/AuthContext";
-import { PasswordInput } from "@/components/PasswordInput";
 import { ROLE_LABELS, PERMISSION_LABELS } from "@/lib/permissions";
 import type { Permissions, UserRole } from "@/types/models";
 
@@ -149,7 +148,8 @@ export function UsersPanel() {
         </div>
         <div className="field">
           <label htmlFor="user-password">Mot de passe</label>
-          <PasswordInput
+          <input
+            type="password"
             id="user-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -273,7 +273,8 @@ export function UsersPanel() {
                 <td>
                   {resetPasswordId === user.id ? (
                     <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                      <PasswordInput
+                      <input
+                        type="password"
                         aria-label={`Nouveau mot de passe pour ${user.displayName}`}
                         value={resetPasswordValue}
                         onChange={(e) => setResetPasswordValue(e.target.value)}
@@ -297,7 +298,8 @@ export function UsersPanel() {
                   {user.id === currentUser.id &&
                     (regenerateId === user.id ? (
                       <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                        <PasswordInput
+                        <input
+                          type="password"
                           aria-label="Mot de passe actuel pour régénérer le code"
                           value={regeneratePasswordValue}
                           onChange={(e) => setRegeneratePasswordValue(e.target.value)}

@@ -106,48 +106,6 @@ button:disabled {
   cursor: not-allowed;
 }
 
-.password-input {
-  display: flex;
-  align-items: stretch;
-  border: 1px solid #cbc1aa;
-  border-radius: 5px;
-  background: #fff;
-}
-
-.password-input:focus-within {
-  outline: 2px solid var(--ink);
-  outline-offset: -1px;
-}
-
-.password-input input {
-  flex: 1 1 auto;
-  min-width: 0;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-}
-
-.password-input input:focus {
-  outline: none;
-}
-
-.password-input .password-toggle {
-  flex: 0 0 auto;
-  background: none;
-  border: none;
-  padding: 0 10px;
-  min-width: 40px;
-  color: var(--text-dim);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
-.password-input .password-toggle:hover {
-  color: var(--ink);
-}
-
 table {
   width: 100%;
   border-collapse: collapse;

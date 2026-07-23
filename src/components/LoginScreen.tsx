@@ -2,7 +2,6 @@ import { useState, type FormEvent } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { usersRepository } from "@/repositories";
 import { useAuth } from "@/auth/AuthContext";
-import { PasswordInput } from "@/components/PasswordInput";
 import { BuildInfo } from "@/components/BuildInfo";
 
 type Mode = "login" | "forgot-password";
@@ -161,7 +160,8 @@ export function LoginScreen() {
               </div>
               <div className="field">
                 <label htmlFor="first-password">Mot de passe</label>
-                <PasswordInput
+                <input
+                  type="password"
                   id="first-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -169,7 +169,8 @@ export function LoginScreen() {
               </div>
               <div className="field">
                 <label htmlFor="first-confirm-password">Confirmer le mot de passe</label>
-                <PasswordInput
+                <input
+                  type="password"
                   id="first-confirm-password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
@@ -195,7 +196,8 @@ export function LoginScreen() {
             </div>
             <div className="field">
               <label htmlFor="login-password">Mot de passe</label>
-              <PasswordInput
+              <input
+                type="password"
                 id="login-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -235,7 +237,8 @@ export function LoginScreen() {
             </div>
             <div className="field">
               <label htmlFor="recover-new-password">Nouveau mot de passe</label>
-              <PasswordInput
+              <input
+                type="password"
                 id="recover-new-password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
@@ -243,7 +246,8 @@ export function LoginScreen() {
             </div>
             <div className="field">
               <label htmlFor="recover-confirm-password">Confirmer le nouveau mot de passe</label>
-              <PasswordInput
+              <input
+                type="password"
                 id="recover-confirm-password"
                 value={confirmNewPassword}
                 onChange={(e) => setConfirmNewPassword(e.target.value)}
