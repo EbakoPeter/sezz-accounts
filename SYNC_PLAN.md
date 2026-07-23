@@ -1,11 +1,12 @@
 # Synchronisation entre appareils — état de l'implémentation
 
-## Statut : implémenté, en attente de déploiement du serveur
+## Statut : implémenté et déployé
 
 Ce document décrivait à l'origine une proposition d'architecture, avant tout code.
-Le serveur et le moteur de synchronisation client existent maintenant et sont
-testés — voir `sezz-accounts-server/README.md` pour le serveur, et
-`src/sync/` (client) pour la partie qui vient d'être intégrée à l'application.
+Le serveur et le moteur de synchronisation client existent, sont testés, et le
+serveur est désormais déployé (Render + une base PostgreSQL séparée — voir
+`sezz-accounts-server/README.md`). La synchronisation se déclenche
+automatiquement ; plus aucune étape manuelle requise pour l'usage courant.
 Ce qui suit décrit l'architecture **telle que construite**, avec les quelques
 écarts par rapport à la proposition initiale, assumés et expliqués.
 
@@ -35,11 +36,11 @@ Ce qui suit décrit l'architecture **telle que construite**, avec les quelques
 ```
 
 Principe retenu, inchangé par rapport à la proposition : **hors-ligne d'abord,
-synchronisé quand c'est possible.** L'app continue de fonctionner sans connexion ;
-un bouton « Synchroniser maintenant » (onglet Synchronisation) pousse les
-changements locaux vers le serveur et récupère ceux des autres appareils.
-La synchronisation automatique en arrière-plan n'est pas encore construite —
-voir « Ce qui reste » plus bas.
+synchronisé quand c'est possible.** L'app continue de fonctionner sans connexion.
+La synchronisation se déclenche automatiquement (à l'ouverture, toutes les
+5 minutes, et au retour d'une connexion réseau) ; un bouton « Synchroniser
+maintenant » (onglet Synchronisation) reste disponible pour la forcer
+immédiatement.
 
 ## Écart n°1 : le chiffrement n'a pas été différé
 
@@ -108,14 +109,6 @@ déverrouille la clé de chiffrement partagée, entièrement côté client.
 
 ## Ce qui reste
 
-- **Synchronisation automatique en arrière-plan.** Actuellement manuelle
-  (bouton « Synchroniser maintenant », onglet Synchronisation) — un
-  déclenchement automatique (au démarrage, périodiquement, ou sur détection de
-  reconnexion réseau) serait la prochaine amélioration naturelle.
-- **Hébergement du serveur.** Le code est prêt et testé contre une vraie base
-  PostgreSQL, mais ne tourne encore nulle part d'accessible par vos appareils.
-  Voir `sezz-accounts-server/README.md` pour les options d'hébergement
-  (Render/Railway + une base Postgres gérée comme Neon).
 - **Limite de tentatives sur le compte de synchronisation.** Existe déjà pour
   les utilisateurs locaux (`loginRateLimit.ts`) ; pas encore pour
   `/auth/login` côté serveur — noté comme limite connue dans le README du
