@@ -104,12 +104,31 @@ réinitialiser le mot de passe d'un autre utilisateur sans son code).
 
 ## Limites connues, non traitées à ce stade
 
-- **La synchronisation entre appareils (SYNC_PLAN.md), une fois construite,
-  devra décider comment un serveur distant traite cette DEK partagée** — soit
-  le serveur ne voit jamais la DEK en clair (chiffrement de bout en bout,
-  plus complexe), soit on accepte que le serveur soit un tiers de confiance
-  qui la voit (plus simple, mais un changement de posture de sécurité qu'il
-  faudra documenter explicitement le moment venu).
+- **Un nouvel appareil ne peut pas encore « rejoindre » un foyer existant via
+  la synchronisation sans risque.** La synchronisation (SYNC_PLAN.md) est
+  maintenant construite avec le même principe : le serveur ne voit jamais la
+  DEK en clair. Mais un appareil réellement neuf passe d'abord par « créez le
+  compte administrateur principal » (qui génère sa propre DEK) _avant_ de
+  pouvoir se connecter à la synchronisation — il n'existe pas encore de
+  chemin pour configurer la synchronisation en premier et récupérer une DEK
+  existante à la place. Si deux appareils créent chacun leur propre
+  administrateur puis se synchronisent ensemble, chacun reçoit les données de
+  l'autre chiffrées sous une clé qu'il ne possède pas : ces données
+  deviennent invisibles sur cet appareil (voir ci-dessous), pas corrompues,
+  mais illisibles tant que ce décalage n'est pas résolu manuellement. En
+  pratique : un seul appareil doit créer le compte administrateur ; tous les
+  autres doivent se connecter à la synchronisation existante plutôt que de
+  créer leur propre administrateur indépendamment.
+- **Conséquence directe, déjà corrigée : un enregistrement provenant d'une
+  clé différente ne doit jamais faire planter l'application.** Avant
+  correction, un seul enregistrement synchronisé sous la mauvaise clé
+  rendait tout illisible (y compris les propres données de l'appareil).
+  `fromStorageRows` (voir `src/db/encryptedRecord.ts`) ignore désormais
+  silencieusement (avec un message dans la console) les enregistrements
+  qu'il ne peut pas déchiffrer, plutôt que de faire échouer tout l'affichage
+  à cause d'un seul. Cela rend le décalage de clé invisible sans message à
+  l'écran pour l'instant plutôt que fatal — une amélioration de l'affichage
+  d'un statut de synchronisation visible reste à faire.
 - **Aucune protection contre un mot de passe et un code de récupération tous
   deux compromis simultanément** (par ex. les deux notés au même endroit
   physique). C'est un compromis inhérent à ce mode de récupération, pas
