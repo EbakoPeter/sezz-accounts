@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { useLiveQuery } from "dexie-react-hooks";
 import {
   getSyncSession,
   registerSyncAccount,
@@ -6,7 +7,7 @@ import {
   logoutSyncAccount,
   type SyncSession,
 } from "@/sync/syncClient";
-import { syncNow, type SyncResult } from "@/sync/syncEngine";
+import { syncNow, getLastSyncStatus } from "@/sync/syncEngine";
 
 type Mode = "register" | "login";
 
@@ -17,11 +18,15 @@ export function SyncPanel() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [connecting, setConnecting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [connectError, setConnectError] = useState<string | null>(null);
 
   const [syncing, setSyncing] = useState(false);
-  const [lastResult, setLastResult] = useState<SyncResult | null>(null);
-  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  // Reactive: reflects the outcome of the most recent sync attempt whether
+  // it was triggered by the button below or automatically in the
+  // background (see useAutoSync) — both write to the same syncConfig
+  // entry, so both show up here without this component needing to know
+  // which one happened.
+  const status = useLiveQuery(() => getLastSyncStatus(), []);
 
   useEffect(() => {
     getSyncSession().then(setSession);
@@ -29,7 +34,7 @@ export function SyncPanel() {
 
   async function handleConnect(event: FormEvent) {
     event.preventDefault();
-    setError(null);
+    setConnectError(null);
     setConnecting(true);
     try {
       if (mode === "register") {
@@ -40,7 +45,7 @@ export function SyncPanel() {
       setSession(await getSyncSession());
       setPassword("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur inattendue.");
+      setConnectError(err instanceof Error ? err.message : "Erreur inattendue.");
     } finally {
       setConnecting(false);
     }
@@ -49,22 +54,16 @@ export function SyncPanel() {
   async function handleLogout() {
     await logoutSyncAccount();
     setSession(undefined);
-    setLastResult(null);
-    setLastSyncedAt(null);
   }
 
   async function handleSyncNow() {
     if (!session) return;
-    setError(null);
     setSyncing(true);
     try {
-      const result = await syncNow(session);
-      setLastResult(result);
-      setLastSyncedAt(new Date());
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Erreur inattendue lors de la synchronisation.",
-      );
+      await syncNow(session);
+    } catch {
+      // Deliberately not handled here: syncNow already records the
+      // failure (see getLastSyncStatus above), which is what's displayed.
     } finally {
       setSyncing(false);
     }
@@ -129,9 +128,9 @@ export function SyncPanel() {
               ? "J'ai déjà un compte de synchronisation"
               : "Créer un nouveau compte de synchronisation"}
           </button>
-          {error && (
+          {connectError && (
             <p role="alert" className="form-error">
-              {error}
+              {connectError}
             </p>
           )}
         </form>
@@ -140,22 +139,28 @@ export function SyncPanel() {
           <p>
             Connecté à <strong>{session.serverUrl}</strong>.
           </p>
+          <p className="tagline">
+            La synchronisation se déclenche aussi automatiquement (à l&apos;ouverture, toutes les 5
+            minutes, et au retour d&apos;une connexion réseau) — ce bouton reste utile pour forcer
+            une synchronisation immédiate.
+          </p>
           <button type="button" onClick={handleSyncNow} disabled={syncing}>
             {syncing ? "Synchronisation…" : "Synchroniser maintenant"}
           </button>{" "}
           <button type="button" onClick={handleLogout}>
             Se déconnecter de la synchronisation
           </button>
-          {lastResult && lastSyncedAt && (
+          {status && status.success && (
             <p role="status">
-              Dernière synchronisation à {lastSyncedAt.toLocaleTimeString("fr-FR")} —{" "}
-              {lastResult.push.pushed} élément(s) envoyé(s), {lastResult.pull.pulled} reçu(s),{" "}
-              {lastResult.pull.deleted} suppression(s) appliquée(s).
+              Dernière synchronisation à {new Date(status.attemptedAt).toLocaleTimeString("fr-FR")}{" "}
+              — {status.pushed} élément(s) envoyé(s), {status.pulled} reçu(s), {status.deleted}{" "}
+              suppression(s) appliquée(s).
             </p>
           )}
-          {error && (
+          {status && !status.success && (
             <p role="alert" className="form-error">
-              {error}
+              Échec de la dernière synchronisation (
+              {new Date(status.attemptedAt).toLocaleTimeString("fr-FR")}) : {status.error}
             </p>
           )}
         </div>

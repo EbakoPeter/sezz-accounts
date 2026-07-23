@@ -9,6 +9,7 @@ import { UsersPanel } from "@/components/UsersPanel";
 import { SyncPanel } from "@/components/SyncPanel";
 import { LoginScreen } from "@/components/LoginScreen";
 import { useAuth } from "@/auth/AuthContext";
+import { useAutoSync } from "@/sync/useAutoSync";
 import { ROLE_LABELS } from "@/lib/permissions";
 import type { Permissions } from "@/types/models";
 import "./App.css";
@@ -54,6 +55,12 @@ const ALL_TABS: TabDef[] = [
 export function App() {
   const { currentUser, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<TabId>("accounts");
+  // Called unconditionally, before the login check below, per React's rules
+  // of hooks — but it's also correct to run regardless of local login
+  // state: sync moves already-encrypted data and never decrypts anything,
+  // so keeping it running even while sitting on the login screen (after a
+  // logout, say) keeps this device's data fresh for whoever logs in next.
+  useAutoSync();
 
   if (!currentUser) {
     return <LoginScreen />;

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createTestDatabase } from "@/test/testDatabase";
 import type { SezzAccountsDatabase } from "@/db/schema";
-import { pushChanges, pullChanges, syncNow } from "./syncEngine";
+import { pushChanges, pullChanges, syncNow, getLastSyncStatus } from "./syncEngine";
 import type { SyncSession } from "./syncClient";
 
 const session: SyncSession = {
@@ -276,5 +276,58 @@ describe("syncNow", () => {
     await syncNow(session, database);
 
     expect(callOrder).toEqual(["push", "pull"]);
+  });
+
+  it("records a successful status with the push/pull counts", async () => {
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve(
+        url.includes("/sync/push")
+          ? jsonResponse({ accepted: 0, serverTime: 1000 })
+          : jsonResponse({ records: [], serverTime: 2000 }),
+      ),
+    );
+
+    await syncNow(session, database);
+
+    const status = await getLastSyncStatus(database);
+    expect(status).toMatchObject({ success: true, pushed: 0, pulled: 0, deleted: 0 });
+    expect(status?.attemptedAt).toEqual(expect.any(Number));
+  });
+
+  it("records a failed status with the error message, and still throws", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ error: "Session invalide ou expirée." }, false, 401),
+    );
+
+    await expect(syncNow(session, database)).rejects.toThrow(/session invalide/i);
+
+    const status = await getLastSyncStatus(database);
+    expect(status).toMatchObject({
+      success: false,
+      error: expect.stringMatching(/session invalide/i),
+    });
+  });
+
+  it("overwrites the previous status with each new attempt", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ error: "Panne serveur." }, false, 500));
+    await expect(syncNow(session, database)).rejects.toThrow();
+
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve(
+        url.includes("/sync/push")
+          ? jsonResponse({ accepted: 0, serverTime: 1000 })
+          : jsonResponse({ records: [], serverTime: 2000 }),
+      ),
+    );
+    await syncNow(session, database);
+
+    const status = await getLastSyncStatus(database);
+    expect(status?.success).toBe(true);
+  });
+});
+
+describe("getLastSyncStatus", () => {
+  it("returns undefined when no sync has ever been attempted", async () => {
+    expect(await getLastSyncStatus(database)).toBeUndefined();
   });
 });

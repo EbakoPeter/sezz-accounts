@@ -258,18 +258,70 @@ export interface SyncResult {
   pull: PullResult;
 }
 
+export interface SyncStatus {
+  attemptedAt: number;
+  success: boolean;
+  pushed?: number;
+  pulled?: number;
+  deleted?: number;
+  error?: string;
+}
+
+async function recordStatus(database: SezzAccountsDatabase, status: SyncStatus): Promise<void> {
+  await database.syncConfig.put({ key: "lastSyncStatus", value: JSON.stringify(status) });
+}
+
+/** The outcome of the most recent sync attempt, whichever component
+ * triggered it (the manual button, or automatic background sync) —
+ * SyncPanel reads this reactively via useLiveQuery, so either path updates
+ * the same displayed status. */
+export async function getLastSyncStatus(
+  database: SezzAccountsDatabase = defaultDb,
+): Promise<SyncStatus | undefined> {
+  const entry = await database.syncConfig.get("lastSyncStatus");
+  if (!entry) return undefined;
+  try {
+    return JSON.parse(entry.value) as SyncStatus;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Push before pull, deliberately: sending this device's own changes out
  * first means a pull immediately afterward reflects a more complete
  * picture (including what this device just contributed) rather than
  * potentially fetching a stale view and then separately pushing on top of
  * it. Does not fully eliminate every race with another device syncing at
  * the exact same moment — see this module's README for what is and isn't
- * handled yet. */
+ * handled yet.
+ *
+ * Always records the outcome (success or failure) to a shared status
+ * entry before returning or throwing, so every caller — the manual
+ * "Synchroniser maintenant" button and the automatic background trigger
+ * alike — updates the same place, rather than each needing to remember to
+ * do so itself. Still re-throws on failure, so a caller that wants its own
+ * specific handling can have it. */
 export async function syncNow(
   session: SyncSession,
   database: SezzAccountsDatabase = defaultDb,
 ): Promise<SyncResult> {
-  const push = await pushChanges(session, database);
-  const pull = await pullChanges(session, database);
-  return { push, pull };
+  try {
+    const push = await pushChanges(session, database);
+    const pull = await pullChanges(session, database);
+    await recordStatus(database, {
+      attemptedAt: Date.now(),
+      success: true,
+      pushed: push.pushed,
+      pulled: pull.pulled,
+      deleted: pull.deleted,
+    });
+    return { push, pull };
+  } catch (err) {
+    await recordStatus(database, {
+      attemptedAt: Date.now(),
+      success: false,
+      error: err instanceof Error ? err.message : "Erreur inattendue lors de la synchronisation.",
+    });
+    throw err;
+  }
 }

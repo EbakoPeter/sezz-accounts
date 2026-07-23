@@ -100,7 +100,7 @@ export interface DeletionLogEntry {
  * localStorage: it keeps every piece of this app's state in one place
  * (Dexie), inspectable with the same tooling as everything else. */
 export interface SyncConfigEntry {
-  key: "serverUrl" | "token" | "syncAccountId" | "lastPushedAt" | "lastPulledAt";
+  key: "serverUrl" | "token" | "syncAccountId" | "lastPushedAt" | "lastPulledAt" | "lastSyncStatus";
   value: string;
 }
 

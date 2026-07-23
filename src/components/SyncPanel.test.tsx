@@ -157,4 +157,34 @@ describe("SyncPanel", () => {
       expect(screen.getByLabelText(/adresse du serveur/i)).toBeInTheDocument();
     });
   });
+
+  it("reflects a sync status written from outside the component (e.g. by automatic background sync)", async () => {
+    mockFetch().mockResolvedValue(jsonResponse({ token: "tok-1", syncAccountId: "acct-1" }));
+    const user = userEvent.setup();
+    await renderAuthenticated(<SyncPanel />);
+
+    await user.type(
+      await screen.findByLabelText(/adresse du serveur/i),
+      "https://sync.example.com",
+    );
+    await user.type(screen.getByLabelText(/adresse e-mail/i), "peter@example.com");
+    await user.type(screen.getByLabelText(/^mot de passe$/i), "password123");
+    await user.click(screen.getByRole("button", { name: /créer le compte de synchronisation/i }));
+    await screen.findByText(/connecté à/i);
+
+    await db.syncConfig.put({
+      key: "lastSyncStatus",
+      value: JSON.stringify({
+        attemptedAt: Date.now(),
+        success: true,
+        pushed: 3,
+        pulled: 1,
+        deleted: 0,
+      }),
+    });
+
+    const status = await screen.findByRole("status");
+    expect(status).toHaveTextContent(/3 élément\(s\) envoyé/i);
+    expect(status).toHaveTextContent(/1 reçu/i);
+  });
 });
