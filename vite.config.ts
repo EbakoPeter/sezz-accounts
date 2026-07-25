@@ -18,7 +18,7 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["favicon.png"],
       manifest: {
-        name: "SEZZ Accounts",
+        name: "SEZZ",
         short_name: "SEZZ",
         description: "Gestion budgétaire personnelle — comptes, opérations, synchronisation",
         lang: "fr",

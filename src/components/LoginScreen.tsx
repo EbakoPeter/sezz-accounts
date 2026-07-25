@@ -103,7 +103,7 @@ export function LoginScreen() {
     return (
       <div className="login-screen">
         <div className="login-card">
-          <h1>SEZZ Accounts</h1>
+          <h1>SEZZ</h1>
           <h2>Votre code de récupération</h2>
           <p className="tagline">
             Notez ce code et conservez-le en lieu sûr. Il est le seul moyen de retrouver
@@ -137,7 +137,7 @@ export function LoginScreen() {
   return (
     <div className="login-screen">
       <div className="login-card">
-        <h1>SEZZ Accounts</h1>
+        <h1>SEZZ</h1>
         {isFirstRun ? (
           <>
             <p className="tagline">Premier lancement : créez le compte administrateur principal.</p>

@@ -2,7 +2,7 @@
   "name": "sezz-accounts",
   "version": "0.1.0",
   "private": true,
-  "description": "SEZZ Accounts — application de gestion budgétaire personnelle",
+  "description": "SEZZ — application de gestion budgétaire personnelle",
   "type": "module",
   "scripts": {
     "dev": "vite",

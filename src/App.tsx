@@ -76,7 +76,7 @@ export function App() {
       <header>
         <div className="top-bar">
           <div>
-            <h1>SEZZ Accounts</h1>
+            <h1>SEZZ</h1>
             <p className="tagline">Gestion budgétaire personnelle — fondation normalisée</p>
           </div>
           <div className="session-info">
