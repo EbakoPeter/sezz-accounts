@@ -121,9 +121,41 @@ section section {
   /* nested sections (e.g. Transferts within Opérations) read as
      sub-panels, not a second card floating inside the first */
   box-shadow: none;
-  border: 1px dashed var(--line);
+  border: 1px solid var(--line);
+  border-left-width: 4px;
   margin-top: var(--space-5);
   margin-bottom: 0;
+}
+
+/* Each functionality sharing a page with another gets its own accent, so
+   "Transferts" doesn't blur into "Opérations", "Engagements" doesn't blur
+   into the budget table above it, and so on — a tinted background plus a
+   colored left edge and heading, using tones already in the palette
+   rather than introducing new ones that would fight with it. rgba() over
+   color-mix() deliberately, for compatibility with older Android
+   browsers this app's actual users are more likely to be on. */
+section.accent-gold {
+  background: rgba(201, 138, 59, 0.07);
+  border-left-color: var(--gold);
+}
+section.accent-gold h3 {
+  color: var(--gold);
+}
+
+section.accent-sage {
+  background: rgba(76, 122, 91, 0.08);
+  border-left-color: var(--sage);
+}
+section.accent-sage h3 {
+  color: var(--sage);
+}
+
+section.accent-ink {
+  background: rgba(36, 72, 90, 0.06);
+  border-left-color: var(--ink-light);
+}
+section.accent-ink h3 {
+  color: var(--ink-light);
 }
 
 section h2 {
@@ -307,6 +339,19 @@ tfoot th {
   text-align: right;
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
+  white-space: nowrap;
+  min-width: 6.5em;
+}
+
+/* Long free-text columns (libellé, ligne budgétaire, tiers...) truncate
+   with an ellipsis rather than competing with .num for space and forcing
+   it to shrink below what an amount needs — the amount is the number
+   someone actually scans a table for, the label is identifying context. */
+.truncate {
+  max-width: 22ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .negative {

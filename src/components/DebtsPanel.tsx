@@ -367,7 +367,7 @@ export function DebtsPanel() {
                   <tr key={debt.id}>
                     <td>{debt.reference}</td>
                     <td>{debt.kind === "debt" ? "Dette" : "Créance"}</td>
-                    <td>{debt.counterparty}</td>
+                    <td className="truncate">{debt.counterparty}</td>
                     <td>{accounts?.find((a) => a.id === debt.accountId)?.name ?? "—"}</td>
                     <td className="num">{formatFcfa(debt.amount)}</td>
                     <td>{debt.dueDate ?? "—"}</td>
@@ -403,164 +403,165 @@ export function DebtsPanel() {
         </div>
       )}
 
-      {canManage && (debtsForPaymentForm?.length ?? 0) > 0 && (
-        <>
-          <h3>Remboursements</h3>
-          <form onSubmit={handleCreatePayment} aria-label="Ajouter un remboursement">
-            <div className="field">
-              <label htmlFor="payment-debt">Dette / créance</label>
-              <select
-                id="payment-debt"
-                value={paymentDebtId}
-                onChange={(e) => setPaymentDebtId(e.target.value)}
-              >
-                <option value="" disabled>
-                  Choisir…
-                </option>
-                {debtsForPaymentForm?.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.reference} — {d.counterparty}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="field">
-              <label htmlFor="payment-account">Compte concerné</label>
-              <select
-                id="payment-account"
-                value={paymentAccountId}
-                onChange={(e) => setPaymentAccountId(e.target.value)}
-              >
-                <option value="" disabled>
-                  Choisir…
-                </option>
-                {accounts?.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="field">
-              <label htmlFor="payment-amount">Montant</label>
-              <input
-                id="payment-amount"
-                type="number"
-                value={paymentAmount}
-                onChange={(e) => setPaymentAmount(e.target.value)}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="payment-date">Date</label>
-              <input
-                id="payment-date"
-                type="date"
-                value={paymentDate}
-                onChange={(e) => setPaymentDate(e.target.value)}
-              />
-            </div>
-            <button type="submit">+ Ajouter</button>
-            {paymentError && (
-              <p role="alert" className="form-error">
-                {paymentError}
-              </p>
-            )}
-          </form>
-        </>
-      )}
-
-      {(payments?.length ?? 0) > 0 && (
-        <>
-          {!canManage && <h3>Remboursements</h3>}
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Dette / créance</th>
-                  <th>Compte</th>
-                  <th>Montant</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {payments?.map((payment) =>
-                  editingPaymentId === payment.id ? (
-                    <tr key={payment.id}>
-                      <td>
-                        <input
-                          aria-label={`Date du remboursement du ${payment.date}`}
-                          type="date"
-                          value={editPaymentDate}
-                          onChange={(e) => setEditPaymentDate(e.target.value)}
-                        />
-                      </td>
-                      <td>{debtReferenceById.get(payment.debtId) ?? "—"}</td>
-                      <td>
-                        <select
-                          aria-label={`Compte du remboursement du ${payment.date}`}
-                          value={editPaymentAccountId}
-                          onChange={(e) => setEditPaymentAccountId(e.target.value)}
-                        >
-                          {accounts?.map((a) => (
-                            <option key={a.id} value={a.id}>
-                              {a.name}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td>
-                        <input
-                          aria-label={`Montant du remboursement du ${payment.date}`}
-                          type="number"
-                          value={editPaymentAmount}
-                          onChange={(e) => setEditPaymentAmount(e.target.value)}
-                        />
-                      </td>
-                      <td>
-                        <button type="button" onClick={() => handleSaveEditPayment(payment.id)}>
-                          Enregistrer
-                        </button>{" "}
-                        <button type="button" className="ghost" onClick={handleCancelEditPayment}>
-                          Annuler
-                        </button>
-                        {paymentRowError?.id === payment.id && (
-                          <p role="alert" className="form-error">
-                            {paymentRowError.message}
-                          </p>
-                        )}
-                      </td>
-                    </tr>
-                  ) : (
-                    <tr key={payment.id}>
-                      <td>{payment.date}</td>
-                      <td>{debtReferenceById.get(payment.debtId) ?? "—"}</td>
-                      <td>{accounts?.find((a) => a.id === payment.accountId)?.name ?? "—"}</td>
-                      <td className="num">{formatFcfa(payment.amount)}</td>
-                      <td>
-                        {canManage && (
-                          <>
-                            <button type="button" onClick={() => handleStartEditPayment(payment)}>
-                              Modifier
-                            </button>{" "}
-                            <button type="button" onClick={() => handleDeletePayment(payment.id)}>
-                              Supprimer
-                            </button>
-                          </>
-                        )}
-                        {paymentRowError?.id === payment.id && (
-                          <p role="alert" className="form-error">
-                            {paymentRowError.message}
-                          </p>
-                        )}
-                      </td>
-                    </tr>
-                  ),
+      {((canManage && (debtsForPaymentForm?.length ?? 0) > 0) || (payments?.length ?? 0) > 0) && (
+        <section className="accent-ink" aria-labelledby="payments-heading">
+          <h3 id="payments-heading">Remboursements</h3>
+          {canManage && (debtsForPaymentForm?.length ?? 0) > 0 && (
+            <>
+              <form onSubmit={handleCreatePayment} aria-label="Ajouter un remboursement">
+                <div className="field">
+                  <label htmlFor="payment-debt">Dette / créance</label>
+                  <select
+                    id="payment-debt"
+                    value={paymentDebtId}
+                    onChange={(e) => setPaymentDebtId(e.target.value)}
+                  >
+                    <option value="" disabled>
+                      Choisir…
+                    </option>
+                    {debtsForPaymentForm?.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.reference} — {d.counterparty}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field">
+                  <label htmlFor="payment-account">Compte concerné</label>
+                  <select
+                    id="payment-account"
+                    value={paymentAccountId}
+                    onChange={(e) => setPaymentAccountId(e.target.value)}
+                  >
+                    <option value="" disabled>
+                      Choisir…
+                    </option>
+                    {accounts?.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field">
+                  <label htmlFor="payment-amount">Montant</label>
+                  <input
+                    id="payment-amount"
+                    type="number"
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(e.target.value)}
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="payment-date">Date</label>
+                  <input
+                    id="payment-date"
+                    type="date"
+                    value={paymentDate}
+                    onChange={(e) => setPaymentDate(e.target.value)}
+                  />
+                </div>
+                <button type="submit">+ Ajouter</button>
+                {paymentError && (
+                  <p role="alert" className="form-error">
+                    {paymentError}
+                  </p>
                 )}
-              </tbody>
-            </table>
-          </div>
-        </>
+              </form>
+            </>
+          )}
+
+          {(payments?.length ?? 0) > 0 && (
+            <div className="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Dette / créance</th>
+                    <th>Compte</th>
+                    <th>Montant</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {payments?.map((payment) =>
+                    editingPaymentId === payment.id ? (
+                      <tr key={payment.id}>
+                        <td>
+                          <input
+                            aria-label={`Date du remboursement du ${payment.date}`}
+                            type="date"
+                            value={editPaymentDate}
+                            onChange={(e) => setEditPaymentDate(e.target.value)}
+                          />
+                        </td>
+                        <td>{debtReferenceById.get(payment.debtId) ?? "—"}</td>
+                        <td>
+                          <select
+                            aria-label={`Compte du remboursement du ${payment.date}`}
+                            value={editPaymentAccountId}
+                            onChange={(e) => setEditPaymentAccountId(e.target.value)}
+                          >
+                            {accounts?.map((a) => (
+                              <option key={a.id} value={a.id}>
+                                {a.name}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td>
+                          <input
+                            aria-label={`Montant du remboursement du ${payment.date}`}
+                            type="number"
+                            value={editPaymentAmount}
+                            onChange={(e) => setEditPaymentAmount(e.target.value)}
+                          />
+                        </td>
+                        <td>
+                          <button type="button" onClick={() => handleSaveEditPayment(payment.id)}>
+                            Enregistrer
+                          </button>{" "}
+                          <button type="button" className="ghost" onClick={handleCancelEditPayment}>
+                            Annuler
+                          </button>
+                          {paymentRowError?.id === payment.id && (
+                            <p role="alert" className="form-error">
+                              {paymentRowError.message}
+                            </p>
+                          )}
+                        </td>
+                      </tr>
+                    ) : (
+                      <tr key={payment.id}>
+                        <td>{payment.date}</td>
+                        <td>{debtReferenceById.get(payment.debtId) ?? "—"}</td>
+                        <td>{accounts?.find((a) => a.id === payment.accountId)?.name ?? "—"}</td>
+                        <td className="num">{formatFcfa(payment.amount)}</td>
+                        <td>
+                          {canManage && (
+                            <>
+                              <button type="button" onClick={() => handleStartEditPayment(payment)}>
+                                Modifier
+                              </button>{" "}
+                              <button type="button" onClick={() => handleDeletePayment(payment.id)}>
+                                Supprimer
+                              </button>
+                            </>
+                          )}
+                          {paymentRowError?.id === payment.id && (
+                            <p role="alert" className="form-error">
+                              {paymentRowError.message}
+                            </p>
+                          )}
+                        </td>
+                      </tr>
+                    ),
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
       )}
     </section>
   );

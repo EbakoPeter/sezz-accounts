@@ -97,7 +97,7 @@ export function ReportsPanel() {
     <section aria-labelledby="reports-heading">
       <h2 id="reports-heading">Rapports</h2>
 
-      <section aria-labelledby="general-report-heading">
+      <section className="accent-ink" aria-labelledby="general-report-heading">
         <h3 id="general-report-heading">Rapport général</h3>
         <p className="tagline">
           Vue d&apos;ensemble d&apos;un mois : soldes des comptes, revenus et dépenses, budget
@@ -122,7 +122,7 @@ export function ReportsPanel() {
         )}
       </section>
 
-      <section aria-labelledby="operations-report-heading">
+      <section className="accent-gold" aria-labelledby="operations-report-heading">
         <h3 id="operations-report-heading">Rapport par opérations</h3>
         <p className="tagline">
           Relevé de toutes les opérations d&apos;une période donnée, comme un relevé bancaire.
@@ -155,7 +155,7 @@ export function ReportsPanel() {
         )}
       </section>
 
-      <section aria-labelledby="cashflow-report-heading">
+      <section className="accent-sage" aria-labelledby="cashflow-report-heading">
         <h3 id="cashflow-report-heading">Rapport de trésorerie</h3>
         <p className="tagline">
           Évolution du solde de chaque compte, mois par mois, sur la période choisie.

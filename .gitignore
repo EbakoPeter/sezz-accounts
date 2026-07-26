@@ -4,3 +4,6 @@ coverage/
 *.local
 .DS_Store
 *.tsbuildinfo
+# Generated reports (downloaded via the app, or left over from local
+# testing of the report-generation code) — never part of the source.
+*.pdf
