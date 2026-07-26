@@ -1,0 +1,488 @@
+/* SEZZ — design system
+   Identity: a well-kept household ledger, not a generic SaaS dashboard —
+   ink on paper, a serif for the parts that deserve weight, tabular
+   numerals for the parts that need to be scanned at a glance.
+   Newsreader/Inter are loaded via <link> tags in index.html, not @import
+   here, so the browser can fetch them in parallel with this stylesheet
+   rather than discovering them only after this file finishes loading. */
+
+:root {
+  /* Palette */
+  --ink: #16333e;
+  --ink-light: #24485a;
+  --gold: #c98a3b;
+  --gold-soft: #e7c692;
+  --sage: #4c7a5b;
+  --red: #b23a34;
+  --paper: #faf7f1;
+  --surface: #ffffff;
+  --line: #ddd3be;
+  --line-soft: #ece5d4;
+  --text: #2b2620;
+  --text-dim: #726b5e;
+
+  /* Type */
+  --font-display: "Newsreader", Georgia, serif;
+  --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+
+  /* Scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --shadow-card: 0 1px 2px rgba(22, 51, 62, 0.04), 0 8px 24px rgba(22, 51, 62, 0.06);
+  --shadow-raised: 0 4px 20px rgba(22, 51, 62, 0.12);
+  --transition: 150ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --transition: 0ms;
+  }
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  background-image: radial-gradient(circle at 1px 1px, rgba(22, 51, 62, 0.05) 1px, transparent 0);
+  background-size: 22px 22px;
+  color: var(--text);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-4) var(--space-6);
+}
+
+@media (max-width: 600px) {
+  .app {
+    padding: var(--space-4) var(--space-3) var(--space-5);
+  }
+}
+
+/* Focus visibility — kept deliberately strong; a finance app is exactly
+   the wrong place for someone navigating by keyboard to lose their place. */
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+header h1 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.9rem;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+  margin: 0 0 2px;
+}
+
+.tagline {
+  color: var(--text-dim);
+  margin-top: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+section {
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-5);
+  margin-bottom: var(--space-5);
+}
+
+@media (max-width: 600px) {
+  section {
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+  }
+}
+
+section section {
+  /* nested sections (e.g. Transferts within Opérations) read as
+     sub-panels, not a second card floating inside the first */
+  box-shadow: none;
+  border: 1px dashed var(--line);
+  margin-top: var(--space-5);
+  margin-bottom: 0;
+}
+
+section h2 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.4rem;
+  color: var(--ink);
+  margin-top: 0;
+  margin-bottom: var(--space-2);
+}
+
+section h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: var(--ink);
+  margin-top: 0;
+}
+
+form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: flex-end;
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px dashed var(--line);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: 0.82rem;
+}
+
+.field label {
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+input,
+select {
+  padding: 9px 11px;
+  border: 1px solid #cbc1aa;
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  font-family: var(--font-body);
+  background: var(--surface);
+  color: var(--text);
+  transition:
+    border-color var(--transition),
+    box-shadow var(--transition);
+  min-height: 44px;
+}
+
+input:hover,
+select:hover {
+  border-color: var(--gold);
+}
+
+input:focus,
+select:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(201, 138, 59, 0.15);
+}
+
+button {
+  background: var(--ink);
+  color: #f4efe2;
+  border: none;
+  padding: 10px 18px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.88rem;
+  font-family: var(--font-body);
+  min-height: 44px;
+  transition:
+    background var(--transition),
+    transform var(--transition),
+    box-shadow var(--transition);
+}
+
+button:hover:not(:disabled) {
+  background: var(--ink-light);
+  box-shadow: 0 2px 8px rgba(22, 51, 62, 0.2);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+button.ghost {
+  background: none;
+  color: var(--ink);
+  border: 1px solid #cbc1aa;
+}
+
+button.ghost:hover:not(:disabled) {
+  background: var(--line-soft);
+  box-shadow: none;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Tables — wrapped in .table-scroll for touch-friendly horizontal
+   scrolling on narrow screens, rather than squeezing 6+ columns until
+   they're unreadable. A soft right-edge shadow hints there's more to
+   scroll to, without needing JS to detect scroll position. */
+.table-scroll {
+  overflow-x: auto;
+  margin: 0 calc(var(--space-5) * -1);
+  padding: 0 var(--space-5);
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 600px) {
+  .table-scroll {
+    margin: 0 calc(var(--space-4) * -1);
+    padding: 0 var(--space-4);
+  }
+}
+
+table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+th {
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  color: var(--text-dim);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-bottom: 2px solid var(--ink);
+  white-space: nowrap;
+}
+
+td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+tbody tr {
+  transition: background var(--transition);
+}
+
+tbody tr:hover {
+  background: rgba(201, 138, 59, 0.06);
+}
+
+/* The ledger's "closing the books" line — a real accounting-book gesture,
+   not decoration: totals get their own weight, set apart from ordinary
+   rows the same way a bookkeeper would rule a line and total a column. */
+tfoot td,
+tfoot th {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: none;
+  border-top: 2px solid var(--ink);
+  background: var(--ink);
+  color: #f4efe2;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: none;
+}
+
+tfoot th {
+  text-align: left;
+  font-family: var(--font-display);
+}
+
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+.negative {
+  color: var(--red);
+  font-weight: 600;
+}
+
+.positive {
+  color: var(--sage);
+}
+
+.empty {
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.form-error {
+  color: var(--red);
+  font-size: 0.8rem;
+  margin: 4px 0 0;
+  width: 100%;
+}
+
+.login-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--paper);
+  background-image: radial-gradient(circle at 1px 1px, rgba(22, 51, 62, 0.05) 1px, transparent 0);
+  background-size: 22px 22px;
+  padding: var(--space-4);
+}
+
+.login-card {
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6) var(--space-5);
+  max-width: 380px;
+  width: 100%;
+  box-shadow: var(--shadow-raised);
+}
+
+.login-card h1 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 2.1rem;
+  color: var(--ink);
+  margin: 0 0 var(--space-1);
+  text-align: center;
+  letter-spacing: 0.02em;
+}
+
+.login-card form {
+  flex-direction: column;
+  align-items: stretch;
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.login-card .field {
+  margin-bottom: var(--space-3);
+}
+
+.login-card button {
+  width: 100%;
+}
+
+.top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.top-bar .session-info {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Tab bar — horizontally scrollable rather than wrapping into a second
+   row, since a wrapped tab bar on a phone eats vertical space the
+   content needs more. */
+.tab-bar {
+  display: flex;
+  gap: 2px;
+  border-bottom: 2px solid var(--ink);
+  margin-bottom: var(--space-5);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.tab-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.tab-button {
+  background: none;
+  color: var(--text-dim);
+  border: none;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  padding: 10px 16px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  position: relative;
+  transition:
+    color var(--transition),
+    background var(--transition);
+}
+
+.tab-button:hover {
+  background: var(--line-soft);
+  color: var(--ink);
+}
+
+.tab-button.active {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.tab-button.active::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: -2px;
+  height: 3px;
+  background: var(--gold);
+  border-radius: 2px 2px 0 0;
+}
+
+.permission-notice {
+  color: var(--text-dim);
+  font-style: italic;
+  font-size: 0.85rem;
+  margin-top: var(--space-2);
+}
+
+.recovery-code {
+  font-family: "Courier New", monospace;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px dashed var(--gold);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3) var(--space-4);
+  text-align: center;
+  margin: var(--space-3) 0;
+  user-select: all;
+}
+
+.note-box {
+  background: #fbf6ec;
+  border: 1px solid var(--gold);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  margin: var(--space-3) 0;
+  font-size: 0.85rem;
+}
+
+.note-box p {
+  margin: 0 0 var(--space-2);
+}
