@@ -4,6 +4,8 @@ import { createAccountsRepository } from "@/db/accountsRepository";
 import { getAccountFlows, netOf } from "@/db/accountFlows";
 import { getMonthlyReport } from "@/db/monthlyReport";
 import { getBudgetSummary } from "@/db/budgetSummary";
+import { createEngagementsRepository } from "@/db/engagementsRepository";
+import { getAllDebtSummaries } from "@/db/debtSummary";
 import { formatFcfa } from "@/lib/money";
 import {
   createReportDocument,
@@ -12,12 +14,23 @@ import {
   downloadReport,
 } from "./pdfDocument";
 
+const DEBT_STATUS_LABELS: Record<string, string> = {
+  settled: "Soldé",
+  overdue: "En retard",
+  ongoing: "En cours",
+};
+
+const ENGAGEMENT_STATUS_LABELS: Record<string, string> = {
+  engaged: "Engagé",
+  realized: "Réalisé",
+  cancelled: "Annulé",
+};
+
 /**
- * The overview report: account balances, this month's income/expense, and
- * the budget summary for the same month — the same three things
- * AccountsPanel, MonthlyReportPanel, and BudgetPanel each show on their
- * own screen, brought into a single downloadable document rather than
- * three separate exports someone would have to assemble by hand.
+ * The overview report: account balances, this month's income/expense, the
+ * budget summary, this month's engagements, and every debt/receivable —
+ * every table the app has, brought into a single downloadable document
+ * rather than something someone has to assemble screen by screen.
  */
 export async function generateGeneralReportPdf(
   database: SezzAccountsDatabase,
@@ -25,13 +38,20 @@ export async function generateGeneralReportPdf(
   month: number,
 ): Promise<jsPDF> {
   const accountsRepo = createAccountsRepository(database);
-  const [accounts, flows, monthlyRows, budgetCategories] = await Promise.all([
-    accountsRepo.list(),
-    getAccountFlows(database),
-    getMonthlyReport(year, database),
-    getBudgetSummary(year, month, database),
-  ]);
+  const engagementsRepo = createEngagementsRepository(database);
+  const [accounts, flows, monthlyRows, budgetCategories, engagements, debtSummaries] =
+    await Promise.all([
+      accountsRepo.list(),
+      getAccountFlows(database),
+      getMonthlyReport(year, database),
+      getBudgetSummary(year, month, database),
+      engagementsRepo.list({ year, month }),
+      getAllDebtSummaries(database),
+    ]);
   const monthRow = monthlyRows.find((r) => r.month === month);
+  const subcategoryNameById = new Map(
+    budgetCategories.flatMap((c) => c.subcategories.map((s) => [s.subcategoryId, s.name])),
+  );
 
   const monthLabel = new Date(year, month - 1, 1).toLocaleDateString("fr-FR", {
     month: "long",
@@ -78,12 +98,58 @@ export async function generateGeneralReportPdf(
     ]),
   );
   if (budgetRows.length > 0) {
+    y =
+      addReportTable(
+        doc,
+        y,
+        [["Ligne budgétaire", "Alloué", "Réel", "Engagé", "Restant"]],
+        budgetRows,
+      ) + 12;
+  }
+
+  y = addSectionHeading(doc, `Engagements — ${monthLabel}`, y);
+  if (engagements.length > 0) {
+    const engagementRows = engagements.map((e) => [
+      e.date,
+      subcategoryNameById.get(e.subcategoryId) ?? "—",
+      e.label,
+      formatFcfa(e.amount),
+      ENGAGEMENT_STATUS_LABELS[e.status] ?? e.status,
+    ]);
+    y =
+      addReportTable(
+        doc,
+        y,
+        [["Date", "Ligne budgétaire", "Libellé", "Montant", "Statut"]],
+        engagementRows,
+      ) + 12;
+  } else {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text("Aucun engagement ce mois-ci.", 14, y);
+    y += 12;
+  }
+
+  y = addSectionHeading(doc, "Dettes & créances", y);
+  if (debtSummaries.length > 0) {
+    const debtRows = debtSummaries.map(({ debt, remaining, status }) => [
+      debt.reference,
+      debt.kind === "debt" ? "Dette" : "Créance",
+      debt.counterparty,
+      formatFcfa(debt.amount),
+      formatFcfa(remaining),
+      DEBT_STATUS_LABELS[status] ?? status,
+    ]);
     addReportTable(
       doc,
       y,
-      [["Ligne budgétaire", "Alloué", "Réel", "Engagé", "Restant"]],
-      budgetRows,
+      [["Réf.", "Type", "Tiers", "Montant initial", "Restant", "Statut"]],
+      debtRows,
     );
+  } else {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text("Aucune dette ni créance enregistrée.", 14, y);
   }
 
   return doc;

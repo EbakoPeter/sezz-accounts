@@ -180,9 +180,9 @@ form {
   flex-wrap: wrap;
   gap: var(--space-3);
   align-items: flex-end;
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-5);
   padding-bottom: var(--space-4);
-  border-bottom: 1px dashed var(--line);
+  border-bottom: 2px solid var(--ink);
 }
 
 .field {
