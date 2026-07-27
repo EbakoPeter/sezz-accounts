@@ -11,6 +11,7 @@ import type { BudgetSubcategory, Transaction, Engagement } from "@/types/models"
 
 afterEach(async () => {
   await db.users.clear();
+  await db.roleTemplates.clear();
   await db.transactions.clear();
   await db.engagements.clear();
   await db.budgetSubcategories.clear();

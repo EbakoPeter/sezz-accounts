@@ -245,6 +245,23 @@ export interface Permissions {
 
 export type UserRole = "admin" | "standard" | "viewer";
 
+/** A stored, editable permission set for a role — the "profil" an
+ * administrator configures once (permit/deny per privilege) that then
+ * applies as the default for every new user of that role. Distinct from
+ * an individual User's own `permissions`: creating a user copies the
+ * role's current template at that moment, but editing the template
+ * afterward does not retroactively change users already created — the
+ * same relationship a role already had with ROLE_DEFAULT_PERMISSIONS
+ * before this became editable and stored rather than a hardcoded
+ * constant. */
+export interface RoleTemplate {
+  id: UserRole;
+  permissions: Permissions;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+export type RoleTemplateUpdate = Pick<RoleTemplate, "permissions">;
+
 export interface User {
   id: string;
   username: string;

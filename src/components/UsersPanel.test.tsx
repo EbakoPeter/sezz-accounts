@@ -6,10 +6,11 @@ import { AuthProvider } from "@/auth/AuthContext";
 import { db } from "@/db/schema";
 import { clearActiveDek } from "@/lib/encryptionSession";
 import { usersRepository } from "@/repositories";
-import { renderAuthenticated } from "@/test/renderAuthenticated";
+import { renderAuthenticated, createTestUser, renderWithSession } from "@/test/renderAuthenticated";
 
 afterEach(async () => {
   await db.users.clear();
+  await db.roleTemplates.clear();
   clearActiveDek();
   vi.restoreAllMocks();
 });
@@ -46,10 +47,11 @@ describe("UsersPanel", () => {
     await renderAsAdminAndReturnUser();
     const user = userEvent.setup();
 
+    await user.click(screen.getByRole("button", { name: /\+ nouveau/i }));
     await user.type(screen.getByLabelText(/nom d'utilisateur/i), "newuser");
     await user.type(screen.getByLabelText(/nom affiché/i), "New User");
     await user.type(screen.getByLabelText(/^mot de passe$/i), "password123");
-    await user.click(screen.getByRole("button", { name: /\+ ajouter/i }));
+    await user.click(screen.getByRole("button", { name: /^créer$/i }));
 
     expect(await screen.findByText("New User")).toBeInTheDocument();
   });
@@ -93,7 +95,7 @@ describe("UsersPanel", () => {
     const standardRow = (await screen.findByText("Standard User")).closest("tr")!;
     await user.click(within(standardRow).getByRole("button", { name: /modifier les privilèges/i }));
 
-    const debtsCheckbox = screen.getByLabelText(/gérer les dettes et créances/i);
+    const debtsCheckbox = within(standardRow).getByLabelText(/gérer les dettes et créances/i);
     expect(debtsCheckbox).toBeChecked();
     await user.click(debtsCheckbox);
     await user.click(screen.getByRole("button", { name: /enregistrer/i }));
@@ -114,10 +116,11 @@ describe("UsersPanel", () => {
     await renderAsAdminAndReturnUser();
     const user = userEvent.setup();
 
+    await user.click(screen.getByRole("button", { name: /\+ nouveau/i }));
     await user.type(screen.getByLabelText(/nom d'utilisateur/i), "newuser");
     await user.type(screen.getByLabelText(/nom affiché/i), "New User");
     await user.type(screen.getByLabelText(/^mot de passe$/i), "password123");
-    await user.click(screen.getByRole("button", { name: /\+ ajouter/i }));
+    await user.click(screen.getByRole("button", { name: /^créer$/i }));
 
     await screen.findByText("New User");
     const notice = await screen.findByRole("status");
@@ -159,6 +162,65 @@ describe("UsersPanel", () => {
     await user.click(screen.getByRole("button", { name: /^confirmer$/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/incorrect/i);
+  });
+
+  it("shows the permit/deny grid for all three roles and every privilege", async () => {
+    await renderAsAdminAndReturnUser();
+
+    const grid = (await screen.findByText("Profils")).closest("section")!;
+    await within(grid).findByText("Administrateur");
+    expect(within(grid).getByText("Standard")).toBeInTheDocument();
+    expect(within(grid).getByText("Lecture seule")).toBeInTheDocument();
+    expect(within(grid).getByText("Gérer les dettes et créances")).toBeInTheDocument();
+  });
+
+  it("reflects the actual stored defaults: admin permitted, viewer denied, for a managed privilege", async () => {
+    await renderAsAdminAndReturnUser();
+
+    const grid = (await screen.findByText("Profils")).closest("section")!;
+    expect(await within(grid).findByLabelText("Gérer les comptes — Administrateur")).toBeChecked();
+    expect(within(grid).getByLabelText("Gérer les comptes — Lecture seule")).not.toBeChecked();
+  });
+
+  it("edits a role's template, changing what future users of that role start with", async () => {
+    const user = userEvent.setup();
+    await renderAsAdminAndReturnUser();
+
+    const grid = (await screen.findByText("Profils")).closest("section")!;
+    const standardReports = await within(grid).findByLabelText(
+      "Consulter les rapports et recommandations — Standard",
+    );
+    expect(standardReports).toBeChecked();
+    await user.click(standardReports);
+
+    await waitFor(() => {
+      expect(standardReports).not.toBeChecked();
+    });
+
+    await usersRepository.create({
+      username: "futurestandard",
+      displayName: "Future Standard",
+      password: "password123",
+      role: "standard",
+    });
+    const created = await usersRepository.getByUsername("futurestandard");
+    expect(created?.permissions.viewReports).toBe(false);
+  });
+
+  it("shows only the listing (not the Profils grid) when view is list", async () => {
+    const session = await createTestUser("admin");
+    renderWithSession(<UsersPanel view="list" />, session);
+
+    await screen.findByRole("button", { name: /\+ nouveau/i });
+    expect(screen.queryByText("Profils")).not.toBeInTheDocument();
+  });
+
+  it("shows only the Profils grid (not the listing/Nouveau button) when view is profile", async () => {
+    const session = await createTestUser("admin");
+    renderWithSession(<UsersPanel view="profile" />, session);
+
+    await screen.findByText("Profils");
+    expect(screen.queryByRole("button", { name: /\+ nouveau/i })).not.toBeInTheDocument();
   });
 });
 

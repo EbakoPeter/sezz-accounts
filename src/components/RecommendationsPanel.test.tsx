@@ -9,6 +9,7 @@ import type { Transaction } from "@/types/models";
 
 afterEach(async () => {
   await db.users.clear();
+  await db.roleTemplates.clear();
   await db.debtPayments.clear();
   await db.debts.clear();
   await db.transactions.clear();

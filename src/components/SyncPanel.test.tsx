@@ -10,6 +10,7 @@ let fetchMock: ReturnType<typeof vi.fn>;
 
 afterEach(async () => {
   await db.users.clear();
+  await db.roleTemplates.clear();
   await db.syncConfig.clear();
   clearActiveDek();
   vi.unstubAllGlobals();

@@ -16,6 +16,7 @@ import { getAccountFlows, netOf } from "@/db/accountFlows";
 
 afterEach(async () => {
   await db.users.clear();
+  await db.roleTemplates.clear();
   await db.transactions.clear();
   await db.transfers.clear();
   await db.engagements.clear();

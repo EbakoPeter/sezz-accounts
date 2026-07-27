@@ -11,6 +11,7 @@ import { MAX_ATTEMPTS_BEFORE_LOCKOUT } from "@/lib/loginRateLimit";
 
 beforeEach(async () => {
   await db.users.clear();
+  await db.roleTemplates.clear();
 });
 
 afterEach(async () => {

@@ -15,7 +15,7 @@ function currentYearMonth(): { year: number; month: number } {
   return { year: now.getFullYear(), month: now.getMonth() + 1 };
 }
 
-export function BudgetPanel() {
+export function BudgetPanel({ view = "both" }: { view?: "forecast" | "engagements" | "both" }) {
   const [{ year, month }, setPeriod] = useState(currentYearMonth());
   const summary = useBudgetSummary(year, month);
   const categories = useLiveQuery(() => budgetCategoriesRepository.list(), []);
@@ -289,434 +289,447 @@ export function BudgetPanel() {
         <span className="empty">{monthLabel}</span>
       </div>
 
-      {!canManage ? (
-        <p className="permission-notice">
-          Vous n&apos;avez pas la permission de modifier le budget prévisionnel.
-        </p>
-      ) : (
-        <>
-          <form onSubmit={handleCreateCategory} aria-label="Ajouter une catégorie">
-            <div className="field">
-              <label htmlFor="cat-name">Nouvelle catégorie</label>
-              <input
-                id="cat-name"
-                value={categoryName}
-                onChange={(e) => setCategoryName(e.target.value)}
-                placeholder="Ex : Vie Courante"
-              />
-            </div>
-            <button type="submit">+ Ajouter</button>
-            {categoryError && (
-              <p role="alert" className="form-error">
-                {categoryError}
-              </p>
-            )}
-          </form>
-
-          {(categories?.length ?? 0) > 0 && (
-            <form onSubmit={handleCreateSubcategory} aria-label="Ajouter une sous-catégorie">
+      {(view === "forecast" || view === "both") &&
+        (!canManage ? (
+          <p className="permission-notice">
+            Vous n&apos;avez pas la permission de modifier le budget prévisionnel.
+          </p>
+        ) : (
+          <>
+            <form onSubmit={handleCreateCategory} aria-label="Ajouter une catégorie">
               <div className="field">
-                <label htmlFor="sub-category">Catégorie</label>
-                <select
-                  id="sub-category"
-                  value={subCategoryId}
-                  onChange={(e) => setSubCategoryId(e.target.value)}
-                >
-                  <option value="" disabled>
-                    Choisir…
-                  </option>
-                  {categories?.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="field">
-                <label htmlFor="sub-name">Sous-catégorie</label>
-                <input id="sub-name" value={subName} onChange={(e) => setSubName(e.target.value)} />
-              </div>
-              <div className="field">
-                <label htmlFor="sub-allocation">Budget mensuel</label>
+                <label htmlFor="cat-name">Nouvelle catégorie</label>
                 <input
-                  id="sub-allocation"
-                  type="number"
-                  value={subAllocation}
-                  onChange={(e) => setSubAllocation(e.target.value)}
+                  id="cat-name"
+                  value={categoryName}
+                  onChange={(e) => setCategoryName(e.target.value)}
+                  placeholder="Ex : Vie Courante"
                 />
               </div>
               <button type="submit">+ Ajouter</button>
-              {subError && (
+              {categoryError && (
                 <p role="alert" className="form-error">
-                  {subError}
+                  {categoryError}
                 </p>
               )}
             </form>
-          )}
-        </>
-      )}
 
-      {summary === undefined ? (
-        <p>Chargement…</p>
-      ) : summary.length === 0 ? (
-        <p className="empty">Aucune catégorie budgétaire pour le moment.</p>
-      ) : (
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Catégorie / Sous-catégorie</th>
-                <th>Budget mensuel</th>
-                <th>Réel</th>
-                <th>Engagé</th>
-                <th>Écart</th>
-                <th>% utilisé</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {summary.map((category) => (
-                <Fragment key={category.categoryId}>
-                  <tr style={{ fontWeight: 700 }}>
-                    <td>
-                      {editingCategoryId === category.categoryId ? (
-                        <input
-                          aria-label={`Nom de ${category.name}`}
-                          value={editCategoryName}
-                          onChange={(e) => setEditCategoryName(e.target.value)}
-                        />
-                      ) : (
-                        category.name
-                      )}
-                    </td>
-                    <td className="num">{formatFcfa(category.totalAllocation)}</td>
-                    <td className="num">{formatFcfa(category.totalActual)}</td>
-                    <td className="num">{formatFcfa(category.totalEngaged)}</td>
-                    <td className={`num ${category.totalRemaining < 0 ? "negative" : ""}`}>
-                      {formatFcfa(category.totalRemaining)}
-                    </td>
-                    <td />
-                    <td>
-                      {canManage &&
-                        (editingCategoryId === category.categoryId ? (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => handleSaveEditCategory(category.categoryId)}
-                            >
-                              Enregistrer
-                            </button>{" "}
-                            <button
-                              type="button"
-                              className="ghost"
-                              onClick={handleCancelEditCategory}
-                            >
-                              Annuler
-                            </button>
-                          </>
-                        ) : (
-                          <span className="row-actions">
-                            <button type="button" onClick={() => handleStartEditCategory(category)}>
-                              Modifier
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteCategory(category.categoryId)}
-                            >
-                              Supprimer
-                            </button>
-                          </span>
-                        ))}
-                      {rowError?.id === category.categoryId && (
-                        <p role="alert" className="form-error">
-                          {rowError.message}
-                        </p>
-                      )}
-                    </td>
-                  </tr>
-                  {category.subcategories.map((sub) => (
-                    <tr key={sub.subcategoryId}>
-                      <td style={{ paddingLeft: 24 }}>
-                        {editingSubcategoryId === sub.subcategoryId ? (
+            {(categories?.length ?? 0) > 0 && (
+              <form onSubmit={handleCreateSubcategory} aria-label="Ajouter une sous-catégorie">
+                <div className="field">
+                  <label htmlFor="sub-category">Catégorie</label>
+                  <select
+                    id="sub-category"
+                    value={subCategoryId}
+                    onChange={(e) => setSubCategoryId(e.target.value)}
+                  >
+                    <option value="" disabled>
+                      Choisir…
+                    </option>
+                    {categories?.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field">
+                  <label htmlFor="sub-name">Sous-catégorie</label>
+                  <input
+                    id="sub-name"
+                    value={subName}
+                    onChange={(e) => setSubName(e.target.value)}
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="sub-allocation">Budget mensuel</label>
+                  <input
+                    id="sub-allocation"
+                    type="number"
+                    value={subAllocation}
+                    onChange={(e) => setSubAllocation(e.target.value)}
+                  />
+                </div>
+                <button type="submit">+ Ajouter</button>
+                {subError && (
+                  <p role="alert" className="form-error">
+                    {subError}
+                  </p>
+                )}
+              </form>
+            )}
+          </>
+        ))}
+
+      {(view === "forecast" || view === "both") &&
+        (summary === undefined ? (
+          <p>Chargement…</p>
+        ) : summary.length === 0 ? (
+          <p className="empty">Aucune catégorie budgétaire pour le moment.</p>
+        ) : (
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Catégorie / Sous-catégorie</th>
+                  <th>Budget mensuel</th>
+                  <th>Réel</th>
+                  <th>Engagé</th>
+                  <th>Écart</th>
+                  <th>% utilisé</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {summary.map((category) => (
+                  <Fragment key={category.categoryId}>
+                    <tr style={{ fontWeight: 700 }}>
+                      <td>
+                        {editingCategoryId === category.categoryId ? (
                           <input
-                            aria-label={`Nom de ${sub.name}`}
-                            value={editSubcategoryName}
-                            onChange={(e) => setEditSubcategoryName(e.target.value)}
+                            aria-label={`Nom de ${category.name}`}
+                            value={editCategoryName}
+                            onChange={(e) => setEditCategoryName(e.target.value)}
                           />
                         ) : (
-                          sub.name
+                          category.name
                         )}
                       </td>
-                      <td className="num">
-                        {canManage ? (
-                          <input
-                            type="number"
-                            defaultValue={sub.monthlyAllocation}
-                            aria-label={`Budget mensuel de ${sub.name}`}
-                            onBlur={(e) =>
-                              handleAllocationChange(sub.subcategoryId, e.target.value)
-                            }
-                            style={{ width: 100, textAlign: "right" }}
-                          />
-                        ) : (
-                          formatFcfa(sub.monthlyAllocation)
-                        )}
+                      <td className="num">{formatFcfa(category.totalAllocation)}</td>
+                      <td className="num">{formatFcfa(category.totalActual)}</td>
+                      <td className="num">{formatFcfa(category.totalEngaged)}</td>
+                      <td className={`num ${category.totalRemaining < 0 ? "negative" : ""}`}>
+                        {formatFcfa(category.totalRemaining)}
                       </td>
-                      <td className="num">{formatFcfa(sub.actual)}</td>
-                      <td className="num">{formatFcfa(sub.engaged)}</td>
-                      <td className={`num ${sub.remaining < 0 ? "negative" : ""}`}>
-                        {formatFcfa(sub.remaining)}
-                      </td>
-                      <td className={`num ${(sub.percentUsed ?? 0) > 100 ? "negative" : ""}`}>
-                        {sub.percentUsed === null ? "—" : `${sub.percentUsed.toFixed(0)}%`}
-                      </td>
+                      <td />
                       <td>
                         {canManage &&
-                          (editingSubcategoryId === sub.subcategoryId ? (
+                          (editingCategoryId === category.categoryId ? (
                             <>
                               <button
                                 type="button"
-                                onClick={() => handleSaveEditSubcategory(sub.subcategoryId)}
+                                onClick={() => handleSaveEditCategory(category.categoryId)}
                               >
                                 Enregistrer
                               </button>{" "}
                               <button
                                 type="button"
                                 className="ghost"
-                                onClick={handleCancelEditSubcategory}
+                                onClick={handleCancelEditCategory}
                               >
                                 Annuler
                               </button>
                             </>
                           ) : (
                             <span className="row-actions">
-                              <button type="button" onClick={() => handleStartEditSubcategory(sub)}>
+                              <button
+                                type="button"
+                                onClick={() => handleStartEditCategory(category)}
+                              >
                                 Modifier
                               </button>
                               <button
                                 type="button"
-                                onClick={() => handleDeleteSubcategory(sub.subcategoryId)}
+                                onClick={() => handleDeleteCategory(category.categoryId)}
                               >
                                 Supprimer
                               </button>
                             </span>
                           ))}
-                        {rowError?.id === sub.subcategoryId && (
+                        {rowError?.id === category.categoryId && (
                           <p role="alert" className="form-error">
                             {rowError.message}
                           </p>
                         )}
                       </td>
                     </tr>
-                  ))}
-                </Fragment>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {((canManage && allSubcategories.length > 0) || (engagements?.length ?? 0) > 0) && (
-        <section className="accent-sage" aria-labelledby="engagements-heading">
-          <h3 id="engagements-heading">Engagements sur le budget</h3>
-          {canManage && allSubcategories.length > 0 && (
-            <>
-              <p className="tagline">
-                Réservez une partie du budget pour une dépense prévue mais pas encore payée — elle
-                se déduit du solde disponible sans apparaître comme dépense tant qu&apos;aucune
-                opération n&apos;est créée.
-              </p>
-              <form onSubmit={handleCreateEngagement} aria-label="Ajouter un engagement">
-                <div className="field">
-                  <label htmlFor="engagement-subcategory">Ligne budgétaire</label>
-                  <select
-                    id="engagement-subcategory"
-                    value={engagementSubcategoryId}
-                    onChange={(e) => setEngagementSubcategoryId(e.target.value)}
-                  >
-                    <option value="" disabled>
-                      Choisir…
-                    </option>
-                    {allSubcategories.map((sub) => (
-                      <option key={sub.subcategoryId} value={sub.subcategoryId}>
-                        {sub.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="field">
-                  <label htmlFor="engagement-amount">Montant</label>
-                  <input
-                    id="engagement-amount"
-                    type="number"
-                    value={engagementAmount}
-                    onChange={(e) => setEngagementAmount(e.target.value)}
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor="engagement-label">Libellé</label>
-                  <input
-                    id="engagement-label"
-                    value={engagementLabel}
-                    onChange={(e) => setEngagementLabel(e.target.value)}
-                    placeholder="Ex : Frais de scolarité"
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor="engagement-date">Date</label>
-                  <input
-                    id="engagement-date"
-                    type="date"
-                    value={engagementDate}
-                    onChange={(e) => setEngagementDate(e.target.value)}
-                  />
-                </div>
-                <button type="submit">+ Ajouter</button>
-                {engagementError && (
-                  <p role="alert" className="form-error">
-                    {engagementError}
-                  </p>
-                )}
-              </form>
-            </>
-          )}
-
-          {(engagements?.length ?? 0) > 0 && (
-            <div className="table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Ligne budgétaire</th>
-                    <th>Libellé</th>
-                    <th>Montant</th>
-                    <th>Statut</th>
-                    <th>Payé</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {engagements?.map((engagement) =>
-                    editingEngagementId === engagement.id ? (
-                      <tr key={engagement.id}>
-                        <td>
-                          <input
-                            aria-label={`Date de l'engagement ${engagement.label}`}
-                            type="date"
-                            value={editEngagementDate}
-                            onChange={(e) => setEditEngagementDate(e.target.value)}
-                          />
-                        </td>
-                        <td>
-                          <select
-                            aria-label={`Ligne budgétaire de l'engagement ${engagement.label}`}
-                            value={editEngagementSubcategoryId}
-                            onChange={(e) => setEditEngagementSubcategoryId(e.target.value)}
-                          >
-                            {allSubcategories.map((sub) => (
-                              <option key={sub.subcategoryId} value={sub.subcategoryId}>
-                                {sub.name}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td>
-                          <input
-                            aria-label={`Libellé de l'engagement ${engagement.label}`}
-                            value={editEngagementLabel}
-                            onChange={(e) => setEditEngagementLabel(e.target.value)}
-                          />
-                        </td>
-                        <td>
-                          <input
-                            aria-label={`Montant de l'engagement ${engagement.label}`}
-                            type="number"
-                            value={editEngagementAmount}
-                            onChange={(e) => setEditEngagementAmount(e.target.value)}
-                          />
-                        </td>
-                        <td>{STATUS_LABELS[engagement.status]}</td>
-                        <td>{engagement.status === "realized" ? "Oui" : "Non"}</td>
-                        <td>
-                          <button
-                            type="button"
-                            onClick={() => handleSaveEditEngagement(engagement.id)}
-                          >
-                            Enregistrer
-                          </button>{" "}
-                          <button
-                            type="button"
-                            className="ghost"
-                            onClick={handleCancelEditEngagement}
-                          >
-                            Annuler
-                          </button>
-                          {engagementRowError?.id === engagement.id && (
-                            <p role="alert" className="form-error">
-                              {engagementRowError.message}
-                            </p>
-                          )}
-                        </td>
-                      </tr>
-                    ) : (
-                      <tr key={engagement.id}>
-                        <td>{engagement.date}</td>
-                        <td>{subcategoryNameById.get(engagement.subcategoryId) ?? "—"}</td>
-                        <td className="truncate">{engagement.label}</td>
-                        <td className="num">{formatFcfa(engagement.amount)}</td>
-                        <td>
-                          {canManage ? (
-                            <select
-                              aria-label={`Statut de l'engagement ${engagement.label}`}
-                              value={engagement.status}
-                              onChange={(e) =>
-                                handleChangeEngagementStatus(
-                                  engagement.id,
-                                  e.target.value as EngagementStatus,
-                                )
-                              }
-                            >
-                              <option value="engaged">Engagé</option>
-                              <option value="realized">Réalisé</option>
-                              <option value="cancelled">Annulé</option>
-                            </select>
+                    {category.subcategories.map((sub) => (
+                      <tr key={sub.subcategoryId}>
+                        <td style={{ paddingLeft: 24 }}>
+                          {editingSubcategoryId === sub.subcategoryId ? (
+                            <input
+                              aria-label={`Nom de ${sub.name}`}
+                              value={editSubcategoryName}
+                              onChange={(e) => setEditSubcategoryName(e.target.value)}
+                            />
                           ) : (
-                            STATUS_LABELS[engagement.status]
+                            sub.name
                           )}
                         </td>
-                        <td>{engagement.status === "realized" ? "Oui" : "Non"}</td>
-                        <td>
-                          {canManage && (
-                            <span className="row-actions">
-                              <button
-                                type="button"
-                                onClick={() => handleStartEditEngagement(engagement)}
-                              >
-                                Modifier
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteEngagement(engagement.id)}
-                              >
-                                Supprimer
-                              </button>
-                            </span>
+                        <td className="num">
+                          {canManage ? (
+                            <input
+                              type="number"
+                              defaultValue={sub.monthlyAllocation}
+                              aria-label={`Budget mensuel de ${sub.name}`}
+                              onBlur={(e) =>
+                                handleAllocationChange(sub.subcategoryId, e.target.value)
+                              }
+                              style={{ width: 100, textAlign: "right" }}
+                            />
+                          ) : (
+                            formatFcfa(sub.monthlyAllocation)
                           )}
-                          {engagementRowError?.id === engagement.id && (
+                        </td>
+                        <td className="num">{formatFcfa(sub.actual)}</td>
+                        <td className="num">{formatFcfa(sub.engaged)}</td>
+                        <td className={`num ${sub.remaining < 0 ? "negative" : ""}`}>
+                          {formatFcfa(sub.remaining)}
+                        </td>
+                        <td className={`num ${(sub.percentUsed ?? 0) > 100 ? "negative" : ""}`}>
+                          {sub.percentUsed === null ? "—" : `${sub.percentUsed.toFixed(0)}%`}
+                        </td>
+                        <td>
+                          {canManage &&
+                            (editingSubcategoryId === sub.subcategoryId ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSaveEditSubcategory(sub.subcategoryId)}
+                                >
+                                  Enregistrer
+                                </button>{" "}
+                                <button
+                                  type="button"
+                                  className="ghost"
+                                  onClick={handleCancelEditSubcategory}
+                                >
+                                  Annuler
+                                </button>
+                              </>
+                            ) : (
+                              <span className="row-actions">
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartEditSubcategory(sub)}
+                                >
+                                  Modifier
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteSubcategory(sub.subcategoryId)}
+                                >
+                                  Supprimer
+                                </button>
+                              </span>
+                            ))}
+                          {rowError?.id === sub.subcategoryId && (
                             <p role="alert" className="form-error">
-                              {engagementRowError.message}
+                              {rowError.message}
                             </p>
                           )}
                         </td>
                       </tr>
-                    ),
+                    ))}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
+
+      {(view === "engagements" || view === "both") &&
+        ((canManage && allSubcategories.length > 0) || (engagements?.length ?? 0) > 0) && (
+          <section className="accent-sage" aria-labelledby="engagements-heading">
+            <h3 id="engagements-heading">Engagements sur le budget</h3>
+            {canManage && allSubcategories.length > 0 && (
+              <>
+                <p className="tagline">
+                  Réservez une partie du budget pour une dépense prévue mais pas encore payée — elle
+                  se déduit du solde disponible sans apparaître comme dépense tant qu&apos;aucune
+                  opération n&apos;est créée.
+                </p>
+                <form onSubmit={handleCreateEngagement} aria-label="Ajouter un engagement">
+                  <div className="field">
+                    <label htmlFor="engagement-subcategory">Ligne budgétaire</label>
+                    <select
+                      id="engagement-subcategory"
+                      value={engagementSubcategoryId}
+                      onChange={(e) => setEngagementSubcategoryId(e.target.value)}
+                    >
+                      <option value="" disabled>
+                        Choisir…
+                      </option>
+                      {allSubcategories.map((sub) => (
+                        <option key={sub.subcategoryId} value={sub.subcategoryId}>
+                          {sub.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label htmlFor="engagement-amount">Montant</label>
+                    <input
+                      id="engagement-amount"
+                      type="number"
+                      value={engagementAmount}
+                      onChange={(e) => setEngagementAmount(e.target.value)}
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="engagement-label">Libellé</label>
+                    <input
+                      id="engagement-label"
+                      value={engagementLabel}
+                      onChange={(e) => setEngagementLabel(e.target.value)}
+                      placeholder="Ex : Frais de scolarité"
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="engagement-date">Date</label>
+                    <input
+                      id="engagement-date"
+                      type="date"
+                      value={engagementDate}
+                      onChange={(e) => setEngagementDate(e.target.value)}
+                    />
+                  </div>
+                  <button type="submit">+ Ajouter</button>
+                  {engagementError && (
+                    <p role="alert" className="form-error">
+                      {engagementError}
+                    </p>
                   )}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      )}
+                </form>
+              </>
+            )}
+
+            {(engagements?.length ?? 0) > 0 && (
+              <div className="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Ligne budgétaire</th>
+                      <th>Libellé</th>
+                      <th>Montant</th>
+                      <th>Statut</th>
+                      <th>Payé</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {engagements?.map((engagement) =>
+                      editingEngagementId === engagement.id ? (
+                        <tr key={engagement.id}>
+                          <td>
+                            <input
+                              aria-label={`Date de l'engagement ${engagement.label}`}
+                              type="date"
+                              value={editEngagementDate}
+                              onChange={(e) => setEditEngagementDate(e.target.value)}
+                            />
+                          </td>
+                          <td>
+                            <select
+                              aria-label={`Ligne budgétaire de l'engagement ${engagement.label}`}
+                              value={editEngagementSubcategoryId}
+                              onChange={(e) => setEditEngagementSubcategoryId(e.target.value)}
+                            >
+                              {allSubcategories.map((sub) => (
+                                <option key={sub.subcategoryId} value={sub.subcategoryId}>
+                                  {sub.name}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td>
+                            <input
+                              aria-label={`Libellé de l'engagement ${engagement.label}`}
+                              value={editEngagementLabel}
+                              onChange={(e) => setEditEngagementLabel(e.target.value)}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              aria-label={`Montant de l'engagement ${engagement.label}`}
+                              type="number"
+                              value={editEngagementAmount}
+                              onChange={(e) => setEditEngagementAmount(e.target.value)}
+                            />
+                          </td>
+                          <td>{STATUS_LABELS[engagement.status]}</td>
+                          <td>{engagement.status === "realized" ? "Oui" : "Non"}</td>
+                          <td>
+                            <button
+                              type="button"
+                              onClick={() => handleSaveEditEngagement(engagement.id)}
+                            >
+                              Enregistrer
+                            </button>{" "}
+                            <button
+                              type="button"
+                              className="ghost"
+                              onClick={handleCancelEditEngagement}
+                            >
+                              Annuler
+                            </button>
+                            {engagementRowError?.id === engagement.id && (
+                              <p role="alert" className="form-error">
+                                {engagementRowError.message}
+                              </p>
+                            )}
+                          </td>
+                        </tr>
+                      ) : (
+                        <tr key={engagement.id}>
+                          <td>{engagement.date}</td>
+                          <td>{subcategoryNameById.get(engagement.subcategoryId) ?? "—"}</td>
+                          <td className="truncate">{engagement.label}</td>
+                          <td className="num">{formatFcfa(engagement.amount)}</td>
+                          <td>
+                            {canManage ? (
+                              <select
+                                aria-label={`Statut de l'engagement ${engagement.label}`}
+                                value={engagement.status}
+                                onChange={(e) =>
+                                  handleChangeEngagementStatus(
+                                    engagement.id,
+                                    e.target.value as EngagementStatus,
+                                  )
+                                }
+                              >
+                                <option value="engaged">Engagé</option>
+                                <option value="realized">Réalisé</option>
+                                <option value="cancelled">Annulé</option>
+                              </select>
+                            ) : (
+                              STATUS_LABELS[engagement.status]
+                            )}
+                          </td>
+                          <td>{engagement.status === "realized" ? "Oui" : "Non"}</td>
+                          <td>
+                            {canManage && (
+                              <span className="row-actions">
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartEditEngagement(engagement)}
+                                >
+                                  Modifier
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteEngagement(engagement.id)}
+                                >
+                                  Supprimer
+                                </button>
+                              </span>
+                            )}
+                            {engagementRowError?.id === engagement.id && (
+                              <p role="alert" className="form-error">
+                                {engagementRowError.message}
+                              </p>
+                            )}
+                          </td>
+                        </tr>
+                      ),
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
     </section>
   );
 }

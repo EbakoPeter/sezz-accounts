@@ -9,6 +9,7 @@ import type {
   DebtPayment,
   Engagement,
   User,
+  RoleTemplate,
 } from "@/types/models";
 import type { WithEncrypted } from "./encryptedRecord";
 
@@ -81,6 +82,15 @@ export type UserRow = Pick<
 > &
   WithEncrypted;
 
+/** `permissions` is deliberately kept structural (unencrypted), matching
+ * the same field on UserRow above — a permit/deny configuration isn't
+ * sensitive data. Still includes WithEncrypted (holding an empty
+ * placeholder payload, never anything meaningful) purely so this table
+ * fits the sync engine's uniform "every row has _enc" row shape without
+ * needing a special case there for the one table with nothing to
+ * encrypt. */
+export type RoleTemplateRow = RoleTemplate & WithEncrypted;
+
 /** Every table sync can push/pull, by its Dexie table name — deliberately a
  * plain string union rather than importing each repository, since this
  * schema module must not depend on the repository layer. */
@@ -93,7 +103,8 @@ export type SyncableTableName =
   | "engagements"
   | "debts"
   | "debtPayments"
-  | "users";
+  | "users"
+  | "roleTemplates";
 
 /**
  * Records "this id, in this table, was deleted locally" — written
@@ -144,6 +155,7 @@ export class SezzAccountsDatabase extends Dexie {
   transfers!: EntityTable<TransferRow, "id">;
   engagements!: EntityTable<EngagementRow, "id">;
   users!: EntityTable<UserRow, "id">;
+  roleTemplates!: EntityTable<RoleTemplateRow, "id">;
   deletionLog!: EntityTable<DeletionLogEntry, "logId">;
   syncConfig!: EntityTable<SyncConfigEntry, "key">;
 
@@ -292,6 +304,29 @@ export class SezzAccountsDatabase extends Dexie {
       debts: "id, accountId, kind, reference, date, updatedAt",
       debtPayments: "id, debtId, accountId, date, updatedAt",
       users: "id, username, updatedAt",
+      deletionLog: "++logId, tableName, deletedAt, pushedAt",
+      syncConfig: "key",
+    });
+    // v11: roleTemplates — the "Profil" screen's stored, editable
+    // permit/deny grid per role (admin/standard/viewer), replacing what
+    // used to be only a hardcoded constant (ROLE_DEFAULT_PERMISSIONS)
+    // with something an administrator can actually change and have
+    // persist. Only three rows ever exist, one per UserRole, lazily
+    // seeded from that same constant the first time they're read (see
+    // roleTemplatesRepository.ts) rather than created through a
+    // migration here, so the seed logic lives in one place.
+    this.version(11).stores({
+      accounts: "id, updatedAt",
+      transactions:
+        "id, accountId, kind, date, subcategoryId, engagementId, [accountId+date], updatedAt",
+      transfers: "id, fromAccountId, toAccountId, date, updatedAt",
+      budgetCategories: "id, updatedAt",
+      budgetSubcategories: "id, categoryId, updatedAt",
+      engagements: "id, subcategoryId, date, status, updatedAt",
+      debts: "id, accountId, kind, reference, date, updatedAt",
+      debtPayments: "id, debtId, accountId, date, updatedAt",
+      users: "id, username, updatedAt",
+      roleTemplates: "id, updatedAt",
       deletionLog: "++logId, tableName, deletedAt, pushedAt",
       syncConfig: "key",
     });

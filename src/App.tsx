@@ -15,37 +15,75 @@ import { ROLE_LABELS } from "@/lib/permissions";
 import type { Permissions } from "@/types/models";
 import "./App.css";
 
-type TabId =
-  | "accounts"
-  | "transactions"
-  | "budget"
-  | "debts"
-  | "report"
-  | "recommendations"
-  | "reports"
-  | "users"
-  | "sync";
-
-interface TabDef {
-  id: TabId;
+interface SubMenuDef {
+  id: string;
   label: string;
-  /** Tab is hidden entirely (not just disabled) for a user lacking this
-   * permission — showing a tab whose whole content is "you can't do this"
-   * is worse than not showing it at all. Accounts/Transactions/Budget/Debts
-   * have no such gate: everyone can at least view those tables, even if
-   * creating/editing is gated within the panel itself. */
-  requires?: keyof Permissions;
 }
 
-const ALL_TABS: TabDef[] = [
-  { id: "accounts", label: "Comptes" },
-  { id: "transactions", label: "Opérations" },
-  { id: "budget", label: "Budget Prévisionnel" },
-  { id: "debts", label: "Dettes & Créances" },
-  { id: "report", label: "Rapport Mensuel", requires: "viewReports" },
+interface MenuDef {
+  id: string;
+  label: string;
+  /** Menu (and every one of its submenus) is hidden entirely for a user
+   * lacking this permission — showing a menu whose whole content is "you
+   * can't do this" is worse than not showing it at all. */
+  requires?: keyof Permissions;
+  submenus?: SubMenuDef[];
+}
+
+const MENUS: MenuDef[] = [
+  {
+    id: "accounts",
+    label: "Comptes",
+    submenus: [
+      { id: "new", label: "Nouveau Compte" },
+      { id: "list", label: "Listing" },
+    ],
+  },
+  {
+    id: "transactions",
+    label: "Opérations",
+    submenus: [
+      { id: "transfers", label: "Transferts" },
+      { id: "operations", label: "Opérations" },
+    ],
+  },
+  {
+    id: "budget",
+    label: "Budget",
+    submenus: [
+      { id: "forecast", label: "Prévisionnel" },
+      { id: "engagements", label: "Engagements" },
+    ],
+  },
+  {
+    id: "debts",
+    label: "Dettes & Créances",
+    submenus: [
+      { id: "debts", label: "Dettes" },
+      { id: "receivables", label: "Créances" },
+    ],
+  },
+  {
+    id: "reports",
+    label: "Rapports",
+    requires: "viewReports",
+    submenus: [
+      { id: "monthly", label: "Mensuel" },
+      { id: "general", label: "Général" },
+      { id: "custom", label: "Personnalisé" },
+      { id: "cashflow", label: "Trésorerie" },
+    ],
+  },
   { id: "recommendations", label: "Recommandations", requires: "viewReports" },
-  { id: "reports", label: "Rapports", requires: "viewReports" },
-  { id: "users", label: "Utilisateurs", requires: "manageUsers" },
+  {
+    id: "users",
+    label: "Utilisateurs",
+    requires: "manageUsers",
+    submenus: [
+      { id: "list", label: "Listing" },
+      { id: "profile", label: "Profil" },
+    ],
+  },
   // Reuses manageUsers rather than a dedicated permission: configuring
   // where this device's data is synced to is an infrastructure-level
   // decision in the same spirit as managing users, and adding a whole
@@ -57,7 +95,8 @@ const ALL_TABS: TabDef[] = [
 
 export function App() {
   const { currentUser, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState<TabId>("accounts");
+  const [activeMenu, setActiveMenu] = useState("accounts");
+  const [activeSubmenu, setActiveSubmenu] = useState<string | null>("new");
   // Called unconditionally, before the login check below, per React's rules
   // of hooks — but it's also correct to run regardless of local login
   // state: sync moves already-encrypted data and never decrypts anything,
@@ -69,10 +108,19 @@ export function App() {
     return <LoginScreen />;
   }
 
-  const tabs = ALL_TABS.filter((tab) => !tab.requires || currentUser.permissions[tab.requires]);
-  const selectedTab = tabs.some((tab) => tab.id === activeTab)
-    ? activeTab
-    : (tabs[0]?.id ?? "accounts");
+  const menus = MENUS.filter((menu) => !menu.requires || currentUser.permissions[menu.requires]);
+  const selectedMenu = menus.some((menu) => menu.id === activeMenu)
+    ? menus.find((menu) => menu.id === activeMenu)!
+    : menus[0]!;
+  const selectedSubmenuId =
+    selectedMenu.submenus?.some((s) => s.id === activeSubmenu) === true
+      ? activeSubmenu!
+      : (selectedMenu.submenus?.[0]?.id ?? null);
+
+  function handleSelectMenu(menu: MenuDef) {
+    setActiveMenu(menu.id);
+    setActiveSubmenu(menu.submenus?.[0]?.id ?? null);
+  }
 
   return (
     <div className="app">
@@ -90,32 +138,82 @@ export function App() {
           </div>
         </div>
         <nav className="tab-bar" role="tablist" aria-label="Sections de l'application">
-          {tabs.map((tab) => (
+          {menus.map((menu) => (
             <button
-              key={tab.id}
+              key={menu.id}
               type="button"
               role="tab"
-              id={`tab-${tab.id}`}
-              aria-selected={selectedTab === tab.id}
-              aria-controls={`tabpanel-${tab.id}`}
-              className={`tab-button${selectedTab === tab.id ? " active" : ""}`}
-              onClick={() => setActiveTab(tab.id)}
+              id={`tab-${menu.id}`}
+              aria-selected={selectedMenu.id === menu.id}
+              className={`tab-button${selectedMenu.id === menu.id ? " active" : ""}`}
+              onClick={() => handleSelectMenu(menu)}
             >
-              {tab.label}
+              {menu.label}
             </button>
           ))}
         </nav>
+        {selectedMenu.submenus && (
+          <nav
+            className="tab-bar sub-tab-bar"
+            role="tablist"
+            aria-label={`Sous-sections de ${selectedMenu.label}`}
+          >
+            {selectedMenu.submenus.map((sub) => (
+              <button
+                key={sub.id}
+                type="button"
+                role="tab"
+                id={`subtab-${selectedMenu.id}-${sub.id}`}
+                aria-selected={selectedSubmenuId === sub.id}
+                className={`tab-button${selectedSubmenuId === sub.id ? " active" : ""}`}
+                onClick={() => setActiveSubmenu(sub.id)}
+              >
+                {sub.label}
+              </button>
+            ))}
+          </nav>
+        )}
       </header>
-      <main role="tabpanel" id={`tabpanel-${selectedTab}`} aria-labelledby={`tab-${selectedTab}`}>
-        {selectedTab === "accounts" && <AccountsPanel />}
-        {selectedTab === "transactions" && <TransactionsPanel />}
-        {selectedTab === "budget" && <BudgetPanel />}
-        {selectedTab === "debts" && <DebtsPanel />}
-        {selectedTab === "report" && <MonthlyReportPanel />}
-        {selectedTab === "recommendations" && <RecommendationsPanel />}
-        {selectedTab === "reports" && <ReportsPanel />}
-        {selectedTab === "users" && <UsersPanel />}
-        {selectedTab === "sync" && <SyncPanel />}
+      <main
+        role="tabpanel"
+        id={`tabpanel-${selectedMenu.id}`}
+        aria-labelledby={
+          selectedSubmenuId
+            ? `subtab-${selectedMenu.id}-${selectedSubmenuId}`
+            : `tab-${selectedMenu.id}`
+        }
+      >
+        {selectedMenu.id === "accounts" && (
+          <AccountsPanel view={selectedSubmenuId === "new" ? "new" : "list"} />
+        )}
+        {selectedMenu.id === "transactions" && (
+          <TransactionsPanel
+            view={selectedSubmenuId === "transfers" ? "transfers" : "operations"}
+          />
+        )}
+        {selectedMenu.id === "budget" && (
+          <BudgetPanel view={selectedSubmenuId === "engagements" ? "engagements" : "forecast"} />
+        )}
+        {selectedMenu.id === "debts" && (
+          <DebtsPanel view={selectedSubmenuId === "receivables" ? "receivables" : "debts"} />
+        )}
+        {selectedMenu.id === "reports" && selectedSubmenuId === "monthly" && <MonthlyReportPanel />}
+        {selectedMenu.id === "reports" && selectedSubmenuId !== "monthly" && (
+          <ReportsPanel
+            section={
+              selectedSubmenuId === "general"
+                ? "general"
+                : selectedSubmenuId === "cashflow"
+                  ? "cashflow"
+                  : "custom"
+            }
+          />
+        )}
+        {selectedMenu.id === "recommendations" && <RecommendationsPanel />}
+        {selectedMenu.id === "users" && (
+          <UsersPanel view={selectedSubmenuId === "profile" ? "profile" : "list"} />
+        )}
+        {selectedMenu.id === "sync" && <SyncPanel />}
       </main>
     </div>
   );

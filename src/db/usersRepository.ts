@@ -3,7 +3,7 @@ import { db as defaultDb } from "./schema";
 import type { User, NewUser, UserUpdate } from "@/types/models";
 import { generateId } from "@/lib/id";
 import { hashNewPassword, verifyPassword } from "@/lib/passwordHash";
-import { ROLE_DEFAULT_PERMISSIONS } from "@/lib/permissions";
+import { createRoleTemplatesRepository } from "./roleTemplatesRepository";
 import {
   ValidationError,
   NotFoundError,
@@ -45,6 +45,8 @@ function assertValidPassword(password: string): void {
 }
 
 export function createUsersRepository(database: SezzAccountsDatabase = defaultDb) {
+  const roleTemplates = createRoleTemplatesRepository(database);
+
   async function decryptUser(row: UserRow): Promise<User> {
     return fromStorageRow<User>(row);
   }
@@ -121,9 +123,6 @@ export function createUsersRepository(database: SezzAccountsDatabase = defaultDb
 
       const isFirstUser = (await database.users.count()) === 0;
       const role = isFirstUser ? "admin" : input.role;
-      const permissions = isFirstUser
-        ? ROLE_DEFAULT_PERMISSIONS.admin
-        : (input.permissions ?? ROLE_DEFAULT_PERMISSIONS[input.role]);
 
       const { hash, salt } = await hashNewPassword(input.password);
 
@@ -131,9 +130,10 @@ export function createUsersRepository(database: SezzAccountsDatabase = defaultDb
       let dekBytes;
       if (isFirstUser) {
         dekBytes = generateDekBytes();
-        // Must happen before toStorageRow() below: encrypting this very
-        // first user's own sensitive fields (displayName) requires an
-        // active session already, and this user's creation is what
+        // Must happen before toStorageRow() below (including the one
+        // inside roleTemplates.getById() just below): encrypting this
+        // very first user's own sensitive fields (displayName) requires
+        // an active session already, and this user's creation is what
         // establishes that session in the first place.
         setActiveDek(dekBytes);
       } else {
@@ -142,6 +142,11 @@ export function createUsersRepository(database: SezzAccountsDatabase = defaultDb
         // active DEK is exactly the one this new user needs a copy of.
         dekBytes = requireActiveDek();
       }
+
+      const permissions = isFirstUser
+        ? (await roleTemplates.getById("admin")).permissions
+        : (input.permissions ?? (await roleTemplates.getById(input.role)).permissions);
+
       const wrappedDek = await wrapDek(dekBytes, input.password, dekSalt);
 
       const recoveryCode = generateRecoveryCode();
@@ -219,7 +224,8 @@ export function createUsersRepository(database: SezzAccountsDatabase = defaultDb
         next.role = patch.role;
         // Changing role resets permissions to that role's defaults unless
         // an explicit permissions object is provided in the same call.
-        next.permissions = patch.permissions ?? ROLE_DEFAULT_PERMISSIONS[patch.role];
+        next.permissions =
+          patch.permissions ?? (await roleTemplates.getById(patch.role)).permissions;
       } else if (patch.permissions !== undefined) {
         next.permissions = patch.permissions;
       }

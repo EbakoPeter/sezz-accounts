@@ -8,6 +8,7 @@ import { createTestUser, renderWithSession, renderAuthenticated } from "@/test/r
 
 afterEach(async () => {
   await db.users.clear();
+  await db.roleTemplates.clear();
   await db.accounts.clear();
   clearActiveDek();
 });

@@ -4,7 +4,7 @@ import { useAccountsWithBalances } from "@/hooks/useAccountsWithBalances";
 import { useAuth } from "@/auth/AuthContext";
 import { formatFcfa } from "@/lib/money";
 
-export function AccountsPanel() {
+export function AccountsPanel({ view = "both" }: { view?: "new" | "list" | "both" }) {
   const accounts = useAccountsWithBalances();
   const totalBalance = (accounts ?? []).reduce((sum, a) => sum + a.balance, 0);
   const { currentUser } = useAuth();
@@ -81,131 +81,133 @@ export function AccountsPanel() {
     <section aria-labelledby="accounts-heading">
       <h2 id="accounts-heading">Comptes</h2>
 
-      {!canManage ? (
-        <p className="permission-notice">
-          Vous n&apos;avez pas la permission de créer ou modifier des comptes.
-        </p>
-      ) : (
-        <form onSubmit={handleCreate} aria-label="Ajouter un compte">
-          <div className="field">
-            <label htmlFor="account-name">Nom du compte</label>
-            <input
-              id="account-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Ex : Compte Principal"
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="account-initial">Solde initial</label>
-            <input
-              id="account-initial"
-              type="number"
-              value={initialBalance}
-              onChange={(e) => setInitialBalance(e.target.value)}
-            />
-          </div>
-          <button type="submit">+ Ajouter</button>
-          {formError && (
-            <p role="alert" className="form-error">
-              {formError}
-            </p>
-          )}
-        </form>
-      )}
+      {(view === "new" || view === "both") &&
+        (!canManage ? (
+          <p className="permission-notice">
+            Vous n&apos;avez pas la permission de créer ou modifier des comptes.
+          </p>
+        ) : (
+          <form onSubmit={handleCreate} aria-label="Ajouter un compte">
+            <div className="field">
+              <label htmlFor="account-name">Nom du compte</label>
+              <input
+                id="account-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Ex : Compte Principal"
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="account-initial">Solde initial</label>
+              <input
+                id="account-initial"
+                type="number"
+                value={initialBalance}
+                onChange={(e) => setInitialBalance(e.target.value)}
+              />
+            </div>
+            <button type="submit">+ Ajouter</button>
+            {formError && (
+              <p role="alert" className="form-error">
+                {formError}
+              </p>
+            )}
+          </form>
+        ))}
 
-      {accounts === undefined ? (
-        <p>Chargement…</p>
-      ) : accounts.length === 0 ? (
-        <p className="empty">Aucun compte pour le moment.</p>
-      ) : (
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Compte</th>
-                <th>Solde initial</th>
-                <th>Solde actuel</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {accounts.map((account) =>
-                editingId === account.id ? (
-                  <tr key={account.id}>
-                    <td>
-                      <input
-                        aria-label={`Nom de ${account.name}`}
-                        value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        aria-label={`Solde initial de ${account.name}`}
-                        type="number"
-                        value={editInitialBalance}
-                        onChange={(e) => setEditInitialBalance(e.target.value)}
-                      />
-                    </td>
-                    <td className={`num ${account.balance < 0 ? "negative" : ""}`}>
-                      {formatFcfa(account.balance)}
-                    </td>
-                    <td>
-                      <button type="button" onClick={() => handleSaveEdit(account.id)}>
-                        Enregistrer
-                      </button>{" "}
-                      <button type="button" className="ghost" onClick={handleCancelEdit}>
-                        Annuler
-                      </button>
-                      {rowError?.id === account.id && (
-                        <p role="alert" className="form-error">
-                          {rowError.message}
-                        </p>
-                      )}
-                    </td>
-                  </tr>
-                ) : (
-                  <tr key={account.id}>
-                    <td>{account.name}</td>
-                    <td className="num">{formatFcfa(account.initialBalance)}</td>
-                    <td className={`num ${account.balance < 0 ? "negative" : ""}`}>
-                      {formatFcfa(account.balance)}
-                    </td>
-                    <td>
-                      {canManage && (
-                        <span className="row-actions">
-                          <button type="button" onClick={() => handleStartEdit(account)}>
-                            Modifier
-                          </button>
-                          <button type="button" onClick={() => handleDelete(account.id)}>
-                            Supprimer
-                          </button>
-                        </span>
-                      )}
-                      {rowError?.id === account.id && (
-                        <p role="alert" className="form-error">
-                          {rowError.message}
-                        </p>
-                      )}
-                    </td>
-                  </tr>
-                ),
-              )}
-            </tbody>
-            <tfoot>
-              <tr>
-                <th scope="row">Total</th>
-                <td />
-                <td className={`num ${totalBalance < 0 ? "negative" : ""}`}>
-                  <strong>{formatFcfa(totalBalance)}</strong>
-                </td>
-                <td />
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      )}
+      {(view === "list" || view === "both") &&
+        (accounts === undefined ? (
+          <p>Chargement…</p>
+        ) : accounts.length === 0 ? (
+          <p className="empty">Aucun compte pour le moment.</p>
+        ) : (
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Compte</th>
+                  <th>Solde initial</th>
+                  <th>Solde actuel</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {accounts.map((account) =>
+                  editingId === account.id ? (
+                    <tr key={account.id}>
+                      <td>
+                        <input
+                          aria-label={`Nom de ${account.name}`}
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          aria-label={`Solde initial de ${account.name}`}
+                          type="number"
+                          value={editInitialBalance}
+                          onChange={(e) => setEditInitialBalance(e.target.value)}
+                        />
+                      </td>
+                      <td className={`num ${account.balance < 0 ? "negative" : ""}`}>
+                        {formatFcfa(account.balance)}
+                      </td>
+                      <td>
+                        <button type="button" onClick={() => handleSaveEdit(account.id)}>
+                          Enregistrer
+                        </button>{" "}
+                        <button type="button" className="ghost" onClick={handleCancelEdit}>
+                          Annuler
+                        </button>
+                        {rowError?.id === account.id && (
+                          <p role="alert" className="form-error">
+                            {rowError.message}
+                          </p>
+                        )}
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr key={account.id}>
+                      <td>{account.name}</td>
+                      <td className="num">{formatFcfa(account.initialBalance)}</td>
+                      <td className={`num ${account.balance < 0 ? "negative" : ""}`}>
+                        {formatFcfa(account.balance)}
+                      </td>
+                      <td>
+                        {canManage && (
+                          <span className="row-actions">
+                            <button type="button" onClick={() => handleStartEdit(account)}>
+                              Modifier
+                            </button>
+                            <button type="button" onClick={() => handleDelete(account.id)}>
+                              Supprimer
+                            </button>
+                          </span>
+                        )}
+                        {rowError?.id === account.id && (
+                          <p role="alert" className="form-error">
+                            {rowError.message}
+                          </p>
+                        )}
+                      </td>
+                    </tr>
+                  ),
+                )}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th scope="row">Total</th>
+                  <td />
+                  <td className={`num ${totalBalance < 0 ? "negative" : ""}`}>
+                    <strong>{formatFcfa(totalBalance)}</strong>
+                  </td>
+                  <td />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        ))}
     </section>
   );
 }

@@ -13,6 +13,7 @@ import type { Transaction } from "@/types/models";
 // Tables are cleared after every test so state never leaks between tests.
 afterEach(async () => {
   await db.users.clear();
+  await db.roleTemplates.clear();
   await db.transactions.clear();
   await db.accounts.clear();
   clearActiveDek();

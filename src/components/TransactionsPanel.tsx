@@ -16,7 +16,11 @@ function yearMonthOf(isoDate: string): { year: number; month: number } {
   return { year: y ?? new Date().getFullYear(), month: m ?? new Date().getMonth() + 1 };
 }
 
-export function TransactionsPanel() {
+export function TransactionsPanel({
+  view = "both",
+}: {
+  view?: "transfers" | "operations" | "both";
+}) {
   const accounts = useAccountsWithBalances();
   const transactions = useLiveQuery(() => transactionsRepository.list(), []);
   const { currentUser } = useAuth();
@@ -239,435 +243,443 @@ export function TransactionsPanel() {
     <section aria-labelledby="transactions-heading">
       <h2 id="transactions-heading">Opérations</h2>
 
-      {!canManage ? (
-        <p className="permission-notice">
-          Vous n&apos;avez pas la permission d&apos;enregistrer des opérations.
-        </p>
-      ) : !hasAccounts ? (
-        <p className="empty">
-          Créez d&apos;abord un compte pour pouvoir enregistrer une opération.
-        </p>
-      ) : (
-        <form onSubmit={handleCreate} aria-label="Ajouter une opération">
-          <div className="field">
-            <label htmlFor="tx-account">Compte</label>
-            <select
-              id="tx-account"
-              value={accountId}
-              onChange={(e) => setAccountId(e.target.value)}
-            >
-              <option value="" disabled>
-                Choisir…
-              </option>
-              {accounts?.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name} — {formatFcfa(a.balance)}
+      {(view === "operations" || view === "both") &&
+        (!canManage ? (
+          <p className="permission-notice">
+            Vous n&apos;avez pas la permission d&apos;enregistrer des opérations.
+          </p>
+        ) : !hasAccounts ? (
+          <p className="empty">
+            Créez d&apos;abord un compte pour pouvoir enregistrer une opération.
+          </p>
+        ) : (
+          <form onSubmit={handleCreate} aria-label="Ajouter une opération">
+            <div className="field">
+              <label htmlFor="tx-account">Compte</label>
+              <select
+                id="tx-account"
+                value={accountId}
+                onChange={(e) => setAccountId(e.target.value)}
+              >
+                <option value="" disabled>
+                  Choisir…
                 </option>
-              ))}
-            </select>
-          </div>
-          <div className="field">
-            <label htmlFor="tx-kind">Type</label>
-            <select
-              id="tx-kind"
-              value={kind}
-              onChange={(e) => setKind(e.target.value as TransactionKind)}
-            >
-              <option value="income">Revenu</option>
-              <option value="expense">Dépense</option>
-            </select>
-          </div>
-          <div className="field">
-            <label htmlFor="tx-date">Date</label>
-            <input
-              id="tx-date"
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="tx-label">Libellé</label>
-            <input id="tx-label" value={label} onChange={(e) => setLabel(e.target.value)} />
-          </div>
-          <div className="field">
-            <label htmlFor="tx-amount">Montant (FCFA)</label>
-            <input
-              id="tx-amount"
-              type="number"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-          </div>
-          {kind === "expense" &&
-            (settleableEngagements().length > 0 ? (
-              <div className="field">
-                <label htmlFor="tx-engagement">Engagement</label>
-                <select
-                  id="tx-engagement"
-                  value={engagementId}
-                  onChange={(e) => setEngagementId(e.target.value)}
-                >
-                  <option value="" disabled>
-                    Choisir…
+                {accounts?.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name} — {formatFcfa(a.balance)}
                   </option>
-                  {settleableEngagements().map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {engagementOptionLabel(e)}
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="tx-kind">Type</label>
+              <select
+                id="tx-kind"
+                value={kind}
+                onChange={(e) => setKind(e.target.value as TransactionKind)}
+              >
+                <option value="income">Revenu</option>
+                <option value="expense">Dépense</option>
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="tx-date">Date</label>
+              <input
+                id="tx-date"
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="tx-label">Libellé</label>
+              <input id="tx-label" value={label} onChange={(e) => setLabel(e.target.value)} />
+            </div>
+            <div className="field">
+              <label htmlFor="tx-amount">Montant (FCFA)</label>
+              <input
+                id="tx-amount"
+                type="number"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+              />
+            </div>
+            {kind === "expense" &&
+              (settleableEngagements().length > 0 ? (
+                <div className="field">
+                  <label htmlFor="tx-engagement">Engagement</label>
+                  <select
+                    id="tx-engagement"
+                    value={engagementId}
+                    onChange={(e) => setEngagementId(e.target.value)}
+                  >
+                    <option value="" disabled>
+                      Choisir…
                     </option>
-                  ))}
-                </select>
-              </div>
-            ) : (
-              <p className="tagline">
-                Aucun engagement disponible — créez d&apos;abord un engagement dans l&apos;onglet
-                Budget Prévisionnel avant d&apos;enregistrer une dépense.
+                    {settleableEngagements().map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {engagementOptionLabel(e)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <p className="tagline">
+                  Aucun engagement disponible — créez d&apos;abord un engagement dans l&apos;onglet
+                  Budget Prévisionnel avant d&apos;enregistrer une dépense.
+                </p>
+              ))}
+            <button type="submit">+ Ajouter</button>
+            {formError && (
+              <p role="alert" className="form-error">
+                {formError}
               </p>
-            ))}
-          <button type="submit">+ Ajouter</button>
-          {formError && (
-            <p role="alert" className="form-error">
-              {formError}
-            </p>
-          )}
-        </form>
-      )}
+            )}
+          </form>
+        ))}
 
-      {transactions === undefined ? (
-        <p>Chargement…</p>
-      ) : transactions.length === 0 ? (
-        <p className="empty">Aucune opération enregistrée.</p>
-      ) : (
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Compte</th>
-                <th>Libellé</th>
-                <th>Engagement</th>
-                <th>Montant</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {transactions.map((tx) =>
-                editingId === tx.id ? (
-                  <tr key={tx.id}>
-                    <td>
-                      <input
-                        aria-label={`Date de ${tx.label}`}
-                        type="date"
-                        value={editDate}
-                        onChange={(e) => setEditDate(e.target.value)}
-                      />
-                    </td>
-                    <td>
-                      <select
-                        aria-label={`Compte de ${tx.label}`}
-                        value={editAccountId}
-                        onChange={(e) => setEditAccountId(e.target.value)}
-                      >
-                        {accounts?.map((a) => (
-                          <option key={a.id} value={a.id}>
-                            {a.name}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        aria-label={`Type de ${tx.label}`}
-                        value={editKind}
-                        onChange={(e) => setEditKind(e.target.value as TransactionKind)}
-                      >
-                        <option value="income">Revenu</option>
-                        <option value="expense">Dépense</option>
-                      </select>
-                    </td>
-                    <td>
-                      <input
-                        aria-label={`Libellé de ${tx.label}`}
-                        value={editLabel}
-                        onChange={(e) => setEditLabel(e.target.value)}
-                      />
-                    </td>
-                    <td>
-                      {editKind === "expense" && (
+      {(view === "operations" || view === "both") &&
+        (transactions === undefined ? (
+          <p>Chargement…</p>
+        ) : transactions.length === 0 ? (
+          <p className="empty">Aucune opération enregistrée.</p>
+        ) : (
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Compte</th>
+                  <th>Libellé</th>
+                  <th>Engagement</th>
+                  <th>Montant</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {transactions.map((tx) =>
+                  editingId === tx.id ? (
+                    <tr key={tx.id}>
+                      <td>
+                        <input
+                          aria-label={`Date de ${tx.label}`}
+                          type="date"
+                          value={editDate}
+                          onChange={(e) => setEditDate(e.target.value)}
+                        />
+                      </td>
+                      <td>
                         <select
-                          aria-label={`Engagement de ${tx.label}`}
-                          value={editEngagementId}
-                          onChange={(e) => setEditEngagementId(e.target.value)}
+                          aria-label={`Compte de ${tx.label}`}
+                          value={editAccountId}
+                          onChange={(e) => setEditAccountId(e.target.value)}
                         >
-                          <option value="" disabled>
-                            Choisir…
-                          </option>
-                          {settleableEngagements(tx.engagementId).map((e) => (
-                            <option key={e.id} value={e.id}>
-                              {engagementOptionLabel(e)}
+                          {accounts?.map((a) => (
+                            <option key={a.id} value={a.id}>
+                              {a.name}
                             </option>
                           ))}
                         </select>
-                      )}
-                    </td>
-                    <td>
-                      <input
-                        aria-label={`Montant de ${tx.label}`}
-                        type="number"
-                        value={editAmount}
-                        onChange={(e) => setEditAmount(e.target.value)}
-                      />
-                    </td>
-                    <td>
-                      <button type="button" onClick={() => handleSaveEdit(tx.id)}>
-                        Enregistrer
-                      </button>{" "}
-                      <button type="button" className="ghost" onClick={handleCancelEdit}>
-                        Annuler
-                      </button>
-                      {rowError?.id === tx.id && (
-                        <p role="alert" className="form-error">
-                          {rowError.message}
-                        </p>
-                      )}
-                    </td>
-                  </tr>
-                ) : (
-                  <tr key={tx.id}>
-                    <td>{tx.date}</td>
-                    <td>{accountNameById.get(tx.accountId) ?? "—"}</td>
-                    <td className="truncate">{tx.label}</td>
-                    <td className="truncate">
-                      {tx.subcategoryId ? (subcategoryNameById.get(tx.subcategoryId) ?? "—") : "—"}
-                    </td>
-                    <td className={`num ${tx.kind === "expense" ? "negative" : "positive"}`}>
-                      {tx.kind === "expense" ? "-" : "+"}
-                      {formatFcfa(tx.amount)}
-                    </td>
-                    <td>
-                      {canManage && (
-                        <span className="row-actions">
-                          <button type="button" onClick={() => handleStartEdit(tx)}>
-                            Modifier
-                          </button>
-                          <button type="button" onClick={() => handleDelete(tx.id)}>
-                            Supprimer
-                          </button>
-                        </span>
-                      )}
-                      {rowError?.id === tx.id && (
-                        <p role="alert" className="form-error">
-                          {rowError.message}
-                        </p>
-                      )}
-                    </td>
-                  </tr>
-                ),
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {((canManage && hasAccounts && (accounts?.length ?? 0) >= 2) ||
-        (transfers?.length ?? 0) > 0) && (
-        <section className="accent-gold" aria-labelledby="transfers-heading">
-          <h3 id="transfers-heading">Transferts entre comptes</h3>
-          {canManage && (accounts?.length ?? 0) >= 2 && (
-            <>
-              <form onSubmit={handleCreateTransfer} aria-label="Ajouter un transfert">
-                <div className="field">
-                  <label htmlFor="transfer-from">Compte source</label>
-                  <select
-                    id="transfer-from"
-                    value={transferFromId}
-                    onChange={(e) => setTransferFromId(e.target.value)}
-                  >
-                    <option value="" disabled>
-                      Choisir…
-                    </option>
-                    {accounts?.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name} — {formatFcfa(a.balance)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="field">
-                  <label htmlFor="transfer-to">Compte destination</label>
-                  <select
-                    id="transfer-to"
-                    value={transferToId}
-                    onChange={(e) => setTransferToId(e.target.value)}
-                  >
-                    <option value="" disabled>
-                      Choisir…
-                    </option>
-                    {accounts?.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name} — {formatFcfa(a.balance)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="field">
-                  <label htmlFor="transfer-amount">Montant</label>
-                  <input
-                    id="transfer-amount"
-                    type="number"
-                    value={transferAmount}
-                    onChange={(e) => setTransferAmount(e.target.value)}
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor="transfer-date">Date</label>
-                  <input
-                    id="transfer-date"
-                    type="date"
-                    value={transferDate}
-                    onChange={(e) => setTransferDate(e.target.value)}
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor="transfer-label">Libellé (optionnel)</label>
-                  <input
-                    id="transfer-label"
-                    value={transferLabel}
-                    onChange={(e) => setTransferLabel(e.target.value)}
-                    placeholder="Ex : Vers épargne"
-                  />
-                </div>
-                <button type="submit">+ Ajouter</button>
-                {transferError && (
-                  <p role="alert" className="form-error">
-                    {transferError}
-                  </p>
+                        <select
+                          aria-label={`Type de ${tx.label}`}
+                          value={editKind}
+                          onChange={(e) => setEditKind(e.target.value as TransactionKind)}
+                        >
+                          <option value="income">Revenu</option>
+                          <option value="expense">Dépense</option>
+                        </select>
+                      </td>
+                      <td>
+                        <input
+                          aria-label={`Libellé de ${tx.label}`}
+                          value={editLabel}
+                          onChange={(e) => setEditLabel(e.target.value)}
+                        />
+                      </td>
+                      <td>
+                        {editKind === "expense" && (
+                          <select
+                            aria-label={`Engagement de ${tx.label}`}
+                            value={editEngagementId}
+                            onChange={(e) => setEditEngagementId(e.target.value)}
+                          >
+                            <option value="" disabled>
+                              Choisir…
+                            </option>
+                            {settleableEngagements(tx.engagementId).map((e) => (
+                              <option key={e.id} value={e.id}>
+                                {engagementOptionLabel(e)}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </td>
+                      <td>
+                        <input
+                          aria-label={`Montant de ${tx.label}`}
+                          type="number"
+                          value={editAmount}
+                          onChange={(e) => setEditAmount(e.target.value)}
+                        />
+                      </td>
+                      <td>
+                        <button type="button" onClick={() => handleSaveEdit(tx.id)}>
+                          Enregistrer
+                        </button>{" "}
+                        <button type="button" className="ghost" onClick={handleCancelEdit}>
+                          Annuler
+                        </button>
+                        {rowError?.id === tx.id && (
+                          <p role="alert" className="form-error">
+                            {rowError.message}
+                          </p>
+                        )}
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr key={tx.id}>
+                      <td>{tx.date}</td>
+                      <td>{accountNameById.get(tx.accountId) ?? "—"}</td>
+                      <td className="truncate">{tx.label}</td>
+                      <td className="truncate">
+                        {tx.subcategoryId
+                          ? (subcategoryNameById.get(tx.subcategoryId) ?? "—")
+                          : "—"}
+                      </td>
+                      <td className={`num ${tx.kind === "expense" ? "negative" : "positive"}`}>
+                        {tx.kind === "expense" ? "-" : "+"}
+                        {formatFcfa(tx.amount)}
+                      </td>
+                      <td>
+                        {canManage && (
+                          <span className="row-actions">
+                            <button type="button" onClick={() => handleStartEdit(tx)}>
+                              Modifier
+                            </button>
+                            <button type="button" onClick={() => handleDelete(tx.id)}>
+                              Supprimer
+                            </button>
+                          </span>
+                        )}
+                        {rowError?.id === tx.id && (
+                          <p role="alert" className="form-error">
+                            {rowError.message}
+                          </p>
+                        )}
+                      </td>
+                    </tr>
+                  ),
                 )}
-              </form>
-            </>
-          )}
+              </tbody>
+            </table>
+          </div>
+        ))}
 
-          {(transfers?.length ?? 0) > 0 && (
-            <div className="table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>De</th>
-                    <th>Vers</th>
-                    <th>Libellé</th>
-                    <th>Montant</th>
-                    <th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {transfers?.map((transfer) =>
-                    editingTransferId === transfer.id ? (
-                      <tr key={transfer.id}>
-                        <td>
-                          <input
-                            aria-label={`Date du transfert du ${transfer.date}`}
-                            type="date"
-                            value={editTransferDate}
-                            onChange={(e) => setEditTransferDate(e.target.value)}
-                          />
-                        </td>
-                        <td>
-                          <select
-                            aria-label={`Compte source du transfert du ${transfer.date}`}
-                            value={editTransferFromId}
-                            onChange={(e) => setEditTransferFromId(e.target.value)}
-                          >
-                            {accounts?.map((a) => (
-                              <option key={a.id} value={a.id}>
-                                {a.name}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td>
-                          <select
-                            aria-label={`Compte destination du transfert du ${transfer.date}`}
-                            value={editTransferToId}
-                            onChange={(e) => setEditTransferToId(e.target.value)}
-                          >
-                            {accounts?.map((a) => (
-                              <option key={a.id} value={a.id}>
-                                {a.name}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td>
-                          <input
-                            aria-label={`Libellé du transfert du ${transfer.date}`}
-                            value={editTransferLabel}
-                            onChange={(e) => setEditTransferLabel(e.target.value)}
-                          />
-                        </td>
-                        <td>
-                          <input
-                            aria-label={`Montant du transfert du ${transfer.date}`}
-                            type="number"
-                            value={editTransferAmount}
-                            onChange={(e) => setEditTransferAmount(e.target.value)}
-                          />
-                        </td>
-                        <td>
-                          <button type="button" onClick={() => handleSaveEditTransfer(transfer.id)}>
-                            Enregistrer
-                          </button>{" "}
-                          <button
-                            type="button"
-                            className="ghost"
-                            onClick={handleCancelEditTransfer}
-                          >
-                            Annuler
-                          </button>
-                          {transferRowError?.id === transfer.id && (
-                            <p role="alert" className="form-error">
-                              {transferRowError.message}
-                            </p>
-                          )}
-                        </td>
-                      </tr>
-                    ) : (
-                      <tr key={transfer.id}>
-                        <td>{transfer.date}</td>
-                        <td>{accountNameById.get(transfer.fromAccountId) ?? "—"}</td>
-                        <td>{accountNameById.get(transfer.toAccountId) ?? "—"}</td>
-                        <td className="truncate">{transfer.label ?? "—"}</td>
-                        <td className="num">{formatFcfa(transfer.amount)}</td>
-                        <td>
-                          {canManage && (
-                            <span className="row-actions">
-                              <button
-                                type="button"
-                                onClick={() => handleStartEditTransfer(transfer)}
-                              >
-                                Modifier
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteTransfer(transfer.id)}
-                              >
-                                Supprimer
-                              </button>
-                            </span>
-                          )}
-                          {transferRowError?.id === transfer.id && (
-                            <p role="alert" className="form-error">
-                              {transferRowError.message}
-                            </p>
-                          )}
-                        </td>
-                      </tr>
-                    ),
+      {(view === "transfers" || view === "both") &&
+        ((canManage && hasAccounts && (accounts?.length ?? 0) >= 2) ||
+          (transfers?.length ?? 0) > 0) && (
+          <section className="accent-gold" aria-labelledby="transfers-heading">
+            <h3 id="transfers-heading">Transferts entre comptes</h3>
+            {canManage && (accounts?.length ?? 0) >= 2 && (
+              <>
+                <form onSubmit={handleCreateTransfer} aria-label="Ajouter un transfert">
+                  <div className="field">
+                    <label htmlFor="transfer-from">Compte source</label>
+                    <select
+                      id="transfer-from"
+                      value={transferFromId}
+                      onChange={(e) => setTransferFromId(e.target.value)}
+                    >
+                      <option value="" disabled>
+                        Choisir…
+                      </option>
+                      {accounts?.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.name} — {formatFcfa(a.balance)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label htmlFor="transfer-to">Compte destination</label>
+                    <select
+                      id="transfer-to"
+                      value={transferToId}
+                      onChange={(e) => setTransferToId(e.target.value)}
+                    >
+                      <option value="" disabled>
+                        Choisir…
+                      </option>
+                      {accounts?.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.name} — {formatFcfa(a.balance)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label htmlFor="transfer-amount">Montant</label>
+                    <input
+                      id="transfer-amount"
+                      type="number"
+                      value={transferAmount}
+                      onChange={(e) => setTransferAmount(e.target.value)}
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="transfer-date">Date</label>
+                    <input
+                      id="transfer-date"
+                      type="date"
+                      value={transferDate}
+                      onChange={(e) => setTransferDate(e.target.value)}
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="transfer-label">Libellé (optionnel)</label>
+                    <input
+                      id="transfer-label"
+                      value={transferLabel}
+                      onChange={(e) => setTransferLabel(e.target.value)}
+                      placeholder="Ex : Vers épargne"
+                    />
+                  </div>
+                  <button type="submit">+ Ajouter</button>
+                  {transferError && (
+                    <p role="alert" className="form-error">
+                      {transferError}
+                    </p>
                   )}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      )}
+                </form>
+              </>
+            )}
+
+            {(transfers?.length ?? 0) > 0 && (
+              <div className="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>De</th>
+                      <th>Vers</th>
+                      <th>Libellé</th>
+                      <th>Montant</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {transfers?.map((transfer) =>
+                      editingTransferId === transfer.id ? (
+                        <tr key={transfer.id}>
+                          <td>
+                            <input
+                              aria-label={`Date du transfert du ${transfer.date}`}
+                              type="date"
+                              value={editTransferDate}
+                              onChange={(e) => setEditTransferDate(e.target.value)}
+                            />
+                          </td>
+                          <td>
+                            <select
+                              aria-label={`Compte source du transfert du ${transfer.date}`}
+                              value={editTransferFromId}
+                              onChange={(e) => setEditTransferFromId(e.target.value)}
+                            >
+                              {accounts?.map((a) => (
+                                <option key={a.id} value={a.id}>
+                                  {a.name}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td>
+                            <select
+                              aria-label={`Compte destination du transfert du ${transfer.date}`}
+                              value={editTransferToId}
+                              onChange={(e) => setEditTransferToId(e.target.value)}
+                            >
+                              {accounts?.map((a) => (
+                                <option key={a.id} value={a.id}>
+                                  {a.name}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td>
+                            <input
+                              aria-label={`Libellé du transfert du ${transfer.date}`}
+                              value={editTransferLabel}
+                              onChange={(e) => setEditTransferLabel(e.target.value)}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              aria-label={`Montant du transfert du ${transfer.date}`}
+                              type="number"
+                              value={editTransferAmount}
+                              onChange={(e) => setEditTransferAmount(e.target.value)}
+                            />
+                          </td>
+                          <td>
+                            <button
+                              type="button"
+                              onClick={() => handleSaveEditTransfer(transfer.id)}
+                            >
+                              Enregistrer
+                            </button>{" "}
+                            <button
+                              type="button"
+                              className="ghost"
+                              onClick={handleCancelEditTransfer}
+                            >
+                              Annuler
+                            </button>
+                            {transferRowError?.id === transfer.id && (
+                              <p role="alert" className="form-error">
+                                {transferRowError.message}
+                              </p>
+                            )}
+                          </td>
+                        </tr>
+                      ) : (
+                        <tr key={transfer.id}>
+                          <td>{transfer.date}</td>
+                          <td>{accountNameById.get(transfer.fromAccountId) ?? "—"}</td>
+                          <td>{accountNameById.get(transfer.toAccountId) ?? "—"}</td>
+                          <td className="truncate">{transfer.label ?? "—"}</td>
+                          <td className="num">{formatFcfa(transfer.amount)}</td>
+                          <td>
+                            {canManage && (
+                              <span className="row-actions">
+                                <button
+                                  type="button"
+                                  onClick={() => handleStartEditTransfer(transfer)}
+                                >
+                                  Modifier
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteTransfer(transfer.id)}
+                                >
+                                  Supprimer
+                                </button>
+                              </span>
+                            )}
+                            {transferRowError?.id === transfer.id && (
+                              <p role="alert" className="form-error">
+                                {transferRowError.message}
+                              </p>
+                            )}
+                          </td>
+                        </tr>
+                      ),
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
     </section>
   );
 }

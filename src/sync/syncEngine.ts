@@ -10,8 +10,10 @@ import type {
   DebtRow,
   DebtPaymentRow,
   UserRow,
+  RoleTemplateRow,
 } from "@/db/schema";
 import { db as defaultDb } from "@/db/schema";
+import type { UserRole } from "@/types/models";
 import type { SyncSession } from "./syncClient";
 
 const SYNCABLE_TABLES: readonly SyncableTableName[] = [
@@ -24,6 +26,7 @@ const SYNCABLE_TABLES: readonly SyncableTableName[] = [
   "debts",
   "debtPayments",
   "users",
+  "roleTemplates",
 ];
 
 /** Matches the server's own limit (see the server's src/sync/routes.ts) —
@@ -39,7 +42,8 @@ type AnySyncedRow =
   | EngagementRow
   | DebtRow
   | DebtPaymentRow
-  | UserRow;
+  | UserRow
+  | RoleTemplateRow;
 
 /** Every row type shares at least this shape — enough to convert to/from
  * the wire format generically, without needing per-table code. Each row's
@@ -237,7 +241,13 @@ export async function pullChanges(
 
   for (const record of records) {
     const table = getTable(database, record.tableName);
-    const existing = await table.get(record.id);
+    // record.id is always the correct id type for whichever table this
+    // actually is (guaranteed by the wire protocol, not by this cast) --
+    // narrowed to the union's narrowest key type (roleTemplates' UserRole)
+    // purely so this one generic loop, working across every syncable
+    // table's differently-typed primary key, type-checks at all; every
+    // other table's key is just a plain string, which a UserRole also is.
+    const existing = await table.get(record.id as UserRole);
     if (existing && existing.updatedAt > record.updatedAt) {
       // a newer local edit hasn't been pushed yet — do not let this pull
       // overwrite it; the next push will send the local version onward.
@@ -246,7 +256,7 @@ export async function pullChanges(
 
     if (record.deletedAt) {
       if (existing) {
-        await table.delete(record.id);
+        await table.delete(record.id as UserRole);
         deleted += 1;
       }
       continue;

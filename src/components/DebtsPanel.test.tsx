@@ -15,6 +15,7 @@ import type { Debt } from "@/types/models";
 
 afterEach(async () => {
   await db.users.clear();
+  await db.roleTemplates.clear();
   await db.debtPayments.clear();
   await db.debts.clear();
   await db.accounts.clear();

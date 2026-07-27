@@ -18,15 +18,28 @@ const STATUS_LABELS: Record<DebtStatus, string> = {
   ongoing: "En cours",
 };
 
-export function DebtsPanel() {
+export function DebtsPanel({ view = "both" }: { view?: "debts" | "receivables" | "both" }) {
   const accounts = useAccountsWithBalances();
-  const summaries = useDebtSummaries();
-  const debtsForPaymentForm = useLiveQuery(() => debtsRepository.list(), []);
-  const payments = useLiveQuery(() => debtPaymentsRepository.list(), []);
+  const allSummaries = useDebtSummaries();
+  const allDebtsForPaymentForm = useLiveQuery(() => debtsRepository.list(), []);
+  const allPayments = useLiveQuery(() => debtPaymentsRepository.list(), []);
   const { currentUser } = useAuth();
   const canManage = currentUser?.permissions.manageDebts ?? false;
 
-  const [kind, setKind] = useState<DebtKind>("debt");
+  const kindFilter: DebtKind | null =
+    view === "debts" ? "debt" : view === "receivables" ? "receivable" : null;
+  const summaries = kindFilter
+    ? allSummaries?.filter((s) => s.debt.kind === kindFilter)
+    : allSummaries;
+  const debtsForPaymentForm = kindFilter
+    ? allDebtsForPaymentForm?.filter((d) => d.kind === kindFilter)
+    : allDebtsForPaymentForm;
+  const relevantDebtIds = new Set((debtsForPaymentForm ?? []).map((d) => d.id));
+  const payments = kindFilter
+    ? allPayments?.filter((p) => relevantDebtIds.has(p.debtId))
+    : allPayments;
+
+  const [kind, setKind] = useState<DebtKind>(kindFilter ?? "debt");
   const [counterparty, setCounterparty] = useState("");
   const [accountId, setAccountId] = useState("");
   const [amount, setAmount] = useState("");
@@ -199,7 +212,9 @@ export function DebtsPanel() {
 
   return (
     <section aria-labelledby="debts-heading">
-      <h2 id="debts-heading">Dettes &amp; Créances</h2>
+      <h2 id="debts-heading">
+        {view === "debts" ? "Dettes" : view === "receivables" ? "Créances" : "Dettes & Créances"}
+      </h2>
       <p className="tagline">
         « Dette » = argent que vous devez · « Créance » = argent qu&apos;on vous doit.
       </p>
@@ -212,17 +227,19 @@ export function DebtsPanel() {
         <p className="empty">Créez d&apos;abord un compte.</p>
       ) : (
         <form onSubmit={handleCreateDebt} aria-label="Ajouter une dette ou créance">
-          <div className="field">
-            <label htmlFor="debt-kind">Type</label>
-            <select
-              id="debt-kind"
-              value={kind}
-              onChange={(e) => setKind(e.target.value as DebtKind)}
-            >
-              <option value="debt">Dette</option>
-              <option value="receivable">Créance</option>
-            </select>
-          </div>
+          {kindFilter === null && (
+            <div className="field">
+              <label htmlFor="debt-kind">Type</label>
+              <select
+                id="debt-kind"
+                value={kind}
+                onChange={(e) => setKind(e.target.value as DebtKind)}
+              >
+                <option value="debt">Dette</option>
+                <option value="receivable">Créance</option>
+              </select>
+            </div>
+          )}
           <div className="field">
             <label htmlFor="debt-counterparty">Tiers</label>
             <input

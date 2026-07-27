@@ -473,6 +473,16 @@ tfoot th {
   display: none;
 }
 
+/* The submenu row sits directly under the main menu row — a lighter
+   shade (rather than repeating the same solid ink twice) makes the two
+   levels read as a hierarchy at a glance, not two identical bars stacked
+   on top of each other. */
+.sub-tab-bar {
+  background: var(--ink-light);
+  margin-top: -16px;
+  margin-bottom: var(--space-5);
+}
+
 .tab-button {
   background: none;
   color: rgba(244, 239, 226, 0.65);
@@ -483,8 +493,16 @@ tfoot th {
   display: flex;
   align-items: center;
   font-size: 0.85rem;
-  font-weight: 600;
-  font-family: var(--font-body);
+  font-weight: 700;
+  /* The display serif rather than the body sans — every clickable
+     header (menu or submenu label) gets a touch more character, and
+     stays legible at every state: unselected (a dim cream on dark ink),
+     hovered (a brighter cream), and active (dark ink text on a solid
+     gold fill) all keep strong contrast against their own background,
+     rather than relying on weight or color alone to stay readable once
+     a tab is the active one. */
+  font-family: var(--font-display);
+  letter-spacing: 0.01em;
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
