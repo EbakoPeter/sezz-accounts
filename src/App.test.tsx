@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App } from "./App";
 import { AuthProvider } from "@/auth/AuthContext";
@@ -23,15 +23,11 @@ describe("App menu navigation", () => {
     expect(await screen.findByText(/premier lancement/i)).toBeInTheDocument();
   });
 
-  it("defaults to the Comptes menu, Nouveau Compte submenu, for an admin", async () => {
+  it("defaults to the Comptes menu, Nouveau Compte content, with no dropdown open", async () => {
     const session = await createTestUser("admin");
     renderWithSession(<App />, session);
 
     const tabs = await screen.findAllByRole("tab");
-    // The top-level menu row and the submenu row both use role="tab" —
-    // this asserts on the combined sequence a screen reader/keyboard user
-    // would actually encounter, top-level menus first, then whichever
-    // menu's submenus are currently showing.
     expect(tabs.map((t) => t.textContent)).toEqual([
       "Comptes",
       "Opérations",
@@ -41,49 +37,98 @@ describe("App menu navigation", () => {
       "Recommandations",
       "Utilisateurs",
       "Synchronisation",
-      "Nouveau Compte",
-      "Listing",
     ]);
-    expect(screen.getByRole("tab", { name: "Comptes" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("tab", { name: "Nouveau Compte" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
+    expect(screen.getByRole("tab", { name: /comptes/i })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("heading", { name: "Comptes" })).toBeInTheDocument();
+    // no dropdown unfolded on first load — it only appears once a menu
+    // with submenus is actually clicked
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
-  it("switches both content and submenus when a different top-level menu is clicked", async () => {
+  it("unfolds a dropdown of submenus when a menu is clicked, closed by default", async () => {
     const session = await createTestUser("admin");
     const user = userEvent.setup();
     renderWithSession(<App />, session);
 
-    await screen.findByRole("tab", { name: "Comptes" });
-    expect(screen.getByRole("heading", { name: "Comptes" })).toBeInTheDocument();
+    await screen.findByRole("tab", { name: /comptes/i });
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("tab", { name: "Dettes & Créances" }));
+    await user.click(screen.getByRole("tab", { name: /dettes & créances/i }));
 
-    // Dettes & Créances' own submenus (Dettes/Créances) replace
-    // Comptes' (Nouveau Compte/Listing) entirely, not alongside them.
-    expect(screen.getByRole("tab", { name: "Dettes & Créances" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-    expect(await screen.findByRole("tab", { name: "Dettes" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Créances" })).toBeInTheDocument();
-    expect(screen.queryByRole("tab", { name: "Nouveau Compte" })).not.toBeInTheDocument();
+    const dropdown = await screen.findByRole("menu");
+    expect(within(dropdown).getByRole("menuitemradio", { name: "Dettes" })).toBeInTheDocument();
+    expect(within(dropdown).getByRole("menuitemradio", { name: "Créances" })).toBeInTheDocument();
+    // clicking the parent menu also navigates to its first submenu
+    // immediately, same as before — the dropdown is an addition, not a
+    // replacement for that behavior
     expect(screen.getByRole("heading", { name: "Dettes" })).toBeInTheDocument();
   });
 
-  it("switches content when a submenu is clicked, without changing the top-level menu", async () => {
+  it("closes the dropdown and switches content when a submenu item is clicked", async () => {
     const session = await createTestUser("admin");
     const user = userEvent.setup();
     renderWithSession(<App />, session);
 
-    await screen.findByRole("tab", { name: "Comptes" });
-    await user.click(screen.getByRole("tab", { name: "Listing" }));
+    await screen.findByRole("tab", { name: /comptes/i });
+    await user.click(screen.getByRole("tab", { name: /dettes & créances/i }));
+    await screen.findByRole("menu");
 
-    expect(screen.getByRole("tab", { name: "Comptes" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("tab", { name: "Listing" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("heading", { name: "Comptes" })).toBeInTheDocument();
+    await user.click(screen.getByRole("menuitemradio", { name: "Créances" }));
+
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Créances" })).toBeInTheDocument();
+  });
+
+  it("toggles the dropdown shut when its own already-open menu is clicked again", async () => {
+    const session = await createTestUser("admin");
+    const user = userEvent.setup();
+    renderWithSession(<App />, session);
+
+    await screen.findByRole("tab", { name: /comptes/i });
+    await user.click(screen.getByRole("tab", { name: /budget/i }));
+    await screen.findByRole("menu");
+
+    await user.click(screen.getByRole("tab", { name: /budget/i }));
+
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    // still on Budget's content — only the dropdown closed, navigation
+    // did not change
+    expect(screen.getByRole("heading", { name: "Budget Prévisionnel" })).toBeInTheDocument();
+  });
+
+  it("switches which menu's dropdown is open when a different menu is clicked", async () => {
+    const session = await createTestUser("admin");
+    const user = userEvent.setup();
+    renderWithSession(<App />, session);
+
+    await screen.findByRole("tab", { name: /comptes/i });
+    await user.click(screen.getByRole("tab", { name: /comptes/i }));
+    let dropdown = await screen.findByRole("menu");
+    expect(within(dropdown).getByRole("menuitemradio", { name: "Listing" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: /budget/i }));
+
+    dropdown = await screen.findByRole("menu");
+    expect(
+      within(dropdown).getByRole("menuitemradio", { name: "Engagements" }),
+    ).toBeInTheDocument();
+    expect(
+      within(dropdown).queryByRole("menuitemradio", { name: "Listing" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("closes the dropdown when tapping outside it", async () => {
+    const session = await createTestUser("admin");
+    const user = userEvent.setup();
+    renderWithSession(<App />, session);
+
+    await screen.findByRole("tab", { name: /comptes/i });
+    await user.click(screen.getByRole("tab", { name: /comptes/i }));
+    await screen.findByRole("menu");
+
+    await user.click(screen.getByRole("tabpanel"));
+
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
   it("shows Rapport Mensuel as the Mensuel submenu under Rapports, not its own top-level tab", async () => {
@@ -91,33 +136,36 @@ describe("App menu navigation", () => {
     const user = userEvent.setup();
     renderWithSession(<App />, session);
 
-    await screen.findByRole("tab", { name: "Comptes" });
-    expect(screen.queryByRole("tab", { name: "Rapport Mensuel" })).not.toBeInTheDocument();
+    await screen.findByRole("tab", { name: /comptes/i });
+    expect(screen.queryByRole("tab", { name: /rapport mensuel/i })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("tab", { name: "Rapports" }));
+    await user.click(screen.getByRole("tab", { name: /^rapports$/i }));
 
-    expect(await screen.findByRole("tab", { name: "Mensuel" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Général" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Personnalisé" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Trésorerie" })).toBeInTheDocument();
+    const dropdown = await screen.findByRole("menu");
+    expect(within(dropdown).getByRole("menuitemradio", { name: "Mensuel" })).toBeInTheDocument();
+    expect(within(dropdown).getByRole("menuitemradio", { name: "Général" })).toBeInTheDocument();
+    expect(
+      within(dropdown).getByRole("menuitemradio", { name: "Personnalisé" }),
+    ).toBeInTheDocument();
+    expect(within(dropdown).getByRole("menuitemradio", { name: "Trésorerie" })).toBeInTheDocument();
   });
 
   it("hides the Utilisateurs and Synchronisation menus for a user without manageUsers", async () => {
     const session = await createTestUser("viewer");
     renderWithSession(<App />, session);
 
-    await screen.findByRole("tab", { name: "Comptes" });
-    expect(screen.queryByRole("tab", { name: "Utilisateurs" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("tab", { name: "Synchronisation" })).not.toBeInTheDocument();
+    await screen.findByRole("tab", { name: /comptes/i });
+    expect(screen.queryByRole("tab", { name: /utilisateurs/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /synchronisation/i })).not.toBeInTheDocument();
   });
 
   it("hides the Rapports and Recommandations menus for a user without viewReports", async () => {
     const session = await createTestUser("viewer", { viewReports: false });
     renderWithSession(<App />, session);
 
-    await screen.findByRole("tab", { name: "Comptes" });
-    expect(screen.queryByRole("tab", { name: "Rapports" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("tab", { name: "Recommandations" })).not.toBeInTheDocument();
+    await screen.findByRole("tab", { name: /comptes/i });
+    expect(screen.queryByRole("tab", { name: /^rapports$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /recommandations/i })).not.toBeInTheDocument();
   });
 
   it("logs out via the session button and returns to the login screen", async () => {
@@ -125,7 +173,7 @@ describe("App menu navigation", () => {
     const user = userEvent.setup();
     renderWithSession(<App />, session);
 
-    await screen.findByRole("tab", { name: "Comptes" });
+    await screen.findByRole("tab", { name: /comptes/i });
     await user.click(screen.getByRole("button", { name: /se déconnecter/i }));
 
     expect(await screen.findByRole("button", { name: /^se connecter$/i })).toBeInTheDocument();

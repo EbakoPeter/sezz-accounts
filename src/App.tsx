@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { AccountsPanel } from "@/components/AccountsPanel";
 import { TransactionsPanel } from "@/components/TransactionsPanel";
 import { BudgetPanel } from "@/components/BudgetPanel";
@@ -97,12 +97,35 @@ export function App() {
   const { currentUser, logout } = useAuth();
   const [activeMenu, setActiveMenu] = useState("accounts");
   const [activeSubmenu, setActiveSubmenu] = useState<string | null>("new");
+  // Which top-level menu's submenu dropdown is currently unfolded, if
+  // any — deliberately separate from activeMenu/activeSubmenu (which
+  // track what content is showing): a menu can be the active one while
+  // its dropdown sits closed, exactly like a website's own nav menu only
+  // reveals its children while you're actually interacting with it.
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const navRef = useRef<HTMLElement>(null);
+
   // Called unconditionally, before the login check below, per React's rules
   // of hooks — but it's also correct to run regardless of local login
   // state: sync moves already-encrypted data and never decrypts anything,
   // so keeping it running even while sitting on the login screen (after a
   // logout, say) keeps this device's data fresh for whoever logs in next.
   useAutoSync();
+
+  // Closes an open dropdown on an outside tap/click — the other half of
+  // "behaves like a website's nav dropdown" alongside the toggle logic
+  // below: it shouldn't take a second tap on the same menu, or a
+  // selection, to make it go away if the person just taps elsewhere.
+  useEffect(() => {
+    if (!openDropdown) return;
+    function handlePointerDown(event: PointerEvent) {
+      if (navRef.current && !navRef.current.contains(event.target as Node)) {
+        setOpenDropdown(null);
+      }
+    }
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [openDropdown]);
 
   if (!currentUser) {
     return <LoginScreen />;
@@ -117,10 +140,34 @@ export function App() {
       ? activeSubmenu!
       : (selectedMenu.submenus?.[0]?.id ?? null);
 
-  function handleSelectMenu(menu: MenuDef) {
-    setActiveMenu(menu.id);
-    setActiveSubmenu(menu.submenus?.[0]?.id ?? null);
+  function handleClickMenu(menu: MenuDef) {
+    if (!menu.submenus) {
+      // A leaf menu (Recommandations, Synchronisation) just navigates —
+      // there is nothing to unfold.
+      setActiveMenu(menu.id);
+      setActiveSubmenu(null);
+      setOpenDropdown(null);
+      return;
+    }
+    if (openDropdown === menu.id) {
+      // Tapping the already-open menu again closes it, same as a
+      // website's nav dropdown toggling shut on a second click.
+      setOpenDropdown(null);
+      return;
+    }
+    setOpenDropdown(menu.id);
+    if (activeMenu !== menu.id) {
+      setActiveMenu(menu.id);
+      setActiveSubmenu(menu.submenus[0]!.id);
+    }
   }
+
+  function handleClickSubmenu(sub: SubMenuDef) {
+    setActiveSubmenu(sub.id);
+    setOpenDropdown(null);
+  }
+
+  const dropdownMenu = openDropdown ? menus.find((menu) => menu.id === openDropdown) : undefined;
 
   return (
     <div className="app">
@@ -137,51 +184,56 @@ export function App() {
             </button>
           </div>
         </div>
-        <nav className="tab-bar" role="tablist" aria-label="Sections de l'application">
-          {menus.map((menu) => (
-            <button
-              key={menu.id}
-              type="button"
-              role="tab"
-              id={`tab-${menu.id}`}
-              aria-selected={selectedMenu.id === menu.id}
-              className={`tab-button${selectedMenu.id === menu.id ? " active" : ""}`}
-              onClick={() => handleSelectMenu(menu)}
-            >
-              {menu.label}
-            </button>
-          ))}
-        </nav>
-        {selectedMenu.submenus && (
-          <nav
-            className="tab-bar sub-tab-bar"
-            role="tablist"
-            aria-label={`Sous-sections de ${selectedMenu.label}`}
-          >
-            {selectedMenu.submenus.map((sub) => (
+        <nav
+          ref={navRef}
+          className="tab-bar-wrapper"
+          role="navigation"
+          aria-label="Sections de l'application"
+        >
+          <div className="tab-bar" role="tablist">
+            {menus.map((menu) => (
               <button
-                key={sub.id}
+                key={menu.id}
                 type="button"
                 role="tab"
-                id={`subtab-${selectedMenu.id}-${sub.id}`}
-                aria-selected={selectedSubmenuId === sub.id}
-                className={`tab-button${selectedSubmenuId === sub.id ? " active" : ""}`}
-                onClick={() => setActiveSubmenu(sub.id)}
+                id={`tab-${menu.id}`}
+                aria-selected={selectedMenu.id === menu.id}
+                aria-expanded={menu.submenus ? openDropdown === menu.id : undefined}
+                aria-haspopup={menu.submenus ? "true" : undefined}
+                className={`tab-button${selectedMenu.id === menu.id ? " active" : ""}`}
+                onClick={() => handleClickMenu(menu)}
               >
-                {sub.label}
+                {menu.label}
+                {menu.submenus && <span className="dropdown-caret" aria-hidden="true" />}
               </button>
             ))}
-          </nav>
-        )}
+          </div>
+          {dropdownMenu?.submenus && (
+            <div className="submenu-dropdown" role="menu" aria-label={`${dropdownMenu.label} —`}>
+              {dropdownMenu.submenus.map((sub) => (
+                <button
+                  key={sub.id}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={dropdownMenu.id === selectedMenu.id && selectedSubmenuId === sub.id}
+                  className={`submenu-item${
+                    dropdownMenu.id === selectedMenu.id && selectedSubmenuId === sub.id
+                      ? " active"
+                      : ""
+                  }`}
+                  onClick={() => handleClickSubmenu(sub)}
+                >
+                  {sub.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </nav>
       </header>
       <main
         role="tabpanel"
         id={`tabpanel-${selectedMenu.id}`}
-        aria-labelledby={
-          selectedSubmenuId
-            ? `subtab-${selectedMenu.id}-${selectedSubmenuId}`
-            : `tab-${selectedMenu.id}`
-        }
+        aria-labelledby={`tab-${selectedMenu.id}`}
       >
         {selectedMenu.id === "accounts" && (
           <AccountsPanel view={selectedSubmenuId === "new" ? "new" : "list"} />

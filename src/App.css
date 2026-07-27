@@ -457,13 +457,17 @@ tfoot th {
 /* Tab bar — horizontally scrollable rather than wrapping into a second
    row, since a wrapped tab bar on a phone eats vertical space the
    content needs more. */
+.tab-bar-wrapper {
+  position: relative;
+  margin-bottom: var(--space-5);
+}
+
 .tab-bar {
   display: flex;
   gap: 2px;
   background: var(--ink);
   border-radius: var(--radius-md);
   padding: 4px;
-  margin-bottom: var(--space-5);
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
@@ -473,14 +477,66 @@ tfoot th {
   display: none;
 }
 
-/* The submenu row sits directly under the main menu row — a lighter
-   shade (rather than repeating the same solid ink twice) makes the two
-   levels read as a hierarchy at a glance, not two identical bars stacked
-   on top of each other. */
-.sub-tab-bar {
-  background: var(--ink-light);
-  margin-top: -16px;
-  margin-bottom: var(--space-5);
+/* A small down-triangle after any menu label that has a dropdown — the
+   same "there's more here" cue a website's own nav menu gives, so it's
+   clear before tapping which labels unfold and which just navigate. */
+.dropdown-caret {
+  display: inline-block;
+  margin-left: 6px;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid currentColor;
+  vertical-align: middle;
+  opacity: 0.7;
+}
+
+/* The dropdown itself: floats below the menu bar as a real overlay,
+   closed by default, shown only while its parent menu is open — never a
+   second bar permanently occupying its own row the way the tab bar
+   above it does. Closes on selecting an item, on reopening the same
+   menu, or on tapping anywhere outside it (see App.tsx's pointerdown
+   listener), matching how a website's own nav dropdown behaves. */
+.submenu-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  max-width: calc(100vw - 2 * var(--space-4));
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-raised);
+  padding: 6px;
+  gap: 2px;
+}
+
+.submenu-item {
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  min-height: 44px;
+  text-align: left;
+  font-size: 0.88rem;
+  font-weight: 600;
+  font-family: var(--font-display);
+  color: var(--text);
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.submenu-item:hover {
+  background: var(--line-soft);
+}
+
+.submenu-item.active {
+  background: var(--gold);
+  color: var(--ink);
 }
 
 .tab-button {
