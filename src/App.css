@@ -513,8 +513,12 @@ tfoot th {
   flex-direction: column;
   min-width: 220px;
   max-width: calc(100vw - 2 * var(--space-4));
-  background: var(--surface);
-  border: 1px solid var(--line-soft);
+  /* Dark ink, matching the tab bar itself — not --surface (white), which
+     is also every content card's own background: a white dropdown
+     floating over a white card had no visual edge of its own, reading as
+     part of the page rather than a menu floating above it. */
+  background: var(--ink);
+  border: 1px solid var(--ink-light);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-raised);
   padding: 6px;
@@ -531,13 +535,14 @@ tfoot th {
   font-size: 0.88rem;
   font-weight: 600;
   font-family: var(--font-display);
-  color: var(--text);
+  color: rgba(244, 239, 226, 0.85);
   cursor: pointer;
   transition: background var(--transition);
 }
 
 .submenu-item:hover {
-  background: var(--line-soft);
+  background: rgba(244, 239, 226, 0.1);
+  color: #f4efe2;
 }
 
 .submenu-item.active {
@@ -551,8 +556,16 @@ tfoot th {
   color: rgba(244, 239, 226, 0.65);
   border: none;
   border-radius: var(--radius-sm);
-  padding: 10px 16px;
+  padding: 10px 14px;
   min-height: 44px;
+  /* Fixed, uniform width for every menu, sized for the abbreviation
+     each one shows while inactive — not the varying width a
+     content-sized box would have from "CPTS" next to "Dettes &
+     Créances". The active menu is deliberately excepted (see
+     .tab-button.active below): it shows its full name, and needs the
+     room that requires. */
+  width: 66px;
+  justify-content: center;
   display: flex;
   align-items: center;
   font-size: 0.85rem;
@@ -584,6 +597,10 @@ tfoot th {
   background: var(--gold);
   color: var(--gold-text);
   font-weight: 700;
+  width: auto;
+  min-width: 66px;
+  padding-left: 18px;
+  padding-right: 18px;
 }
 
 .permission-notice {

@@ -28,7 +28,7 @@ describe("App menu navigation", () => {
     renderWithSession(<App />, session);
 
     const tabs = await screen.findAllByRole("tab");
-    expect(tabs.map((t) => t.textContent)).toEqual([
+    expect(tabs.map((t) => t.getAttribute("aria-label"))).toEqual([
       "Comptes",
       "Opérations",
       "Budget",
@@ -38,6 +38,10 @@ describe("App menu navigation", () => {
       "Utilisateurs",
       "Synchronisation",
     ]);
+    // the active tab shows its full name even visually — only the
+    // inactive ones are abbreviated
+    expect(tabs[0]).toHaveTextContent("Comptes");
+    expect(tabs[1]).toHaveTextContent("OPER");
     expect(screen.getByRole("tab", { name: /comptes/i })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("heading", { name: "Comptes" })).toBeInTheDocument();
     // no dropdown unfolded on first load — it only appears once a menu
@@ -94,6 +98,24 @@ describe("App menu navigation", () => {
     // still on Budget's content — only the dropdown closed, navigation
     // did not change
     expect(screen.getByRole("heading", { name: "Budget Prévisionnel" })).toBeInTheDocument();
+  });
+
+  it("shows a menu's abbreviation while inactive, and its full name once it becomes active", async () => {
+    const session = await createTestUser("admin");
+    const user = userEvent.setup();
+    renderWithSession(<App />, session);
+
+    const debtsTab = await screen.findByRole("tab", { name: "Dettes & Créances" });
+    expect(debtsTab).toHaveTextContent("D&C");
+    expect(debtsTab).not.toHaveTextContent("Dettes & Créances");
+
+    await user.click(debtsTab);
+
+    expect(debtsTab).toHaveTextContent("Dettes & Créances");
+    // switching away abbreviates it again
+    await user.click(screen.getByRole("tab", { name: "Comptes" }));
+    expect(debtsTab).toHaveTextContent("D&C");
+    expect(debtsTab).not.toHaveTextContent("Dettes & Créances");
   });
 
   it("switches which menu's dropdown is open when a different menu is clicked", async () => {

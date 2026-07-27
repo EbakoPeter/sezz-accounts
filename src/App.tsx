@@ -23,6 +23,12 @@ interface SubMenuDef {
 interface MenuDef {
   id: string;
   label: string;
+  /** Shown instead of the full label while this menu isn't the active
+   * one — a fixed, short length so every menu occupies the same-sized
+   * box regardless of how long its real name is, rather than the tab
+   * bar's width varying tab to tab. The full label still shows once a
+   * menu becomes active (see the tab button's own rendering below). */
+  abbrev: string;
   /** Menu (and every one of its submenus) is hidden entirely for a user
    * lacking this permission — showing a menu whose whole content is "you
    * can't do this" is worse than not showing it at all. */
@@ -34,6 +40,7 @@ const MENUS: MenuDef[] = [
   {
     id: "accounts",
     label: "Comptes",
+    abbrev: "CPTS",
     submenus: [
       { id: "new", label: "Nouveau Compte" },
       { id: "list", label: "Listing" },
@@ -42,6 +49,7 @@ const MENUS: MenuDef[] = [
   {
     id: "transactions",
     label: "Opérations",
+    abbrev: "OPER",
     submenus: [
       { id: "transfers", label: "Transferts" },
       { id: "operations", label: "Opérations" },
@@ -50,6 +58,7 @@ const MENUS: MenuDef[] = [
   {
     id: "budget",
     label: "Budget",
+    abbrev: "BDGT",
     submenus: [
       { id: "forecast", label: "Prévisionnel" },
       { id: "engagements", label: "Engagements" },
@@ -58,6 +67,7 @@ const MENUS: MenuDef[] = [
   {
     id: "debts",
     label: "Dettes & Créances",
+    abbrev: "D&C",
     submenus: [
       { id: "debts", label: "Dettes" },
       { id: "receivables", label: "Créances" },
@@ -66,6 +76,7 @@ const MENUS: MenuDef[] = [
   {
     id: "reports",
     label: "Rapports",
+    abbrev: "RAPP",
     requires: "viewReports",
     submenus: [
       { id: "monthly", label: "Mensuel" },
@@ -74,10 +85,11 @@ const MENUS: MenuDef[] = [
       { id: "cashflow", label: "Trésorerie" },
     ],
   },
-  { id: "recommendations", label: "Recommandations", requires: "viewReports" },
+  { id: "recommendations", label: "Recommandations", abbrev: "RECO", requires: "viewReports" },
   {
     id: "users",
     label: "Utilisateurs",
+    abbrev: "UTIL",
     requires: "manageUsers",
     submenus: [
       { id: "list", label: "Listing" },
@@ -90,7 +102,7 @@ const MENUS: MenuDef[] = [
   // new permission flag (touching Permissions, ROLE_DEFAULT_PERMISSIONS,
   // every existing user's stored record, and their tests) for a single
   // tab wasn't proportionate to build in this first pass.
-  { id: "sync", label: "Synchronisation", requires: "manageUsers" },
+  { id: "sync", label: "Synchronisation", abbrev: "SYNC", requires: "manageUsers" },
 ];
 
 export function App() {
@@ -200,10 +212,13 @@ export function App() {
                 aria-selected={selectedMenu.id === menu.id}
                 aria-expanded={menu.submenus ? openDropdown === menu.id : undefined}
                 aria-haspopup={menu.submenus ? "true" : undefined}
+                aria-label={menu.label}
                 className={`tab-button${selectedMenu.id === menu.id ? " active" : ""}`}
                 onClick={() => handleClickMenu(menu)}
               >
-                {menu.label}
+                <span aria-hidden="true">
+                  {selectedMenu.id === menu.id ? menu.label : menu.abbrev}
+                </span>
                 {menu.submenus && <span className="dropdown-caret" aria-hidden="true" />}
               </button>
             ))}
