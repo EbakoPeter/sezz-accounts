@@ -7,6 +7,7 @@ import { createAccountsRepository } from "./accountsRepository";
 import { createTransactionsRepository } from "./transactionsRepository";
 import { getMonthlyReport } from "./monthlyReport";
 import type { Debt, DebtPayment, Transaction } from "@/types/models";
+import { generateId } from "@/lib/id";
 
 describe("getMonthlyReport", () => {
   useTestEncryptionSession();
@@ -18,6 +19,29 @@ describe("getMonthlyReport", () => {
     const accounts = createAccountsRepository(database);
     accountId = (await accounts.create({ name: "Compte", initialBalance: 0 })).id;
   });
+
+  /** Seeds an expense directly, bypassing transactions.create() — that
+   * repository now requires every expense to settle an existing
+   * engagement (see transactionsRepository.ts), which this pure-reader's
+   * tests have no need to set up. */
+  async function seedExpenseDirectly(overrides: { date: string; label: string; amount: number }) {
+    const now = Date.now();
+    await database.transactions.add(
+      await encryptedFixture<Transaction, "label" | "amount" | "note">(
+        {
+          id: generateId(),
+          accountId,
+          kind: "expense",
+          date: overrides.date,
+          label: overrides.label,
+          amount: overrides.amount,
+          createdAt: now,
+          updatedAt: now,
+        },
+        ["label", "amount", "note"],
+      ),
+    );
+  }
 
   it("returns 12 rows, January through December, in that order, even with no data", async () => {
     const rows = await getMonthlyReport(2026, database);
@@ -35,13 +59,7 @@ describe("getMonthlyReport", () => {
       label: "Salaire",
       amount: 300000,
     });
-    await transactions.create({
-      accountId,
-      kind: "expense",
-      date: "2026-03-20",
-      label: "Loyer",
-      amount: 100000,
-    });
+    await seedExpenseDirectly({ date: "2026-03-20", label: "Loyer", amount: 100000 });
 
     const rows = await getMonthlyReport(2026, database);
     const march = rows.find((r) => r.month === 3)!;
@@ -73,13 +91,7 @@ describe("getMonthlyReport", () => {
       label: "A",
       amount: 1000,
     });
-    await transactions.create({
-      accountId,
-      kind: "expense",
-      date: "2026-02-10",
-      label: "B",
-      amount: 300,
-    });
+    await seedExpenseDirectly({ date: "2026-02-10", label: "B", amount: 300 });
     await transactions.create({
       accountId,
       kind: "income",

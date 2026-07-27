@@ -121,8 +121,8 @@ section section {
   /* nested sections (e.g. Transferts within Opérations) read as
      sub-panels, not a second card floating inside the first */
   box-shadow: none;
-  border: 1px solid var(--line);
-  border-left-width: 4px;
+  border: 2px solid var(--line);
+  border-left-width: 5px;
   margin-top: var(--space-5);
   margin-bottom: 0;
 }
@@ -136,7 +136,7 @@ section section {
    browsers this app's actual users are more likely to be on. */
 section.accent-gold {
   background: rgba(201, 138, 59, 0.07);
-  border-left-color: var(--gold);
+  border-color: var(--gold);
 }
 section.accent-gold h3 {
   color: var(--gold);
@@ -144,7 +144,7 @@ section.accent-gold h3 {
 
 section.accent-sage {
   background: rgba(76, 122, 91, 0.08);
-  border-left-color: var(--sage);
+  border-color: var(--sage);
 }
 section.accent-sage h3 {
   color: var(--sage);
@@ -152,7 +152,7 @@ section.accent-sage h3 {
 
 section.accent-ink {
   background: rgba(36, 72, 90, 0.06);
-  border-left-color: var(--ink-light);
+  border-color: var(--ink-light);
 }
 section.accent-ink h3 {
   color: var(--ink-light);
@@ -263,6 +263,22 @@ button.ghost:hover:not(:disabled) {
 button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+/* Modifier/Supprimer button pairs in a table row — kept to a single line
+   deliberately (never wrapped), with more compact sizing than a
+   full-width action button, since two touch-target-sized buttons side
+   by side in a narrow cell would otherwise force a wrap on a phone. */
+.row-actions {
+  display: inline-flex;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+.row-actions button {
+  padding: 6px 12px;
+  min-height: 36px;
+  font-size: 0.8rem;
 }
 
 /* Tables — wrapped in .table-scroll for touch-friendly horizontal
@@ -444,7 +460,9 @@ tfoot th {
 .tab-bar {
   display: flex;
   gap: 2px;
-  border-bottom: 2px solid var(--ink);
+  background: var(--ink);
+  border-radius: var(--radius-md);
+  padding: 4px;
   margin-bottom: var(--space-5);
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
@@ -457,9 +475,9 @@ tfoot th {
 
 .tab-button {
   background: none;
-  color: var(--text-dim);
+  color: rgba(244, 239, 226, 0.65);
   border: none;
-  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  border-radius: var(--radius-sm);
   padding: 10px 16px;
   min-height: 44px;
   display: flex;
@@ -477,24 +495,14 @@ tfoot th {
 }
 
 .tab-button:hover {
-  background: var(--line-soft);
-  color: var(--ink);
+  background: rgba(244, 239, 226, 0.1);
+  color: #f4efe2;
 }
 
 .tab-button.active {
+  background: var(--gold);
   color: var(--ink);
   font-weight: 700;
-}
-
-.tab-button.active::after {
-  content: "";
-  position: absolute;
-  left: 8px;
-  right: 8px;
-  bottom: -2px;
-  height: 3px;
-  background: var(--gold);
-  border-radius: 2px 2px 0 0;
 }
 
 .permission-notice {

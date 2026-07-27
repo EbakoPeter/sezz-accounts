@@ -102,6 +102,13 @@ export function UsersPanel() {
   }
 
   async function handleDelete(id: string) {
+    if (
+      !window.confirm(
+        "Voulez-vous vraiment supprimer cet utilisateur ? Il perdra tout accès à l'application. Cette action est irréversible.",
+      )
+    ) {
+      return;
+    }
     setRowError(null);
     try {
       await usersRepository.remove(id);

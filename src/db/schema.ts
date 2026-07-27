@@ -23,7 +23,14 @@ import type { WithEncrypted } from "./encryptedRecord";
 export type AccountRow = Pick<Account, "id" | "createdAt" | "updatedAt"> & WithEncrypted;
 export type TransactionRow = Pick<
   Transaction,
-  "id" | "accountId" | "kind" | "date" | "subcategoryId" | "createdAt" | "updatedAt"
+  | "id"
+  | "accountId"
+  | "kind"
+  | "date"
+  | "subcategoryId"
+  | "engagementId"
+  | "createdAt"
+  | "updatedAt"
 > &
   WithEncrypted;
 export type BudgetCategoryRow = Pick<BudgetCategory, "id" | "createdAt" | "updatedAt"> &
@@ -257,6 +264,27 @@ export class SezzAccountsDatabase extends Dexie {
     this.version(9).stores({
       accounts: "id, updatedAt",
       transactions: "id, accountId, kind, date, subcategoryId, [accountId+date], updatedAt",
+      transfers: "id, fromAccountId, toAccountId, date, updatedAt",
+      budgetCategories: "id, updatedAt",
+      budgetSubcategories: "id, categoryId, updatedAt",
+      engagements: "id, subcategoryId, date, status, updatedAt",
+      debts: "id, accountId, kind, reference, date, updatedAt",
+      debtPayments: "id, debtId, accountId, date, updatedAt",
+      users: "id, username, updatedAt",
+      deletionLog: "++logId, tableName, deletedAt, pushedAt",
+      syncConfig: "key",
+    });
+    // v10: indexes `engagementId` on transactions. Every expense now
+    // settles a specific Engagement (see Transaction.engagementId's own
+    // comment in src/types/models.ts) — this index lets
+    // transactionsRepository look up "is there already a transaction
+    // settling this engagement" (needed when an edit moves an expense off
+    // one engagement, or when an engagement itself is deleted) without a
+    // full table scan.
+    this.version(10).stores({
+      accounts: "id, updatedAt",
+      transactions:
+        "id, accountId, kind, date, subcategoryId, engagementId, [accountId+date], updatedAt",
       transfers: "id, fromAccountId, toAccountId, date, updatedAt",
       budgetCategories: "id, updatedAt",
       budgetSubcategories: "id, categoryId, updatedAt",

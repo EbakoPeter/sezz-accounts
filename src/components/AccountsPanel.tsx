@@ -34,6 +34,11 @@ export function AccountsPanel() {
   }
 
   async function handleDelete(id: string) {
+    if (
+      !window.confirm("Voulez-vous vraiment supprimer ce compte ? Cette action est irréversible.")
+    ) {
+      return;
+    }
     setRowError(null);
     try {
       await accountsRepository.remove(id);
@@ -169,14 +174,14 @@ export function AccountsPanel() {
                     </td>
                     <td>
                       {canManage && (
-                        <>
+                        <span className="row-actions">
                           <button type="button" onClick={() => handleStartEdit(account)}>
                             Modifier
-                          </button>{" "}
+                          </button>
                           <button type="button" onClick={() => handleDelete(account.id)}>
                             Supprimer
                           </button>
-                        </>
+                        </span>
                       )}
                       {rowError?.id === account.id && (
                         <p role="alert" className="form-error">

@@ -15,6 +15,7 @@ import {
   createTransactionsRepository,
   type TransactionsRepository,
 } from "./transactionsRepository";
+import { createEngagementsRepository } from "./engagementsRepository";
 import { ValidationError, NotFoundError } from "@/lib/errors";
 
 describe("BudgetSubcategoriesRepository", () => {
@@ -117,29 +118,34 @@ describe("BudgetSubcategoriesRepository", () => {
   });
 
   describe("remove", () => {
-    it("refuses to delete a subcategory still referenced by transactions", async () => {
+    it("refuses to delete a subcategory still referenced by an engagement", async () => {
       const sub = await subcategories.create({
         categoryId,
         name: "Transport",
-        monthlyAllocation: 0,
+        monthlyAllocation: 20000,
       });
-      const account = await accounts.create({ name: "Compte", initialBalance: 0 });
-      await transactions.create({
-        accountId: account.id,
-        kind: "expense",
-        date: "2026-01-01",
-        label: "Bus",
-        amount: 500,
+      const engagements = createEngagementsRepository(database);
+      await engagements.create({
         subcategoryId: sub.id,
+        amount: 500,
+        label: "Bus",
+        date: "2026-01-01",
       });
       await expect(subcategories.remove(sub.id)).rejects.toThrow(ValidationError);
     });
 
-    it("force-deletes: unlinks referencing transactions instead of deleting them", async () => {
+    it("force-deletes: removes the engagement and unlinks the transaction that settled it, instead of deleting it", async () => {
       const sub = await subcategories.create({
         categoryId,
         name: "Transport",
-        monthlyAllocation: 0,
+        monthlyAllocation: 20000,
+      });
+      const engagements = createEngagementsRepository(database);
+      const engagement = await engagements.create({
+        subcategoryId: sub.id,
+        amount: 500,
+        label: "Bus",
+        date: "2026-01-01",
       });
       const account = await accounts.create({ name: "Compte", initialBalance: 0 });
       const tx = await transactions.create({
@@ -148,24 +154,33 @@ describe("BudgetSubcategoriesRepository", () => {
         date: "2026-01-01",
         label: "Bus",
         amount: 500,
-        subcategoryId: sub.id,
+        engagementId: engagement.id,
       });
 
       await subcategories.remove(sub.id, { force: true });
 
       expect(await subcategories.getById(sub.id)).toBeUndefined();
+      expect(await engagements.getById(engagement.id)).toBeUndefined();
       const survivingTx = await transactions.getById(tx.id);
       expect(survivingTx).toBeDefined();
       expect(survivingTx?.subcategoryId).toBeUndefined();
+      expect(survivingTx?.engagementId).toBeUndefined();
     });
   });
 
   describe("deletion log (for sync)", () => {
-    it("logs the subcategory but not a merely-unlinked transaction", async () => {
+    it("logs the subcategory and its engagement, but not a merely-unlinked transaction", async () => {
       const sub = await subcategories.create({
         categoryId,
         name: "Transport",
         monthlyAllocation: 20000,
+      });
+      const engagements = createEngagementsRepository(database);
+      const engagement = await engagements.create({
+        subcategoryId: sub.id,
+        amount: 5000,
+        label: "Carburant",
+        date: "2026-01-01",
       });
       const account = await accounts.create({ name: "Compte", initialBalance: 0 });
       await transactions.create({
@@ -174,14 +189,16 @@ describe("BudgetSubcategoriesRepository", () => {
         date: "2026-01-01",
         label: "Carburant",
         amount: 5000,
-        subcategoryId: sub.id,
+        engagementId: engagement.id,
       });
 
       await subcategories.remove(sub.id, { force: true });
 
       const entries = await database.deletionLog.toArray();
-      expect(entries).toHaveLength(1);
-      expect(entries[0]).toMatchObject({ tableName: "budgetSubcategories", recordId: sub.id });
+      const byTable = Object.fromEntries(entries.map((e) => [e.tableName, e.recordId]));
+      expect(byTable["budgetSubcategories"]).toBe(sub.id);
+      expect(byTable["engagements"]).toBe(engagement.id);
+      expect(byTable["transactions"]).toBeUndefined();
     });
   });
 });

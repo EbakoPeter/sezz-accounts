@@ -40,13 +40,24 @@ export interface Transaction {
   label: string;
   /** Always a positive integer; direction is carried by `kind`, never by sign. */
   amount: number;
-  /** Foreign key to a BudgetSubcategory. Optional because income rows and
-   * not-yet-categorized expenses may not have one. Named `subcategoryId`
-   * (not `categoryId`) because the monthly allocation and the actual/gap
-   * comparison both live at the subcategory level — see BudgetSubcategory
-   * below. A BudgetCategory is purely a grouping label with no amount of
-   * its own; its totals are always the sum of its subcategories. */
+  /** Foreign key to a BudgetSubcategory. Optional because income rows have
+   * none. For an expense, this is never chosen directly — it's derived
+   * from the linked Engagement (see engagementId below) and kept here so
+   * every existing reader (budgetSummary.ts, monthlyReport.ts, etc.) that
+   * already groups by subcategoryId keeps working unchanged. Named
+   * `subcategoryId` (not `categoryId`) because the monthly allocation and
+   * the actual/gap comparison both live at the subcategory level — see
+   * BudgetSubcategory below. A BudgetCategory is purely a grouping label
+   * with no amount of its own; its totals are always the sum of its
+   * subcategories. */
   subcategoryId?: string;
+  /** Foreign key to the Engagement this expense settles. Required for
+   * every expense (an expense can only be recorded against money already
+   * engaged — see transactionsRepository.ts's assertSettlesEngagement)
+   * and never present on income, which has no engagement to settle.
+   * Recording an expense here is what moves its engagement from
+   * "engagé" to "réalisé" — see EngagementStatus in this file. */
+  engagementId?: string;
   note?: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -110,14 +121,21 @@ export type NewAccount = Pick<Account, "name" | "initialBalance">;
 export type AccountUpdate = Partial<Pick<Account, "name" | "initialBalance">>;
 
 export type NewTransaction = Pick<Transaction, "accountId" | "kind" | "date" | "label" | "amount"> &
-  Partial<Pick<Transaction, "subcategoryId" | "note">>;
+  Partial<Pick<Transaction, "note">> & {
+    /** Required for an expense (see Transaction.engagementId's own
+     * comment); never provided for income. */
+    engagementId?: string;
+  };
 export type TransactionUpdate = Partial<
   Pick<Transaction, "accountId" | "kind" | "date" | "label" | "amount" | "note">
 > & {
   /** undefined = leave unchanged; null = explicitly clear (e.g. the
    * transaction's kind changed to "income", which has no subcategory);
-   * a string = set to that subcategory. */
+   * a string = set to that subcategory. Only ever set as a side effect of
+   * engagementId changing, never chosen independently for an expense. */
   subcategoryId?: string | null;
+  /** Same undefined/null/string convention as subcategoryId. */
+  engagementId?: string | null;
 };
 
 /**

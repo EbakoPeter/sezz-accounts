@@ -13,6 +13,9 @@ import {
   createDebtPaymentsRepository,
   type DebtPaymentsRepository,
 } from "@/db/debtPaymentsRepository";
+import { encryptedFixture } from "@/test/encryptedFixture";
+import { generateId } from "@/lib/id";
+import type { Transaction } from "@/types/models";
 import { getCashFlowOverTime } from "./cashFlow";
 
 describe("getCashFlowOverTime", () => {
@@ -73,13 +76,26 @@ describe("getCashFlowOverTime", () => {
 
   it("subtracts expenses the same way", async () => {
     const account = await accounts.create({ name: "Compte", initialBalance: 10000 });
-    await transactions.create({
-      accountId: account.id,
-      kind: "expense",
-      date: "2030-01-10",
-      label: "Loyer",
-      amount: 3000,
-    });
+    // seeded directly rather than via transactions.create(): that
+    // repository now requires every expense to settle an existing
+    // engagement (see transactionsRepository.ts), which this pure-reader
+    // test has no need to set up just to prove subtraction works
+    const now = Date.now();
+    await database.transactions.add(
+      await encryptedFixture<Transaction, "label" | "amount" | "note">(
+        {
+          id: generateId(),
+          accountId: account.id,
+          kind: "expense",
+          date: "2030-01-10",
+          label: "Loyer",
+          amount: 3000,
+          createdAt: now,
+          updatedAt: now,
+        },
+        ["label", "amount", "note"],
+      ),
+    );
 
     const points = await getCashFlowOverTime(database, "2030-01", "2030-01");
     expect(points[0]?.byAccount.get(account.id)).toBe(7000);

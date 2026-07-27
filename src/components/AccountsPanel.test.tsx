@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AccountsPanel } from "./AccountsPanel";
@@ -16,6 +16,15 @@ afterEach(async () => {
   await db.transactions.clear();
   await db.accounts.clear();
   clearActiveDek();
+  vi.restoreAllMocks();
+});
+
+// Deletion now asks for confirmation first — defaults to "confirmed" so
+// every existing test that expects a delete to actually happen doesn't
+// need to know about this dialog. Tests specifically covering the
+// "cancelled" path override this per-test.
+beforeEach(() => {
+  vi.spyOn(window, "confirm").mockReturnValue(true);
 });
 
 describe("AccountsPanel", () => {
@@ -37,6 +46,37 @@ describe("AccountsPanel", () => {
     const row = screen.getByText("Compte Principal").closest("tr");
     expect(row).not.toBeNull();
     expect(row!).toHaveTextContent("50 000 FCFA");
+  });
+
+  it("asks for confirmation before deleting, and does not delete when cancelled", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    const user = userEvent.setup();
+    await renderAuthenticated(<AccountsPanel />);
+
+    await user.type(screen.getByLabelText(/nom du compte/i), "Compte À Garder");
+    await user.click(screen.getByRole("button", { name: /^\+ ajouter$/i }));
+    await screen.findByText("Compte À Garder");
+
+    await user.click(screen.getByRole("button", { name: /supprimer/i }));
+
+    expect(window.confirm).toHaveBeenCalledTimes(1);
+    // still there — the cancelled confirmation must not have deleted it
+    expect(screen.getByText("Compte À Garder")).toBeInTheDocument();
+  });
+
+  it("deletes after confirmation is accepted", async () => {
+    const user = userEvent.setup();
+    await renderAuthenticated(<AccountsPanel />);
+
+    await user.type(screen.getByLabelText(/nom du compte/i), "Compte À Supprimer");
+    await user.click(screen.getByRole("button", { name: /^\+ ajouter$/i }));
+    await screen.findByText("Compte À Supprimer");
+
+    await user.click(screen.getByRole("button", { name: /supprimer/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByText("Compte À Supprimer")).not.toBeInTheDocument();
+    });
   });
 
   it("shows a validation error inline instead of throwing, and does not add the row", async () => {

@@ -8,6 +8,9 @@ import { createAccountsRepository } from "./accountsRepository";
 import { createTransactionsRepository } from "./transactionsRepository";
 import { createEngagementsRepository } from "./engagementsRepository";
 import { getBudgetSummary } from "./budgetSummary";
+import { encryptedFixture } from "@/test/encryptedFixture";
+import { generateId } from "@/lib/id";
+import type { Transaction } from "@/types/models";
 
 describe("getBudgetSummary", () => {
   useTestEncryptionSession();
@@ -45,6 +48,7 @@ describe("getBudgetSummary", () => {
     const categories = createBudgetCategoriesRepository(database);
     const subcategories = createBudgetSubcategoriesRepository(database);
     const transactions = createTransactionsRepository(database);
+    const engagements = createEngagementsRepository(database);
     const category = await categories.create({ name: "Vie Courante" });
     const sub = await subcategories.create({
       categoryId: category.id,
@@ -52,30 +56,54 @@ describe("getBudgetSummary", () => {
       monthlyAllocation: 25000,
     });
 
+    const essenceEngagementId = (
+      await engagements.create({
+        subcategoryId: sub.id,
+        amount: 10000,
+        label: "Essence",
+        date: "2026-01-05",
+      })
+    ).id;
     await transactions.create({
       accountId,
       kind: "expense",
       date: "2026-01-05",
       label: "Essence",
       amount: 10000,
-      subcategoryId: sub.id,
+      engagementId: essenceEngagementId,
     });
+    const busEngagementId = (
+      await engagements.create({
+        subcategoryId: sub.id,
+        amount: 3000,
+        label: "Bus",
+        date: "2026-01-20",
+      })
+    ).id;
     await transactions.create({
       accountId,
       kind: "expense",
       date: "2026-01-20",
       label: "Bus",
       amount: 3000,
-      subcategoryId: sub.id,
+      engagementId: busEngagementId,
     });
     // different month — must NOT be counted
+    const fevrierEngagementId = (
+      await engagements.create({
+        subcategoryId: sub.id,
+        amount: 20000,
+        label: "Février",
+        date: "2026-02-01",
+      })
+    ).id;
     await transactions.create({
       accountId,
       kind: "expense",
       date: "2026-02-01",
       label: "Février",
       amount: 20000,
-      subcategoryId: sub.id,
+      engagementId: fevrierEngagementId,
     });
     // income on the same subcategory id would be nonsensical but must not
     // be counted as an expense even if it somehow had one
@@ -98,19 +126,28 @@ describe("getBudgetSummary", () => {
     const categories = createBudgetCategoriesRepository(database);
     const subcategories = createBudgetSubcategoriesRepository(database);
     const transactions = createTransactionsRepository(database);
+    const engagements = createEngagementsRepository(database);
     const category = await categories.create({ name: "Imprévu" });
     const sub = await subcategories.create({
       categoryId: category.id,
       name: "Divers",
       monthlyAllocation: 0,
     });
+    const engagementId = (
+      await engagements.create({
+        subcategoryId: sub.id,
+        amount: 5000,
+        label: "Surprise",
+        date: "2026-01-01",
+      })
+    ).id;
     await transactions.create({
       accountId,
       kind: "expense",
       date: "2026-01-01",
       label: "Surprise",
       amount: 5000,
-      subcategoryId: sub.id,
+      engagementId,
     });
 
     const summary = await getBudgetSummary(2026, 1, database);
@@ -124,6 +161,7 @@ describe("getBudgetSummary", () => {
     const categories = createBudgetCategoriesRepository(database);
     const subcategories = createBudgetSubcategoriesRepository(database);
     const transactions = createTransactionsRepository(database);
+    const engagements = createEngagementsRepository(database);
     const category = await categories.create({ name: "Vie Courante" });
     const food = await subcategories.create({
       categoryId: category.id,
@@ -136,21 +174,37 @@ describe("getBudgetSummary", () => {
       monthlyAllocation: 20000,
     });
 
+    const aEngagementId = (
+      await engagements.create({
+        subcategoryId: food.id,
+        amount: 15000,
+        label: "A",
+        date: "2026-01-01",
+      })
+    ).id;
     await transactions.create({
       accountId,
       kind: "expense",
       date: "2026-01-01",
       label: "A",
       amount: 15000,
-      subcategoryId: food.id,
+      engagementId: aEngagementId,
     });
+    const bEngagementId = (
+      await engagements.create({
+        subcategoryId: transport.id,
+        amount: 5000,
+        label: "B",
+        date: "2026-01-02",
+      })
+    ).id;
     await transactions.create({
       accountId,
       kind: "expense",
       date: "2026-01-02",
       label: "B",
       amount: 5000,
-      subcategoryId: transport.id,
+      engagementId: bEngagementId,
     });
 
     const summary = await getBudgetSummary(2026, 1, database);
@@ -164,7 +218,6 @@ describe("getBudgetSummary", () => {
   it("ignores transactions with no subcategory", async () => {
     const categories = createBudgetCategoriesRepository(database);
     const subcategories = createBudgetSubcategoriesRepository(database);
-    const transactions = createTransactionsRepository(database);
     const category = await categories.create({ name: "Vie Courante" });
     await subcategories.create({
       categoryId: category.id,
@@ -172,13 +225,29 @@ describe("getBudgetSummary", () => {
       monthlyAllocation: 40000,
     });
 
-    await transactions.create({
-      accountId,
-      kind: "expense",
-      date: "2026-01-01",
-      label: "Non catégorisé",
-      amount: 999999,
-    });
+    // Seeded directly rather than via transactions.create(): every expense
+    // now requires an engagement (see transactionsRepository.ts), so this
+    // exact shape can no longer arise through normal use. It remains
+    // reachable in practice — synced in from another device, or left
+    // behind after a force-deleted subcategory unlinked it (see
+    // budgetSubcategoriesRepository.ts) — which is exactly the case this
+    // test exists to cover.
+    const now = Date.now();
+    await database.transactions.add(
+      await encryptedFixture<Transaction, "label" | "amount" | "note">(
+        {
+          id: generateId(),
+          accountId,
+          kind: "expense",
+          date: "2026-01-01",
+          label: "Non catégorisé",
+          amount: 999999,
+          createdAt: now,
+          updatedAt: now,
+        },
+        ["label", "amount", "note"],
+      ),
+    );
 
     const summary = await getBudgetSummary(2026, 1, database);
     expect(summary[0]?.subcategories[0]?.actual).toBe(0);
@@ -334,13 +403,21 @@ describe("getBudgetSummary", () => {
         name: "Scolarité",
         monthlyAllocation: 50000,
       });
+      const dejaPayeEngagementId = (
+        await engagements.create({
+          subcategoryId: sub.id,
+          amount: 15000,
+          label: "Déjà payé",
+          date: "2026-01-05",
+        })
+      ).id;
       await transactions.create({
         accountId,
         kind: "expense",
         date: "2026-01-05",
         label: "Déjà payé",
         amount: 15000,
-        subcategoryId: sub.id,
+        engagementId: dejaPayeEngagementId,
       });
       await engagements.create({
         subcategoryId: sub.id,

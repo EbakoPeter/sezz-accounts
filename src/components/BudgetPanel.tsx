@@ -101,6 +101,13 @@ export function BudgetPanel() {
   }
 
   async function handleDeleteCategory(id: string) {
+    if (
+      !window.confirm(
+        "Voulez-vous vraiment supprimer cette catégorie ? Cette action est irréversible.",
+      )
+    ) {
+      return;
+    }
     setRowError(null);
     try {
       await budgetCategoriesRepository.remove(id);
@@ -110,6 +117,13 @@ export function BudgetPanel() {
   }
 
   async function handleDeleteSubcategory(id: string) {
+    if (
+      !window.confirm(
+        "Voulez-vous vraiment supprimer cette sous-catégorie ? Cette action est irréversible.",
+      )
+    ) {
+      return;
+    }
     setRowError(null);
     try {
       await budgetSubcategoriesRepository.remove(id);
@@ -176,6 +190,13 @@ export function BudgetPanel() {
   }
 
   async function handleDeleteEngagement(id: string) {
+    if (
+      !window.confirm(
+        "Voulez-vous vraiment supprimer cet engagement ? Cette action est irréversible.",
+      )
+    ) {
+      return;
+    }
     setEngagementRowError(null);
     try {
       await engagementsRepository.remove(id);
@@ -394,17 +415,17 @@ export function BudgetPanel() {
                             </button>
                           </>
                         ) : (
-                          <>
+                          <span className="row-actions">
                             <button type="button" onClick={() => handleStartEditCategory(category)}>
                               Modifier
-                            </button>{" "}
+                            </button>
                             <button
                               type="button"
                               onClick={() => handleDeleteCategory(category.categoryId)}
                             >
                               Supprimer
                             </button>
-                          </>
+                          </span>
                         ))}
                       {rowError?.id === category.categoryId && (
                         <p role="alert" className="form-error">
@@ -468,17 +489,17 @@ export function BudgetPanel() {
                               </button>
                             </>
                           ) : (
-                            <>
+                            <span className="row-actions">
                               <button type="button" onClick={() => handleStartEditSubcategory(sub)}>
                                 Modifier
-                              </button>{" "}
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => handleDeleteSubcategory(sub.subcategoryId)}
                               >
                                 Supprimer
                               </button>
-                            </>
+                            </span>
                           ))}
                         {rowError?.id === sub.subcategoryId && (
                           <p role="alert" className="form-error">
@@ -570,6 +591,7 @@ export function BudgetPanel() {
                     <th>Libellé</th>
                     <th>Montant</th>
                     <th>Statut</th>
+                    <th>Payé</th>
                     <th />
                   </tr>
                 </thead>
@@ -614,6 +636,7 @@ export function BudgetPanel() {
                           />
                         </td>
                         <td>{STATUS_LABELS[engagement.status]}</td>
+                        <td>{engagement.status === "realized" ? "Oui" : "Non"}</td>
                         <td>
                           <button
                             type="button"
@@ -661,22 +684,23 @@ export function BudgetPanel() {
                             STATUS_LABELS[engagement.status]
                           )}
                         </td>
+                        <td>{engagement.status === "realized" ? "Oui" : "Non"}</td>
                         <td>
                           {canManage && (
-                            <>
+                            <span className="row-actions">
                               <button
                                 type="button"
                                 onClick={() => handleStartEditEngagement(engagement)}
                               >
                                 Modifier
-                              </button>{" "}
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => handleDeleteEngagement(engagement.id)}
                               >
                                 Supprimer
                               </button>
-                            </>
+                            </span>
                           )}
                           {engagementRowError?.id === engagement.id && (
                             <p role="alert" className="form-error">

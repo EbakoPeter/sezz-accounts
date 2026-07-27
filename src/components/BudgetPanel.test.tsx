@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BudgetPanel } from "./BudgetPanel";
@@ -17,6 +17,15 @@ afterEach(async () => {
   await db.budgetCategories.clear();
   await db.accounts.clear();
   clearActiveDek();
+  vi.restoreAllMocks();
+});
+
+// Deletion now asks for confirmation first — defaults to "confirmed" so
+// every existing test that expects a delete to actually happen doesn't
+// need to know about this dialog. Tests specifically covering the
+// "cancelled" path override this per-test.
+beforeEach(() => {
+  vi.spyOn(window, "confirm").mockReturnValue(true);
 });
 
 describe("BudgetPanel", () => {
@@ -33,6 +42,22 @@ describe("BudgetPanel", () => {
     await user.click(screen.getAllByRole("button", { name: /ajouter/i })[0]!);
 
     expect(await screen.findByText("Vie Courante")).toBeInTheDocument();
+  });
+
+  it("asks for confirmation before deleting a category, and does not delete when cancelled", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    const user = userEvent.setup();
+    await renderAuthenticated(<BudgetPanel />);
+
+    await user.type(screen.getByLabelText(/nouvelle catégorie/i), "À Garder");
+    await user.click(screen.getAllByRole("button", { name: /ajouter/i })[0]!);
+    const table = await screen.findByRole("table");
+    await within(table).findByText("À Garder");
+
+    await user.click(within(table).getByRole("button", { name: /supprimer/i }));
+
+    expect(window.confirm).toHaveBeenCalledTimes(1);
+    expect(within(table).getByText("À Garder")).toBeInTheDocument();
   });
 
   it("rejects a duplicate category name inline", async () => {
@@ -354,6 +379,38 @@ describe("BudgetPanel", () => {
         const updated = await db.engagements.get("eng-1");
         const decrypted = await fromStorageRow<{ status: string }>(updated!);
         expect(decrypted.status).toBe("realized");
+      });
+    });
+
+    it("shows Payé: Oui once an engagement is réalisé, Non otherwise", async () => {
+      const session = await createTestUser("admin");
+      await seedCategoryAndSubcategory();
+      await db.engagements.add(
+        await encryptedFixture<Engagement, "amount" | "label" | "note">(
+          {
+            id: "eng-1",
+            subcategoryId: "sub-1",
+            date: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-15`,
+            status: "engaged" as const,
+            amount: 10000,
+            label: "Test",
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          },
+          ["amount", "label", "note"] as const,
+        ),
+      );
+      const user = userEvent.setup();
+      renderWithSession(<BudgetPanel />, session);
+
+      const row = (await screen.findByText("Test")).closest("tr")!;
+      expect(row).toHaveTextContent("Non");
+
+      const statusSelect = await screen.findByLabelText(/statut de l'engagement test/i);
+      await user.selectOptions(statusSelect, "realized");
+
+      await waitFor(() => {
+        expect(row).toHaveTextContent("Oui");
       });
     });
 

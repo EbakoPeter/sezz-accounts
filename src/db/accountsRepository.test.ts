@@ -8,6 +8,9 @@ import {
   type TransactionsRepository,
 } from "./transactionsRepository";
 import { ValidationError, NotFoundError } from "@/lib/errors";
+import { encryptedFixture } from "@/test/encryptedFixture";
+import { generateId } from "@/lib/id";
+import type { Transaction } from "@/types/models";
 
 describe("AccountsRepository", () => {
   useTestEncryptionSession();
@@ -20,6 +23,36 @@ describe("AccountsRepository", () => {
     accounts = createAccountsRepository(database);
     transactions = createTransactionsRepository(database);
   });
+
+  /** Seeds an expense directly, bypassing transactions.create() — that
+   * repository now requires every expense to settle an existing
+   * engagement (see transactionsRepository.ts), which tests in this file
+   * have no need to set up just to prove balance/rename behavior. */
+  async function seedExpenseDirectly(overrides: {
+    accountId: string;
+    date: string;
+    label: string;
+    amount: number;
+  }) {
+    const now = Date.now();
+    const id = generateId();
+    await database.transactions.add(
+      await encryptedFixture<Transaction, "label" | "amount" | "note">(
+        {
+          id,
+          accountId: overrides.accountId,
+          kind: "expense",
+          date: overrides.date,
+          label: overrides.label,
+          amount: overrides.amount,
+          createdAt: now,
+          updatedAt: now,
+        },
+        ["label", "amount", "note"],
+      ),
+    );
+    return id;
+  }
 
   describe("create", () => {
     it("creates an account with a generated id and timestamps", async () => {
@@ -145,9 +178,8 @@ describe("AccountsRepository", () => {
         label: "Salaire",
         amount: 5000,
       });
-      await transactions.create({
+      await seedExpenseDirectly({
         accountId: account.id,
-        kind: "expense",
         date: "2026-01-02",
         label: "Courses",
         amount: 2000,
@@ -176,9 +208,8 @@ describe("AccountsRepository", () => {
   describe("renaming does not require touching transactions (the normalization guarantee)", () => {
     it("keeps transactions correctly attributed after a rename", async () => {
       const account = await accounts.create({ name: "Avant", initialBalance: 0 });
-      await transactions.create({
+      await seedExpenseDirectly({
         accountId: account.id,
-        kind: "expense",
         date: "2026-01-01",
         label: "Test",
         amount: 100,
@@ -203,9 +234,8 @@ describe("AccountsRepository", () => {
 
     it("logs every cascaded deletion, not just the account itself", async () => {
       const account = await accounts.create({ name: "Avec dépendances", initialBalance: 0 });
-      const tx = await transactions.create({
+      const txId = await seedExpenseDirectly({
         accountId: account.id,
-        kind: "expense",
         date: "2026-01-01",
         label: "Test",
         amount: 100,
@@ -216,7 +246,7 @@ describe("AccountsRepository", () => {
       const entries = await database.deletionLog.toArray();
       const byTable = Object.fromEntries(entries.map((e) => [e.tableName, e.recordId]));
       expect(byTable["accounts"]).toBe(account.id);
-      expect(byTable["transactions"]).toBe(tx.id);
+      expect(byTable["transactions"]).toBe(txId);
     });
   });
 });

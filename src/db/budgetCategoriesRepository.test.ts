@@ -15,6 +15,7 @@ import {
   createTransactionsRepository,
   type TransactionsRepository,
 } from "./transactionsRepository";
+import { createEngagementsRepository } from "./engagementsRepository";
 import { ValidationError, NotFoundError } from "@/lib/errors";
 
 describe("BudgetCategoriesRepository", () => {
@@ -79,12 +80,19 @@ describe("BudgetCategoriesRepository", () => {
       await expect(categories.remove(category.id)).rejects.toThrow(ValidationError);
     });
 
-    it("force-deletes: removes subcategories but only unlinks (not deletes) their transactions", async () => {
+    it("force-deletes: removes subcategories and their engagements, but only unlinks (not deletes) settling transactions", async () => {
       const category = await categories.create({ name: "Vie Courante" });
       const sub = await subcategories.create({
         categoryId: category.id,
         name: "Transport",
         monthlyAllocation: 20000,
+      });
+      const engagements = createEngagementsRepository(database);
+      const engagement = await engagements.create({
+        subcategoryId: sub.id,
+        amount: 5000,
+        label: "Carburant",
+        date: "2026-01-01",
       });
       const account = await accounts.create({ name: "Compte", initialBalance: 0 });
       const tx = await transactions.create({
@@ -93,27 +101,36 @@ describe("BudgetCategoriesRepository", () => {
         date: "2026-01-01",
         label: "Carburant",
         amount: 5000,
-        subcategoryId: sub.id,
+        engagementId: engagement.id,
       });
 
       await categories.remove(category.id, { force: true });
 
       expect(await categories.getById(category.id)).toBeUndefined();
       expect(await subcategories.getById(sub.id)).toBeUndefined();
+      expect(await engagements.getById(engagement.id)).toBeUndefined();
       const survivingTx = await transactions.getById(tx.id);
       expect(survivingTx).toBeDefined();
       expect(survivingTx?.subcategoryId).toBeUndefined();
+      expect(survivingTx?.engagementId).toBeUndefined();
       expect(survivingTx?.label).toBe("Carburant");
     });
   });
 
   describe("deletion log (for sync)", () => {
-    it("logs the category and its cascaded subcategories, but not merely-unlinked transactions", async () => {
+    it("logs the category, its cascaded subcategories and engagements, but not merely-unlinked transactions", async () => {
       const category = await categories.create({ name: "Vie Courante" });
       const sub = await subcategories.create({
         categoryId: category.id,
         name: "Transport",
         monthlyAllocation: 20000,
+      });
+      const engagements = createEngagementsRepository(database);
+      const engagement = await engagements.create({
+        subcategoryId: sub.id,
+        amount: 5000,
+        label: "Carburant",
+        date: "2026-01-01",
       });
       const account = await accounts.create({ name: "Compte", initialBalance: 0 });
       const tx = await transactions.create({
@@ -122,7 +139,7 @@ describe("BudgetCategoriesRepository", () => {
         date: "2026-01-01",
         label: "Carburant",
         amount: 5000,
-        subcategoryId: sub.id,
+        engagementId: engagement.id,
       });
 
       await categories.remove(category.id, { force: true });
@@ -131,6 +148,7 @@ describe("BudgetCategoriesRepository", () => {
       const byTable = Object.fromEntries(entries.map((e) => [e.tableName, e.recordId]));
       expect(byTable["budgetCategories"]).toBe(category.id);
       expect(byTable["budgetSubcategories"]).toBe(sub.id);
+      expect(byTable["engagements"]).toBe(engagement.id);
       expect(byTable["transactions"]).toBeUndefined();
       void tx;
     });

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { transactionsRepository, transfersRepository } from "@/repositories";
+import { transactionsRepository, transfersRepository, engagementsRepository } from "@/repositories";
 import { useAccountsWithBalances } from "@/hooks/useAccountsWithBalances";
 import { useBudgetSummary } from "@/hooks/useBudgetSummary";
 import { useAuth } from "@/auth/AuthContext";
@@ -27,7 +27,7 @@ export function TransactionsPanel() {
   const [date, setDate] = useState(todayIso());
   const [label, setLabel] = useState("");
   const [amount, setAmount] = useState("");
-  const [subcategoryId, setSubcategoryId] = useState("");
+  const [engagementId, setEngagementId] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -36,7 +36,7 @@ export function TransactionsPanel() {
   const [editDate, setEditDate] = useState("");
   const [editLabel, setEditLabel] = useState("");
   const [editAmount, setEditAmount] = useState("");
-  const [editSubcategoryId, setEditSubcategoryId] = useState("");
+  const [editEngagementId, setEditEngagementId] = useState("");
   const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null);
 
   const transfers = useLiveQuery(() => transfersRepository.list(), []);
@@ -60,13 +60,27 @@ export function TransactionsPanel() {
 
   const { year, month } = yearMonthOf(date);
   const budgetSummary = useBudgetSummary(year, month);
-  const editYearMonth = yearMonthOf(editDate || todayIso());
-  const editBudgetSummary = useBudgetSummary(editYearMonth.year, editYearMonth.month);
+  const engagements = useLiveQuery(() => engagementsRepository.list(), []);
 
   const accountNameById = new Map((accounts ?? []).map((a) => [a.id, a.name]));
   const subcategoryNameById = new Map(
     (budgetSummary ?? []).flatMap((c) => c.subcategories.map((s) => [s.subcategoryId, s.name])),
   );
+
+  /** Options for the "which engagement does this expense settle" dropdown
+   * — every engagement still available to settle (status "engagé"), plus
+   * whichever one `alreadyLinkedId` currently points to even if its
+   * status is already "réalisé" by this same transaction (otherwise
+   * editing a settled expense without changing anything would show an
+   * empty/invalid selection). */
+  function settleableEngagements(alreadyLinkedId?: string) {
+    return (engagements ?? []).filter((e) => e.status === "engaged" || e.id === alreadyLinkedId);
+  }
+
+  function engagementOptionLabel(e: { label: string; amount: number; subcategoryId: string }) {
+    const subName = subcategoryNameById.get(e.subcategoryId);
+    return `${e.label} — ${formatFcfa(e.amount)}${subName ? ` (${subName})` : ""}`;
+  }
 
   async function handleCreate(event: FormEvent) {
     event.preventDefault();
@@ -78,17 +92,24 @@ export function TransactionsPanel() {
         date,
         label,
         amount: Number(amount),
-        ...(kind === "expense" && subcategoryId ? { subcategoryId } : {}),
+        ...(kind === "expense" ? { engagementId } : {}),
       });
       setLabel("");
       setAmount("");
-      setSubcategoryId("");
+      setEngagementId("");
     } catch (error) {
       setFormError(error instanceof Error ? error.message : "Erreur inattendue.");
     }
   }
 
   async function handleDelete(id: string) {
+    if (
+      !window.confirm(
+        "Voulez-vous vraiment supprimer cette opération ? Cette action est irréversible.",
+      )
+    ) {
+      return;
+    }
     await transactionsRepository.remove(id);
   }
 
@@ -99,7 +120,7 @@ export function TransactionsPanel() {
     date: string;
     label: string;
     amount: number;
-    subcategoryId?: string;
+    engagementId?: string;
   }) {
     setRowError(null);
     setEditingId(tx.id);
@@ -108,7 +129,7 @@ export function TransactionsPanel() {
     setEditDate(tx.date);
     setEditLabel(tx.label);
     setEditAmount(String(tx.amount));
-    setEditSubcategoryId(tx.subcategoryId ?? "");
+    setEditEngagementId(tx.engagementId ?? "");
   }
 
   function handleCancelEdit() {
@@ -124,7 +145,7 @@ export function TransactionsPanel() {
         date: editDate,
         label: editLabel,
         amount: Number(editAmount),
-        subcategoryId: editKind === "expense" && editSubcategoryId ? editSubcategoryId : null,
+        engagementId: editKind === "expense" ? editEngagementId || null : null,
       });
       setEditingId(null);
     } catch (error) {
@@ -154,6 +175,13 @@ export function TransactionsPanel() {
   }
 
   async function handleDeleteTransfer(id: string) {
+    if (
+      !window.confirm(
+        "Voulez-vous vraiment supprimer ce transfert ? Cette action est irréversible.",
+      )
+    ) {
+      return;
+    }
     setTransferRowError(null);
     try {
       await transfersRepository.remove(id);
@@ -271,30 +299,31 @@ export function TransactionsPanel() {
               onChange={(e) => setAmount(e.target.value)}
             />
           </div>
-          {kind === "expense" && (budgetSummary?.length ?? 0) > 0 && (
-            <div className="field">
-              <label htmlFor="tx-subcategory">Ligne budgétaire</label>
-              <select
-                id="tx-subcategory"
-                value={subcategoryId}
-                onChange={(e) => setSubcategoryId(e.target.value)}
-              >
-                <option value="">Aucune</option>
-                {budgetSummary?.map((category) => (
-                  <optgroup key={category.categoryId} label={category.name}>
-                    {category.subcategories.map((sub) => (
-                      <option key={sub.subcategoryId} value={sub.subcategoryId}>
-                        {sub.name}
-                        {sub.monthlyAllocation > 0
-                          ? ` — reste ${formatFcfa(sub.remaining)} / ${formatFcfa(sub.monthlyAllocation)}`
-                          : " — (non provisionné)"}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-            </div>
-          )}
+          {kind === "expense" &&
+            (settleableEngagements().length > 0 ? (
+              <div className="field">
+                <label htmlFor="tx-engagement">Engagement</label>
+                <select
+                  id="tx-engagement"
+                  value={engagementId}
+                  onChange={(e) => setEngagementId(e.target.value)}
+                >
+                  <option value="" disabled>
+                    Choisir…
+                  </option>
+                  {settleableEngagements().map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {engagementOptionLabel(e)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <p className="tagline">
+                Aucun engagement disponible — créez d&apos;abord un engagement dans l&apos;onglet
+                Budget Prévisionnel avant d&apos;enregistrer une dépense.
+              </p>
+            ))}
           <button type="submit">+ Ajouter</button>
           {formError && (
             <p role="alert" className="form-error">
@@ -316,7 +345,7 @@ export function TransactionsPanel() {
                 <th>Date</th>
                 <th>Compte</th>
                 <th>Libellé</th>
-                <th>Ligne budgétaire</th>
+                <th>Engagement</th>
                 <th>Montant</th>
                 <th />
               </tr>
@@ -362,21 +391,19 @@ export function TransactionsPanel() {
                       />
                     </td>
                     <td>
-                      {editKind === "expense" && (editBudgetSummary?.length ?? 0) > 0 && (
+                      {editKind === "expense" && (
                         <select
-                          aria-label={`Ligne budgétaire de ${tx.label}`}
-                          value={editSubcategoryId}
-                          onChange={(e) => setEditSubcategoryId(e.target.value)}
+                          aria-label={`Engagement de ${tx.label}`}
+                          value={editEngagementId}
+                          onChange={(e) => setEditEngagementId(e.target.value)}
                         >
-                          <option value="">Aucune</option>
-                          {editBudgetSummary?.map((category) => (
-                            <optgroup key={category.categoryId} label={category.name}>
-                              {category.subcategories.map((sub) => (
-                                <option key={sub.subcategoryId} value={sub.subcategoryId}>
-                                  {sub.name}
-                                </option>
-                              ))}
-                            </optgroup>
+                          <option value="" disabled>
+                            Choisir…
+                          </option>
+                          {settleableEngagements(tx.engagementId).map((e) => (
+                            <option key={e.id} value={e.id}>
+                              {engagementOptionLabel(e)}
+                            </option>
                           ))}
                         </select>
                       )}
@@ -408,7 +435,7 @@ export function TransactionsPanel() {
                     <td>{tx.date}</td>
                     <td>{accountNameById.get(tx.accountId) ?? "—"}</td>
                     <td className="truncate">{tx.label}</td>
-                    <td>
+                    <td className="truncate">
                       {tx.subcategoryId ? (subcategoryNameById.get(tx.subcategoryId) ?? "—") : "—"}
                     </td>
                     <td className={`num ${tx.kind === "expense" ? "negative" : "positive"}`}>
@@ -417,14 +444,14 @@ export function TransactionsPanel() {
                     </td>
                     <td>
                       {canManage && (
-                        <>
+                        <span className="row-actions">
                           <button type="button" onClick={() => handleStartEdit(tx)}>
                             Modifier
-                          </button>{" "}
+                          </button>
                           <button type="button" onClick={() => handleDelete(tx.id)}>
                             Supprimer
                           </button>
-                        </>
+                        </span>
                       )}
                       {rowError?.id === tx.id && (
                         <p role="alert" className="form-error">
@@ -611,20 +638,20 @@ export function TransactionsPanel() {
                         <td className="num">{formatFcfa(transfer.amount)}</td>
                         <td>
                           {canManage && (
-                            <>
+                            <span className="row-actions">
                               <button
                                 type="button"
                                 onClick={() => handleStartEditTransfer(transfer)}
                               >
                                 Modifier
-                              </button>{" "}
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => handleDeleteTransfer(transfer.id)}
                               >
                                 Supprimer
                               </button>
-                            </>
+                            </span>
                           )}
                           {transferRowError?.id === transfer.id && (
                             <p role="alert" className="form-error">

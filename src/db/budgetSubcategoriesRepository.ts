@@ -107,31 +107,66 @@ export function createBudgetSubcategoriesRepository(database: SezzAccountsDataba
       return next;
     },
 
-    /** Deletes a subcategory. Refuses if transactions still reference it,
-     * unless `force` is passed — in which case those transactions are kept
-     * but unlinked (`subcategoryId` cleared), never deleted. */
+    /** Deletes a subcategory. Refuses if engagements or transactions still
+     * reference it, unless `force` is passed — in which case those
+     * engagements are deleted (an engagement without its budget line no
+     * longer means anything) and any transaction that had settled one of
+     * them, or referenced this subcategory directly, is only *unlinked*
+     * (subcategoryId/engagementId cleared), never deleted. */
     async remove(id: string, options: { force?: boolean } = {}): Promise<void> {
       const row = await database.budgetSubcategories.get(id);
       if (!row) throw new NotFoundError("Sous-catégorie", id);
       const existing = await decryptSubcategory(row);
 
-      const dependentTransactions = await database.transactions
+      const dependentEngagements = await database.engagements
         .where("subcategoryId")
         .equals(id)
         .toArray();
-      if (dependentTransactions.length > 0 && !options.force) {
+      const directTransactionCountForGuard = await database.transactions
+        .where("subcategoryId")
+        .equals(id)
+        .count();
+      if (
+        (dependentEngagements.length > 0 || directTransactionCountForGuard > 0) &&
+        !options.force
+      ) {
+        const count = dependentEngagements.length + directTransactionCountForGuard;
         throw new ValidationError(
-          `Impossible de supprimer « ${existing.name} » : ${dependentTransactions.length} opération(s) y sont encore rattachée(s).`,
+          `Impossible de supprimer « ${existing.name} » : ${count} engagement(s) ou opération(s) y sont encore rattaché(s).`,
         );
       }
 
       await database.transaction(
         "rw",
         database.budgetSubcategories,
+        database.engagements,
         database.transactions,
         database.deletionLog,
         async () => {
-          for (const tx of dependentTransactions) {
+          for (const engagement of dependentEngagements) {
+            const settlingTransactions = await database.transactions
+              .where("engagementId")
+              .equals(engagement.id)
+              .toArray();
+            for (const tx of settlingTransactions) {
+              const { subcategoryId: _sub, engagementId: _eng, ...rest } = tx;
+              await database.transactions.put({ ...rest, updatedAt: Date.now() });
+            }
+          }
+          await database.engagements.where("subcategoryId").equals(id).delete();
+          for (const engagement of dependentEngagements) {
+            await logDeletion(database, "engagements", engagement.id);
+          }
+          // Re-queried now, after the loop above already unlinked anything
+          // settling one of this subcategory's engagements — this only
+          // catches a transaction that still has subcategoryId set
+          // directly with no engagement behind it at all (legacy data
+          // from before an engagement was mandatory for every expense).
+          const remainingDirectTransactions = await database.transactions
+            .where("subcategoryId")
+            .equals(id)
+            .toArray();
+          for (const tx of remainingDirectTransactions) {
             const { subcategoryId: _removed, ...rest } = tx;
             await database.transactions.put({ ...rest, updatedAt: Date.now() });
           }

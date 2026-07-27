@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TransactionsPanel } from "./TransactionsPanel";
@@ -11,15 +11,27 @@ import {
   renderAuthenticated,
   type TestSession,
 } from "@/test/renderAuthenticated";
-import type { Transaction, Transfer } from "@/types/models";
+import type { Transaction, Transfer, Engagement } from "@/types/models";
 import { getAccountFlows, netOf } from "@/db/accountFlows";
 
 afterEach(async () => {
   await db.users.clear();
   await db.transactions.clear();
   await db.transfers.clear();
+  await db.engagements.clear();
+  await db.budgetSubcategories.clear();
+  await db.budgetCategories.clear();
   await db.accounts.clear();
   clearActiveDek();
+  vi.restoreAllMocks();
+});
+
+// Deletion now asks for confirmation first — defaults to "confirmed" so
+// every existing test that expects a delete to actually happen doesn't
+// need to know about this dialog. Tests specifically covering the
+// "cancelled" path override this per-test.
+beforeEach(() => {
+  vi.spyOn(window, "confirm").mockReturnValue(true);
 });
 
 async function seedAccount() {
@@ -52,6 +64,66 @@ async function seedSecondAccount() {
   );
 }
 
+/** Seeds a category, a subcategory under it, and one "engagé" engagement
+ * against that subcategory — every expense now requires settling an
+ * existing engagement (see transactionsRepository.ts), so most component
+ * tests that create an expense through the UI need one to select. */
+async function seedEngagement(overrides: {
+  engagementId?: string;
+  subcategoryId?: string;
+  categoryId?: string;
+  categoryName?: string;
+  subcategoryName?: string;
+  monthlyAllocation?: number;
+  amount: number;
+  label: string;
+  date?: string;
+}) {
+  const categoryId = overrides.categoryId ?? "cat-1";
+  const subcategoryId = overrides.subcategoryId ?? "sub-1";
+  const engagementId = overrides.engagementId ?? "eng-1";
+  await db.budgetCategories.add(
+    await encryptedFixture(
+      {
+        id: categoryId,
+        name: overrides.categoryName ?? "Vie Courante",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      },
+      ["name"] as const,
+    ),
+  );
+  await db.budgetSubcategories.add(
+    await encryptedFixture(
+      {
+        id: subcategoryId,
+        categoryId,
+        name: overrides.subcategoryName ?? "Scolarité",
+        monthlyAllocation: overrides.monthlyAllocation ?? 100000,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      },
+      ["name", "monthlyAllocation"] as const,
+    ),
+  );
+  await db.engagements.add(
+    await encryptedFixture<Engagement, "amount" | "label" | "note">(
+      {
+        id: engagementId,
+        subcategoryId,
+        amount: overrides.amount,
+        label: overrides.label,
+        date: overrides.date ?? "2026-01-01",
+        status: "engaged" as const,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      },
+      ["amount", "label", "note"] as const,
+    ),
+  );
+  return engagementId;
+}
+
 describe("TransactionsPanel", () => {
   it("prompts to create an account first when none exist", async () => {
     await renderAuthenticated(<TransactionsPanel />);
@@ -62,6 +134,7 @@ describe("TransactionsPanel", () => {
   it("creates a transaction against an existing account and lists it", async () => {
     const session: TestSession = await createTestUser("admin");
     await seedAccount();
+    await seedEngagement({ amount: 15000, label: "Courses" });
     const user = userEvent.setup();
     renderWithSession(<TransactionsPanel />, session);
 
@@ -70,6 +143,7 @@ describe("TransactionsPanel", () => {
     await user.selectOptions(screen.getByLabelText(/type/i), "expense");
     await user.type(screen.getByLabelText(/libellé/i), "Courses");
     await user.type(screen.getByLabelText(/montant/i), "15000");
+    await user.selectOptions(await screen.findByLabelText(/^engagement$/i), "eng-1");
     await user.click(screen.getByRole("button", { name: /ajouter/i }));
 
     expect(await screen.findByText("Courses")).toBeInTheDocument();
@@ -103,6 +177,64 @@ describe("TransactionsPanel", () => {
     expect(row.closest("tr")!).toHaveTextContent("Compte Test");
   });
 
+  it("asks for confirmation before deleting a transaction, and does not delete when cancelled", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    const session = await createTestUser("admin");
+    await seedAccount();
+    await db.transactions.add(
+      await encryptedFixture<Transaction, "label" | "amount" | "note">(
+        {
+          id: "tx-1",
+          accountId: "acc-1",
+          kind: "expense",
+          date: "2026-01-01",
+          label: "À Garder",
+          amount: 1000,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        },
+        ["label", "amount", "note"],
+      ),
+    );
+    const user = userEvent.setup();
+    renderWithSession(<TransactionsPanel />, session);
+
+    await screen.findByText("À Garder");
+    await user.click(screen.getByRole("button", { name: /supprimer/i }));
+
+    expect(window.confirm).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("À Garder")).toBeInTheDocument();
+  });
+
+  it("deletes a transaction once confirmed", async () => {
+    const session = await createTestUser("admin");
+    await seedAccount();
+    await db.transactions.add(
+      await encryptedFixture<Transaction, "label" | "amount" | "note">(
+        {
+          id: "tx-1",
+          accountId: "acc-1",
+          kind: "expense",
+          date: "2026-01-01",
+          label: "À Supprimer",
+          amount: 1000,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        },
+        ["label", "amount", "note"],
+      ),
+    );
+    const user = userEvent.setup();
+    renderWithSession(<TransactionsPanel />, session);
+
+    await screen.findByText("À Supprimer");
+    await user.click(screen.getByRole("button", { name: /supprimer/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByText("À Supprimer")).not.toBeInTheDocument();
+    });
+  });
+
   it("shows a validation error inline when the amount is invalid", async () => {
     const session = await createTestUser("admin");
     await seedAccount();
@@ -119,45 +251,54 @@ describe("TransactionsPanel", () => {
     expect(screen.queryByText("Mauvais montant")).not.toBeInTheDocument();
   });
 
-  it("shows a red alert and blocks an expense that exceeds the available budget", async () => {
+  it("shows a red alert and blocks an expense that exceeds the engaged amount", async () => {
     const session = await createTestUser("admin");
     await seedAccount();
-    await db.budgetCategories.add(
-      await encryptedFixture(
-        { id: "cat-1", name: "Vie Courante", createdAt: Date.now(), updatedAt: Date.now() },
-        ["name"] as const,
-      ),
-    );
-    await db.budgetSubcategories.add(
-      await encryptedFixture(
-        {
-          id: "sub-1",
-          categoryId: "cat-1",
-          name: "Scolarité",
-          monthlyAllocation: 10000,
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-        },
-        ["name", "monthlyAllocation"] as const,
-      ),
-    );
+    await seedEngagement({ amount: 10000, label: "Frais de scolarité" });
     const user = userEvent.setup();
     renderWithSession(<TransactionsPanel />, session);
 
     await user.selectOptions(await screen.findByLabelText(/compte$/i), "acc-1");
     await user.type(screen.getByLabelText(/libellé/i), "Trop cher");
     await user.type(screen.getByLabelText(/montant/i), "50000");
-    await user.selectOptions(await screen.findByLabelText(/ligne budgétaire/i), "sub-1");
+    await user.selectOptions(await screen.findByLabelText(/^engagement$/i), "eng-1");
     await user.click(screen.getByRole("button", { name: /^\+ ajouter$/i }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/dépasse le budget disponible/i);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/dépasse ce qui a été engagé/i);
     expect(screen.queryByText("Trop cher")).not.toBeInTheDocument();
+  });
+
+  it("shows a red alert when trying to record an expense with no engagement selected", async () => {
+    const session = await createTestUser("admin");
+    await seedAccount();
+    await seedEngagement({ amount: 10000, label: "Frais de scolarité" });
+    const user = userEvent.setup();
+    renderWithSession(<TransactionsPanel />, session);
+
+    await user.selectOptions(await screen.findByLabelText(/compte$/i), "acc-1");
+    await user.type(screen.getByLabelText(/libellé/i), "Sans engagement");
+    await user.type(screen.getByLabelText(/montant/i), "5000");
+    await user.click(screen.getByRole("button", { name: /^\+ ajouter$/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/rattachée à un engagement/i);
+    expect(screen.queryByText("Sans engagement")).not.toBeInTheDocument();
+  });
+
+  it("shows a message instead of the form when no engagement is available for a new expense", async () => {
+    const session = await createTestUser("admin");
+    await seedAccount();
+    renderWithSession(<TransactionsPanel />, session);
+
+    await screen.findByLabelText(/compte$/i);
+    expect(await screen.findByText(/aucun engagement disponible/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/^engagement$/i)).not.toBeInTheDocument();
   });
 
   describe("editing", () => {
     it("edits a transaction's label and amount", async () => {
       const session = await createTestUser("admin");
       await seedAccount();
+      await seedEngagement({ amount: 5000, label: "Avant" });
       await db.transactions.add(
         await encryptedFixture<Transaction, "label" | "amount" | "note">(
           {
@@ -167,12 +308,16 @@ describe("TransactionsPanel", () => {
             date: "2026-01-01",
             label: "Avant",
             amount: 1000,
+            engagementId: "eng-1",
             createdAt: Date.now(),
             updatedAt: Date.now(),
           },
           ["label", "amount", "note"],
         ),
       );
+      // this engagement is already settled by tx-1, matching the
+      // invariant that a settled engagement's status is "réalisé"
+      await db.engagements.update("eng-1", { status: "realized" });
       const user = userEvent.setup();
       renderWithSession(<TransactionsPanel />, session);
 
@@ -195,6 +340,7 @@ describe("TransactionsPanel", () => {
     it("moves a transaction to a different account", async () => {
       const session = await createTestUser("admin");
       await seedAccount();
+      await seedEngagement({ amount: 5000, label: "DepenseTest" });
       await db.accounts.add(
         await encryptedFixture(
           {
@@ -216,12 +362,14 @@ describe("TransactionsPanel", () => {
             date: "2026-01-01",
             label: "DepenseTest",
             amount: 1000,
+            engagementId: "eng-1",
             createdAt: Date.now(),
             updatedAt: Date.now(),
           },
           ["label", "amount", "note"],
         ),
       );
+      await db.engagements.update("eng-1", { status: "realized" });
       const user = userEvent.setup();
       renderWithSession(<TransactionsPanel />, session);
 
@@ -438,6 +586,36 @@ describe("TransactionsPanel", () => {
       await user.click(screen.getByRole("button", { name: /annuler/i }));
 
       expect(screen.getByText("Original")).toBeInTheDocument();
+    });
+
+    it("asks for confirmation before deleting a transfer, and does not delete when cancelled", async () => {
+      vi.spyOn(window, "confirm").mockReturnValue(false);
+      const session = await createTestUser("admin");
+      await seedAccount();
+      await seedSecondAccount();
+      await db.transfers.add(
+        await encryptedFixture<Transfer, "amount" | "label" | "note">(
+          {
+            id: "tr-1",
+            fromAccountId: "acc-1",
+            toAccountId: "acc-2",
+            date: "2026-01-01",
+            amount: 5000,
+            label: "À Garder",
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          },
+          ["amount", "label", "note"],
+        ),
+      );
+      const user = userEvent.setup();
+      renderWithSession(<TransactionsPanel />, session);
+
+      await screen.findByText("À Garder");
+      await user.click(screen.getByRole("button", { name: /supprimer/i }));
+
+      expect(window.confirm).toHaveBeenCalledTimes(1);
+      expect(screen.getByText("À Garder")).toBeInTheDocument();
     });
 
     it("deletes a transfer", async () => {

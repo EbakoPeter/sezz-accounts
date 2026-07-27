@@ -97,6 +97,13 @@ export function DebtsPanel() {
   }
 
   async function handleDeleteDebt(id: string) {
+    if (
+      !window.confirm(
+        "Voulez-vous vraiment supprimer cette dette/créance ? Cette action est irréversible.",
+      )
+    ) {
+      return;
+    }
     await debtsRepository.remove(id);
   }
 
@@ -136,6 +143,13 @@ export function DebtsPanel() {
   }
 
   async function handleDeletePayment(id: string) {
+    if (
+      !window.confirm(
+        "Voulez-vous vraiment supprimer ce remboursement ? Cette action est irréversible.",
+      )
+    ) {
+      return;
+    }
     setPaymentRowError(null);
     try {
       await debtPaymentsRepository.remove(id);
@@ -380,14 +394,14 @@ export function DebtsPanel() {
                     <td>{STATUS_LABELS[status]}</td>
                     <td>
                       {canManage && (
-                        <>
+                        <span className="row-actions">
                           <button type="button" onClick={() => handleStartEdit(debt)}>
                             Modifier
-                          </button>{" "}
+                          </button>
                           <button type="button" onClick={() => handleDeleteDebt(debt.id)}>
                             Supprimer
                           </button>
-                        </>
+                        </span>
                       )}
                       {rowError?.id === debt.id && (
                         <p role="alert" className="form-error">
@@ -539,14 +553,14 @@ export function DebtsPanel() {
                         <td className="num">{formatFcfa(payment.amount)}</td>
                         <td>
                           {canManage && (
-                            <>
+                            <span className="row-actions">
                               <button type="button" onClick={() => handleStartEditPayment(payment)}>
                                 Modifier
-                              </button>{" "}
+                              </button>
                               <button type="button" onClick={() => handleDeletePayment(payment.id)}>
                                 Supprimer
                               </button>
-                            </>
+                            </span>
                           )}
                           {paymentRowError?.id === payment.id && (
                             <p role="alert" className="form-error">

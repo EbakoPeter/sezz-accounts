@@ -94,23 +94,63 @@ describe("TransactionsRepository", () => {
       ).rejects.toThrow(ValidationError);
     });
 
-    it("stores an optional category and note when provided", async () => {
+    it("derives the subcategory from its engagement, and stores an optional note", async () => {
+      const categories = createBudgetCategoriesRepository(database);
+      const subcategories = createBudgetSubcategoriesRepository(database);
+      const engagements = createEngagementsRepository(database);
+      const categoryId = (await categories.create({ name: "Vie Courante" })).id;
+      const subcategoryId = (
+        await subcategories.create({ categoryId, name: "Transport", monthlyAllocation: 20000 })
+      ).id;
+      const engagementId = (
+        await engagements.create({
+          subcategoryId,
+          amount: 5000,
+          label: "Carburant",
+          date: "2026-01-01",
+        })
+      ).id;
+
       const tx = await transactions.create({
         accountId,
         kind: "expense",
         date: "2026-01-01",
         label: "Carburant",
         amount: 5000,
-        subcategoryId: "cat-transport",
+        engagementId,
         note: "Plein complet",
       });
-      expect(tx.subcategoryId).toBe("cat-transport");
+      expect(tx.subcategoryId).toBe(subcategoryId);
       expect(tx.note).toBe("Plein complet");
     });
   });
 
   describe("list / filtering", () => {
     beforeEach(async () => {
+      const categories = createBudgetCategoriesRepository(database);
+      const subcategories = createBudgetSubcategoriesRepository(database);
+      const engagements = createEngagementsRepository(database);
+      const categoryId = (await categories.create({ name: "Vie Courante" })).id;
+      const subcategoryId = (
+        await subcategories.create({ categoryId, name: "Divers", monthlyAllocation: 100000 })
+      ).id;
+      const loyerEngagementId = (
+        await engagements.create({
+          subcategoryId,
+          amount: 50000,
+          label: "Loyer",
+          date: "2026-01-10",
+        })
+      ).id;
+      const coursesEngagementId = (
+        await engagements.create({
+          subcategoryId,
+          amount: 20000,
+          label: "Courses",
+          date: "2026-02-01",
+        })
+      ).id;
+
       await transactions.create({
         accountId,
         kind: "income",
@@ -124,6 +164,7 @@ describe("TransactionsRepository", () => {
         date: "2026-01-10",
         label: "Loyer",
         amount: 50000,
+        engagementId: loyerEngagementId,
       });
       await transactions.create({
         accountId,
@@ -131,6 +172,7 @@ describe("TransactionsRepository", () => {
         date: "2026-02-01",
         label: "Courses",
         amount: 20000,
+        engagementId: coursesEngagementId,
       });
     });
 
@@ -169,7 +211,7 @@ describe("TransactionsRepository", () => {
     it("updates fields and bumps updatedAt", async () => {
       const tx = await transactions.create({
         accountId,
-        kind: "expense",
+        kind: "income",
         date: "2026-01-01",
         label: "Avant",
         amount: 100,
@@ -184,7 +226,7 @@ describe("TransactionsRepository", () => {
     it("validates the patched amount", async () => {
       const tx = await transactions.create({
         accountId,
-        kind: "expense",
+        kind: "income",
         date: "2026-01-01",
         label: "X",
         amount: 100,
@@ -200,7 +242,7 @@ describe("TransactionsRepository", () => {
       const otherAccountId = (await accounts.create({ name: "Autre", initialBalance: 0 })).id;
       const tx = await transactions.create({
         accountId,
-        kind: "expense",
+        kind: "income",
         date: "2026-01-01",
         label: "X",
         amount: 100,
@@ -214,7 +256,7 @@ describe("TransactionsRepository", () => {
     it("rejects moving a transaction to a non-existent account", async () => {
       const tx = await transactions.create({
         accountId,
-        kind: "expense",
+        kind: "income",
         date: "2026-01-01",
         label: "X",
         amount: 100,
@@ -223,55 +265,13 @@ describe("TransactionsRepository", () => {
         NotFoundError,
       );
     });
-
-    it("changes the kind (income <-> expense)", async () => {
-      const tx = await transactions.create({
-        accountId,
-        kind: "expense",
-        date: "2026-01-01",
-        label: "X",
-        amount: 100,
-      });
-      const updated = await transactions.update(tx.id, { kind: "income" });
-      expect(updated.kind).toBe("income");
-    });
-
-    it("clears the subcategory when subcategoryId is explicitly null", async () => {
-      const tx = await transactions.create({
-        accountId,
-        kind: "expense",
-        date: "2026-01-01",
-        label: "X",
-        amount: 100,
-        subcategoryId: "sub-1",
-      });
-
-      const updated = await transactions.update(tx.id, { subcategoryId: null });
-
-      expect(updated.subcategoryId).toBeUndefined();
-    });
-
-    it("leaves the subcategory untouched when subcategoryId is omitted from the patch", async () => {
-      const tx = await transactions.create({
-        accountId,
-        kind: "expense",
-        date: "2026-01-01",
-        label: "X",
-        amount: 100,
-        subcategoryId: "sub-1",
-      });
-
-      const updated = await transactions.update(tx.id, { label: "Renamed" });
-
-      expect(updated.subcategoryId).toBe("sub-1");
-    });
   });
 
   describe("remove", () => {
     it("deletes the transaction", async () => {
       const tx = await transactions.create({
         accountId,
-        kind: "expense",
+        kind: "income",
         date: "2026-01-01",
         label: "X",
         amount: 100,
@@ -287,6 +287,17 @@ describe("TransactionsRepository", () => {
 
   describe("netTotal", () => {
     it("computes income minus expenses for a filter", async () => {
+      const categories = createBudgetCategoriesRepository(database);
+      const subcategories = createBudgetSubcategoriesRepository(database);
+      const engagements = createEngagementsRepository(database);
+      const categoryId = (await categories.create({ name: "Vie Courante" })).id;
+      const subcategoryId = (
+        await subcategories.create({ categoryId, name: "Divers", monthlyAllocation: 10000 })
+      ).id;
+      const engagementId = (
+        await engagements.create({ subcategoryId, amount: 300, label: "Out", date: "2026-01-02" })
+      ).id;
+
       await transactions.create({
         accountId,
         kind: "income",
@@ -300,6 +311,7 @@ describe("TransactionsRepository", () => {
         date: "2026-01-02",
         label: "Out",
         amount: 300,
+        engagementId,
       });
       expect(await transactions.netTotal({ accountId })).toBe(700);
     });
@@ -313,7 +325,7 @@ describe("TransactionsRepository", () => {
     it("logs a deletion", async () => {
       const tx = await transactions.create({
         accountId,
-        kind: "expense",
+        kind: "income",
         date: "2026-01-01",
         label: "Test",
         amount: 100,
@@ -326,11 +338,12 @@ describe("TransactionsRepository", () => {
     });
   });
 
-  describe("budget availability check", () => {
+  describe("engagement settlement (every expense must settle an existing engagement)", () => {
     let categories: BudgetCategoriesRepository;
     let subcategories: BudgetSubcategoriesRepository;
     let engagements: EngagementsRepository;
     let subcategoryId: string;
+    let engagementId: string;
 
     beforeEach(async () => {
       categories = createBudgetCategoriesRepository(database);
@@ -340,9 +353,38 @@ describe("TransactionsRepository", () => {
       subcategoryId = (
         await subcategories.create({ categoryId, name: "Scolarité", monthlyAllocation: 50000 })
       ).id;
+      engagementId = (
+        await engagements.create({
+          subcategoryId,
+          amount: 30000,
+          label: "Frais de scolarité",
+          date: "2026-01-01",
+        })
+      ).id;
     });
 
-    it("allows an expense within the available budget", async () => {
+    it("rejects an expense with no engagement at all, with an explanatory message", async () => {
+      await expect(
+        transactions.create({
+          accountId,
+          kind: "expense",
+          date: "2026-01-01",
+          label: "X",
+          amount: 1000,
+        }),
+      ).rejects.toThrow(ValidationError);
+      await expect(
+        transactions.create({
+          accountId,
+          kind: "expense",
+          date: "2026-01-01",
+          label: "X",
+          amount: 1000,
+        }),
+      ).rejects.toThrow(/rattachée à un engagement/i);
+    });
+
+    it("allows an expense exactly equal to the engaged amount", async () => {
       await expect(
         transactions.create({
           accountId,
@@ -350,178 +392,167 @@ describe("TransactionsRepository", () => {
           date: "2026-01-01",
           label: "X",
           amount: 30000,
-          subcategoryId,
+          engagementId,
         }),
       ).resolves.toBeDefined();
     });
 
-    it("rejects an expense that exceeds the allocation, with an explanatory message", async () => {
+    it("allows an expense for less than the engaged amount (e.g. the actual bill was lower)", async () => {
       await expect(
         transactions.create({
           accountId,
           kind: "expense",
           date: "2026-01-01",
-          label: "X",
-          amount: 60000,
-          subcategoryId,
-        }),
-      ).rejects.toThrow(ValidationError);
-      await expect(
-        transactions.create({
-          accountId,
-          kind: "expense",
-          date: "2026-01-01",
-          label: "X",
-          amount: 60000,
-          subcategoryId,
-        }),
-      ).rejects.toThrow(/dépasse le budget disponible/i);
-    });
-
-    it("accounts for prior expenses on the same line and month", async () => {
-      await transactions.create({
-        accountId,
-        kind: "expense",
-        date: "2026-01-05",
-        label: "Première",
-        amount: 30000,
-        subcategoryId,
-      });
-      // 30000 already spent, 50000 allocated -> only 20000 left
-      await expect(
-        transactions.create({
-          accountId,
-          kind: "expense",
-          date: "2026-01-10",
-          label: "Seconde",
-          amount: 25000,
-          subcategoryId,
-        }),
-      ).rejects.toThrow(ValidationError);
-    });
-
-    it("accounts for engaged amounts on the same line and month", async () => {
-      await engagements.create({
-        subcategoryId,
-        amount: 40000,
-        label: "Réservé",
-        date: "2026-01-01",
-      });
-      // 40000 engaged, 50000 allocated -> only 10000 left
-      await expect(
-        transactions.create({
-          accountId,
-          kind: "expense",
-          date: "2026-01-15",
           label: "X",
           amount: 20000,
-          subcategoryId,
+          engagementId,
         }),
-      ).rejects.toThrow(ValidationError);
+      ).resolves.toBeDefined();
     });
 
-    it("does not count expenses from a different month", async () => {
+    it("rejects an expense exceeding the engaged amount, with an explanatory message", async () => {
+      await expect(
+        transactions.create({
+          accountId,
+          kind: "expense",
+          date: "2026-01-01",
+          label: "X",
+          amount: 30001,
+          engagementId,
+        }),
+      ).rejects.toThrow(ValidationError);
+      await expect(
+        transactions.create({
+          accountId,
+          kind: "expense",
+          date: "2026-01-01",
+          label: "X",
+          amount: 30001,
+          engagementId,
+        }),
+      ).rejects.toThrow(/dépasse ce qui a été engagé/i);
+    });
+
+    it("rejects settling a cancelled engagement", async () => {
+      await engagements.update(engagementId, { status: "cancelled" });
+      await expect(
+        transactions.create({
+          accountId,
+          kind: "expense",
+          date: "2026-01-01",
+          label: "X",
+          amount: 10000,
+          engagementId,
+        }),
+      ).rejects.toThrow(/annulé/i);
+    });
+
+    it("rejects settling an engagement already settled by another transaction", async () => {
       await transactions.create({
         accountId,
         kind: "expense",
-        date: "2026-02-01",
-        label: "Février",
-        amount: 45000,
-        subcategoryId,
+        date: "2026-01-01",
+        label: "Première",
+        amount: 10000,
+        engagementId,
       });
       await expect(
         transactions.create({
           accountId,
           kind: "expense",
-          date: "2026-01-15",
-          label: "Janvier",
-          amount: 45000,
-          subcategoryId,
+          date: "2026-01-02",
+          label: "Seconde",
+          amount: 5000,
+          engagementId,
         }),
-      ).resolves.toBeDefined();
+      ).rejects.toThrow(/déjà réalisé/i);
     });
 
-    it("does not apply to income, even with a subcategory somehow set", async () => {
+    it("rejects a nonexistent engagement id", async () => {
+      await expect(
+        transactions.create({
+          accountId,
+          kind: "expense",
+          date: "2026-01-01",
+          label: "X",
+          amount: 1000,
+          engagementId: "does-not-exist",
+        }),
+      ).rejects.toThrow(NotFoundError);
+    });
+
+    it("automatically marks the engagement as réalisé once settled", async () => {
+      await transactions.create({
+        accountId,
+        kind: "expense",
+        date: "2026-01-01",
+        label: "X",
+        amount: 10000,
+        engagementId,
+      });
+      expect((await engagements.getById(engagementId))?.status).toBe("realized");
+    });
+
+    it("derives the subcategory from the engagement automatically", async () => {
+      const tx = await transactions.create({
+        accountId,
+        kind: "expense",
+        date: "2026-01-01",
+        label: "X",
+        amount: 10000,
+        engagementId,
+      });
+      expect(tx.subcategoryId).toBe(subcategoryId);
+    });
+
+    it("does not require an engagement for income", async () => {
       await expect(
         transactions.create({
           accountId,
           kind: "income",
           date: "2026-01-01",
-          label: "X",
-          amount: 999999,
-          subcategoryId,
-        }),
-      ).resolves.toBeDefined();
-    });
-
-    it("does not apply when no subcategory is chosen", async () => {
-      await expect(
-        transactions.create({
-          accountId,
-          kind: "expense",
-          date: "2026-01-01",
-          label: "Non catégorisé",
-          amount: 999999,
-        }),
-      ).resolves.toBeDefined();
-    });
-
-    it("does not cap a subcategory with a zero allocation (not provisioned)", async () => {
-      const unprovisionedId = (
-        await subcategories.create({
-          categoryId: (await categories.create({ name: "Imprévu" })).id,
-          name: "Divers",
-          monthlyAllocation: 0,
-        })
-      ).id;
-      await expect(
-        transactions.create({
-          accountId,
-          kind: "expense",
-          date: "2026-01-01",
-          label: "Surprise",
-          amount: 999999,
-          subcategoryId: unprovisionedId,
+          label: "Salaire",
+          amount: 500000,
         }),
       ).resolves.toBeDefined();
     });
 
     describe("when editing", () => {
-      it("excludes the transaction's own prior amount from the check", async () => {
-        const tx = await transactions.create({
-          accountId,
-          kind: "expense",
-          date: "2026-01-01",
-          label: "X",
-          amount: 45000,
-          subcategoryId,
-        });
-        // if the transaction's own 45000 were double-counted, even
-        // re-saving the same amount would appear to exceed the 50000
-        // allocation (45000 existing + 45000 "new" = 90000)
-        await expect(transactions.update(tx.id, { amount: 45000 })).resolves.toBeDefined();
-      });
-
-      it("still rejects increasing an expense past what's available", async () => {
+      it("re-validates the amount against the same engagement, without tripping over its own settlement", async () => {
         const tx = await transactions.create({
           accountId,
           kind: "expense",
           date: "2026-01-01",
           label: "X",
           amount: 30000,
-          subcategoryId,
+          engagementId,
         });
-        await expect(transactions.update(tx.id, { amount: 60000 })).rejects.toThrow(
+        // if the transaction's own settlement were mistaken for "someone
+        // else already settled it", even lowering its own amount would fail
+        await expect(transactions.update(tx.id, { amount: 25000 })).resolves.toBeDefined();
+      });
+
+      it("still rejects increasing past the engaged amount", async () => {
+        const tx = await transactions.create({
+          accountId,
+          kind: "expense",
+          date: "2026-01-01",
+          label: "X",
+          amount: 20000,
+          engagementId,
+        });
+        await expect(transactions.update(tx.id, { amount: 40000 })).rejects.toThrow(
           ValidationError,
         );
       });
 
-      it("checks the new subcategory when moving an expense onto a tighter budget line", async () => {
-        const tightId = (
-          await subcategories.create({
-            categoryId: (await categories.create({ name: "Serré" })).id,
-            name: "Petit budget",
-            monthlyAllocation: 5000,
+      it("releases the old engagement and settles the new one, when moved to a different engagement", async () => {
+        const otherEngagementId = (
+          await engagements.create({
+            subcategoryId,
+            amount: 15000,
+            label: "Autre dépense",
+            date: "2026-01-05",
           })
         ).id;
         const tx = await transactions.create({
@@ -529,12 +560,59 @@ describe("TransactionsRepository", () => {
           kind: "expense",
           date: "2026-01-01",
           label: "X",
-          amount: 30000,
-          subcategoryId,
+          amount: 20000,
+          engagementId,
         });
-        await expect(transactions.update(tx.id, { subcategoryId: tightId })).rejects.toThrow(
+
+        await transactions.update(tx.id, { engagementId: otherEngagementId, amount: 10000 });
+
+        expect((await engagements.getById(engagementId))?.status).toBe("engaged");
+        expect((await engagements.getById(otherEngagementId))?.status).toBe("realized");
+      });
+
+      it("releases the engagement back to engagé when the transaction becomes income", async () => {
+        const tx = await transactions.create({
+          accountId,
+          kind: "expense",
+          date: "2026-01-01",
+          label: "X",
+          amount: 20000,
+          engagementId,
+        });
+
+        await transactions.update(tx.id, { kind: "income" });
+
+        expect((await engagements.getById(engagementId))?.status).toBe("engaged");
+      });
+
+      it("requires an engagement when an income transaction becomes an expense", async () => {
+        const tx = await transactions.create({
+          accountId,
+          kind: "income",
+          date: "2026-01-01",
+          label: "X",
+          amount: 5000,
+        });
+        await expect(transactions.update(tx.id, { kind: "expense" })).rejects.toThrow(
           ValidationError,
         );
+      });
+    });
+
+    describe("on deletion", () => {
+      it("releases the engagement back to engagé when its settling transaction is deleted", async () => {
+        const tx = await transactions.create({
+          accountId,
+          kind: "expense",
+          date: "2026-01-01",
+          label: "X",
+          amount: 20000,
+          engagementId,
+        });
+
+        await transactions.remove(tx.id);
+
+        expect((await engagements.getById(engagementId))?.status).toBe("engaged");
       });
     });
   });

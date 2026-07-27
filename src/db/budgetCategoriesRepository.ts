@@ -72,9 +72,11 @@ export function createBudgetCategoriesRepository(database: SezzAccountsDatabase 
     /**
      * Deletes a category. Refuses if it still has subcategories, unless
      * `force` is passed — in which case its subcategories are deleted too,
-     * but any transaction that referenced one of them is only *unlinked*
-     * (its `subcategoryId` is cleared), never deleted. A budget line
-     * disappearing must never erase real transaction history.
+     * along with any Engagement that referenced one of them (an engagement
+     * without its budget line no longer means anything). Any transaction
+     * that had settled one of those engagements is only *unlinked* (its
+     * subcategoryId and engagementId are cleared), never deleted — a
+     * budget line disappearing must never erase real transaction history.
      */
     async remove(id: string, options: { force?: boolean } = {}): Promise<void> {
       const row = await database.budgetCategories.get(id);
@@ -95,15 +97,38 @@ export function createBudgetCategoriesRepository(database: SezzAccountsDatabase 
         "rw",
         database.budgetCategories,
         database.budgetSubcategories,
+        database.engagements,
         database.transactions,
         database.deletionLog,
         async () => {
           for (const sub of subcategories) {
-            const dependentTransactions = await database.transactions
+            const dependentEngagements = await database.engagements
               .where("subcategoryId")
               .equals(sub.id)
               .toArray();
-            for (const tx of dependentTransactions) {
+            for (const engagement of dependentEngagements) {
+              const settlingTransactions = await database.transactions
+                .where("engagementId")
+                .equals(engagement.id)
+                .toArray();
+              for (const tx of settlingTransactions) {
+                const { subcategoryId: _sub, engagementId: _eng, ...rest } = tx;
+                await database.transactions.put({ ...rest, updatedAt: Date.now() });
+              }
+            }
+            await database.engagements.where("subcategoryId").equals(sub.id).delete();
+            for (const engagement of dependentEngagements) {
+              await logDeletion(database, "engagements", engagement.id);
+            }
+
+            // a transaction may also reference this subcategory directly
+            // (income never does, but the field predates engagements
+            // being mandatory, and old data may still carry it)
+            const directTransactions = await database.transactions
+              .where("subcategoryId")
+              .equals(sub.id)
+              .toArray();
+            for (const tx of directTransactions) {
               const { subcategoryId: _removed, ...rest } = tx;
               await database.transactions.put({ ...rest, updatedAt: Date.now() });
             }

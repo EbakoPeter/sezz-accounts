@@ -1,12 +1,6 @@
 import type { SezzAccountsDatabase, TransactionRow } from "./schema";
 import { db as defaultDb } from "./schema";
-import type {
-  Transaction,
-  NewTransaction,
-  TransactionUpdate,
-  Engagement,
-  BudgetSubcategory,
-} from "@/types/models";
+import type { Transaction, NewTransaction, TransactionUpdate, Engagement } from "@/types/models";
 import { generateId } from "@/lib/id";
 import { assertPositiveAmount, formatFcfa } from "@/lib/money";
 import { ValidationError, NotFoundError } from "@/lib/errors";
@@ -14,6 +8,7 @@ import { toStorageRow, fromStorageRow, fromStorageRows } from "./encryptedRecord
 import { logDeletion } from "./deletionLog";
 
 const SENSITIVE_TRANSACTION_FIELDS = ["label", "amount", "note"] as const;
+const SENSITIVE_ENGAGEMENT_FIELDS = ["amount", "label", "note"] as const;
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -29,11 +24,6 @@ function assertValidLabel(label: string): string {
     throw new ValidationError("Le libellé est obligatoire.");
   }
   return trimmed;
-}
-
-function monthMatches(isoDate: string, year: number, month: number): boolean {
-  const [y, m] = isoDate.split("-");
-  return Number(y) === year && Number(m) === month;
 }
 
 export interface TransactionFilter {
@@ -57,62 +47,73 @@ export function createTransactionsRepository(database: SezzAccountsDatabase = de
     if (!account) throw new NotFoundError("Compte", accountId);
   }
 
+  /** id of the transaction (if any) that currently settles this
+   * engagement — an engagement is settled by at most one transaction at a
+   * time, so the first match is the only one that matters. */
+  async function findSettlingTransactionId(engagementId: string): Promise<string | undefined> {
+    const rows = await database.transactions.where("engagementId").equals(engagementId).toArray();
+    return rows[0]?.id;
+  }
+
+  async function getEngagementOrThrow(engagementId: string): Promise<Engagement> {
+    const row = await database.engagements.get(engagementId);
+    if (!row) throw new NotFoundError("Engagement", engagementId);
+    return fromStorageRow<Engagement>(row);
+  }
+
+  async function setEngagementStatus(
+    engagement: Engagement,
+    status: Engagement["status"],
+  ): Promise<void> {
+    const next: Engagement = { ...engagement, status, updatedAt: Date.now() };
+    await database.engagements.put(await toStorageRow(next, SENSITIVE_ENGAGEMENT_FIELDS));
+  }
+
   /**
-   * Blocks an expense that would exceed what's actually available on its
-   * budget line — allocation minus what's already spent minus what's
-   * already engaged (committed) this month, excluding the transaction
-   * being edited itself so its own prior amount isn't double-counted.
-   * Only applies when a subcategory is actually chosen (an expense with
-   * no budget line has nothing to check against) and when that line has
-   * a real allocation — a subcategory left at 0 means "not provisioned",
-   * i.e. deliberately uncapped, the same meaning that value already has
-   * everywhere else in the app (see budgetSummary.ts's percentUsed).
+   * Every expense settles a specific Engagement — money can only be spent
+   * against a line that was already, deliberately, reserved for it (see
+   * Transaction.engagementId's own comment in src/types/models.ts for the
+   * full reasoning). This is the one place that enforces it:
+   *  - the engagement must exist;
+   *  - it can't be cancelled — a cancelled engagement is money that was
+   *    reserved and then explicitly un-reserved, not available to spend;
+   *  - it can't already be settled by a *different* transaction — one
+   *    engagement, one expense; excludeTransactionId lets an edit to the
+   *    same transaction re-validate against its own engagement without
+   *    tripping over itself;
+   *  - the amount can't exceed what was engaged, though it can be less
+   *    (e.g. the actual bill came in lower than planned) — never more,
+   *    since that would mean spending money that was never reserved.
+   * Returns the engagement so the caller doesn't have to re-fetch it.
    */
-  async function assertWithinBudget(
-    subcategoryId: string,
-    date: string,
+  async function assertSettlesEngagement(
+    engagementId: string,
     amount: number,
     excludeTransactionId?: string,
-  ): Promise<void> {
-    const subRow = await database.budgetSubcategories.get(subcategoryId);
-    if (!subRow) return; // an unknown subcategory id is not this check's concern
-    const sub = await fromStorageRow<BudgetSubcategory>(subRow);
-    if (sub.monthlyAllocation <= 0) return;
+  ): Promise<Engagement> {
+    const engagement = await getEngagementOrThrow(engagementId);
 
-    const [year, month] = date.split("-").map(Number);
-    if (!year || !month) return; // an invalid date is assertValidDate's concern, not this one's
-
-    const [txRows, engagementRows] = await Promise.all([
-      database.transactions.where("subcategoryId").equals(subcategoryId).toArray(),
-      database.engagements.where("subcategoryId").equals(subcategoryId).toArray(),
-    ]);
-    const [transactions, engagements] = await Promise.all([
-      fromStorageRows<Transaction>(txRows),
-      fromStorageRows<Engagement>(engagementRows),
-    ]);
-
-    let actual = 0;
-    for (const tx of transactions) {
-      if (tx.id === excludeTransactionId) continue;
-      if (tx.kind !== "expense") continue;
-      if (!monthMatches(tx.date, year, month)) continue;
-      actual += tx.amount;
-    }
-    let engaged = 0;
-    for (const engagement of engagements) {
-      if (engagement.status !== "engaged") continue;
-      if (!monthMatches(engagement.date, year, month)) continue;
-      engaged += engagement.amount;
-    }
-
-    const available = sub.monthlyAllocation - actual - engaged;
-    if (amount > available) {
+    if (engagement.status === "cancelled") {
       throw new ValidationError(
-        `Ce montant dépasse le budget disponible pour « ${sub.name} » : il reste ` +
-          `${formatFcfa(Math.max(available, 0))} sur ${formatFcfa(sub.monthlyAllocation)} ` +
-          `alloués ce mois-ci.`,
+        `Impossible d'enregistrer cette dépense : l'engagement « ${engagement.label} » a été annulé.`,
       );
     }
+    if (engagement.status === "realized") {
+      const settlingId = await findSettlingTransactionId(engagementId);
+      if (settlingId !== excludeTransactionId) {
+        throw new ValidationError(
+          `Impossible d'enregistrer cette dépense : l'engagement « ${engagement.label} » ` +
+            `est déjà réalisé par une autre opération.`,
+        );
+      }
+    }
+    if (amount > engagement.amount) {
+      throw new ValidationError(
+        `Le montant dépasse ce qui a été engagé pour « ${engagement.label} » : ` +
+          `${formatFcfa(engagement.amount)} au maximum.`,
+      );
+    }
+    return engagement;
   }
 
   return {
@@ -121,8 +122,17 @@ export function createTransactionsRepository(database: SezzAccountsDatabase = de
       assertValidDate(input.date);
       assertPositiveAmount(input.amount);
       const label = assertValidLabel(input.label);
-      if (input.kind === "expense" && input.subcategoryId) {
-        await assertWithinBudget(input.subcategoryId, input.date, input.amount);
+
+      let subcategoryId: string | undefined;
+      if (input.kind === "expense") {
+        if (!input.engagementId) {
+          throw new ValidationError(
+            "Une dépense doit être rattachée à un engagement existant. Créez d'abord un " +
+              "engagement dans le budget prévisionnel.",
+          );
+        }
+        const engagement = await assertSettlesEngagement(input.engagementId, input.amount);
+        subcategoryId = engagement.subcategoryId;
       }
 
       const now = Date.now();
@@ -133,7 +143,8 @@ export function createTransactionsRepository(database: SezzAccountsDatabase = de
         date: input.date,
         label,
         amount: input.amount,
-        ...(input.subcategoryId !== undefined ? { subcategoryId: input.subcategoryId } : {}),
+        ...(subcategoryId !== undefined ? { subcategoryId } : {}),
+        ...(input.kind === "expense" ? { engagementId: input.engagementId! } : {}),
         ...(input.note !== undefined ? { note: input.note } : {}),
         createdAt: now,
         updatedAt: now,
@@ -141,6 +152,14 @@ export function createTransactionsRepository(database: SezzAccountsDatabase = de
       await database.transactions.add(
         await toStorageRow(transaction, SENSITIVE_TRANSACTION_FIELDS),
       );
+
+      if (input.kind === "expense") {
+        // Recording the expense is what settles it — automatic, not a
+        // separate manual step (see Transaction.engagementId's comment).
+        const engagement = await getEngagementOrThrow(input.engagementId!);
+        await setEngagementStatus(engagement, "realized");
+      }
+
       return transaction;
     },
 
@@ -186,30 +205,71 @@ export function createTransactionsRepository(database: SezzAccountsDatabase = de
       if (patch.label !== undefined) {
         next.label = assertValidLabel(patch.label);
       }
-      if (patch.subcategoryId !== undefined) {
-        if (patch.subcategoryId === null) {
-          delete next.subcategoryId;
-        } else {
-          next.subcategoryId = patch.subcategoryId;
-        }
-      }
       if (patch.note !== undefined) {
         next.note = patch.note;
       }
 
-      if (next.kind === "expense" && next.subcategoryId) {
-        await assertWithinBudget(next.subcategoryId, next.date, next.amount, id);
+      // Engagement transitions — figure out what changed before touching
+      // anything, then apply every consequence together:
+      //  - becoming (or staying) income: no engagement, ever;
+      //  - staying on the same engagement: just re-validate the amount
+      //    against it (excluding this transaction as its own settler);
+      //  - moving to a different engagement (including "becoming an
+      //    expense" from income, which has no prior engagement to move
+      //    off of): release the old one back to "engagé", settle the new
+      //    one.
+      const oldEngagementId = existing.kind === "expense" ? existing.engagementId : undefined;
+      const requestedEngagementId =
+        patch.engagementId === null ? undefined : (patch.engagementId ?? oldEngagementId);
+
+      if (next.kind === "income") {
+        delete next.subcategoryId;
+        delete next.engagementId;
+      } else {
+        if (!requestedEngagementId) {
+          throw new ValidationError(
+            "Une dépense doit être rattachée à un engagement existant. Créez d'abord un " +
+              "engagement dans le budget prévisionnel.",
+          );
+        }
+        const engagement = await assertSettlesEngagement(
+          requestedEngagementId,
+          next.amount,
+          id, // this transaction is allowed to already be the settler
+        );
+        next.subcategoryId = engagement.subcategoryId;
+        next.engagementId = requestedEngagementId;
       }
 
       await database.transactions.put(await toStorageRow(next, SENSITIVE_TRANSACTION_FIELDS));
+
+      if (oldEngagementId && oldEngagementId !== next.engagementId) {
+        // no longer settled by this transaction — release it
+        const oldEngagement = await getEngagementOrThrow(oldEngagementId);
+        await setEngagementStatus(oldEngagement, "engaged");
+      }
+      if (next.kind === "expense" && next.engagementId !== oldEngagementId) {
+        const newEngagement = await getEngagementOrThrow(next.engagementId!);
+        await setEngagementStatus(newEngagement, "realized");
+      }
+
       return next;
     },
 
     async remove(id: string): Promise<void> {
       const existing = await database.transactions.get(id);
       if (!existing) throw new NotFoundError("Opération", id);
+      const decrypted = await decryptTransaction(existing);
       await database.transactions.delete(id);
       await logDeletion(database, "transactions", id);
+
+      if (decrypted.kind === "expense" && decrypted.engagementId) {
+        // deleting the expense that settled this engagement un-settles
+        // it — back to "engagé" rather than left stranded on "réalisé"
+        // with nothing that actually paid it
+        const engagement = await getEngagementOrThrow(decrypted.engagementId);
+        await setEngagementStatus(engagement, "engaged");
+      }
     },
 
     /** Sum of income minus sum of expenses for the given filter — the

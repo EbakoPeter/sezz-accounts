@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, fireEvent, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DebtsPanel } from "./DebtsPanel";
@@ -19,6 +19,15 @@ afterEach(async () => {
   await db.debts.clear();
   await db.accounts.clear();
   clearActiveDek();
+  vi.restoreAllMocks();
+});
+
+// Deletion now asks for confirmation first — defaults to "confirmed" so
+// every existing test that expects a delete to actually happen doesn't
+// need to know about this dialog. Tests specifically covering the
+// "cancelled" path override this per-test.
+beforeEach(() => {
+  vi.spyOn(window, "confirm").mockReturnValue(true);
 });
 
 async function seedAccount() {

@@ -7,7 +7,8 @@ import { createAccountsRepository } from "./accountsRepository";
 import { createTransactionsRepository } from "./transactionsRepository";
 import { createTransfersRepository } from "./transfersRepository";
 import { getAccountFlows, netOf } from "./accountFlows";
-import type { Debt, DebtPayment } from "@/types/models";
+import type { Debt, DebtPayment, Transaction } from "@/types/models";
+import { generateId } from "@/lib/id";
 
 const SENSITIVE_DEBT_FIELDS = ["counterparty", "amount", "dueDate", "description"] as const;
 const SENSITIVE_PAYMENT_FIELDS = ["amount"] as const;
@@ -61,13 +62,26 @@ describe("getAccountFlows", () => {
       label: "Salaire",
       amount: 1000,
     });
-    await transactions.create({
-      accountId,
-      kind: "expense",
-      date: "2026-01-02",
-      label: "Loyer",
-      amount: 300,
-    });
+    // seeded directly rather than via transactions.create(): that
+    // repository now requires every expense to settle an existing
+    // engagement (see transactionsRepository.ts), which this pure-reader
+    // test has no need to set up just to prove sums are counted correctly
+    const now = Date.now();
+    await database.transactions.add(
+      await encryptedFixture<Transaction, "label" | "amount" | "note">(
+        {
+          id: generateId(),
+          accountId,
+          kind: "expense",
+          date: "2026-01-02",
+          label: "Loyer",
+          amount: 300,
+          createdAt: now,
+          updatedAt: now,
+        },
+        ["label", "amount", "note"],
+      ),
+    );
 
     const flows = await getAccountFlows(database);
     expect(flows.get(accountId)).toEqual({ inflow: 1000, outflow: 300 });
