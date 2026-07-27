@@ -11,6 +11,12 @@
   --ink: #16333e;
   --ink-light: #24485a;
   --gold: #c98a3b;
+  /* Near-black rather than --ink for text sitting directly on --gold —
+     --ink measures at roughly 4.5:1 contrast against gold, technically
+     passing WCAG AA but with no real margin, which is exactly the kind
+     of pairing that reads as unclear on an actual phone screen even
+     when it "should" pass on paper. This measures at roughly 9:1. */
+  --gold-text: #1a1006;
   --gold-soft: #e7c692;
   --sage: #4c7a5b;
   --red: #b23a34;
@@ -536,7 +542,8 @@ tfoot th {
 
 .submenu-item.active {
   background: var(--gold);
-  color: var(--ink);
+  color: var(--gold-text);
+  font-weight: 700;
 }
 
 .tab-button {
@@ -575,7 +582,7 @@ tfoot th {
 
 .tab-button.active {
   background: var(--gold);
-  color: var(--ink);
+  color: var(--gold-text);
   font-weight: 700;
 }
 
