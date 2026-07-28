@@ -18,27 +18,33 @@ const MONTH_NAMES = [
   "Décembre",
 ];
 
-const CHART_WIDTH = 760;
-const CHART_HEIGHT = 220;
+export const MONTHLY_CHART_WIDTH = 760;
+export const MONTHLY_CHART_HEIGHT = 220;
 
-function BarChart({ rows }: { rows: { income: number; expense: number }[] }) {
+export function MonthlyBarChart({ rows }: { rows: { income: number; expense: number }[] }) {
   const maxValue = Math.max(1, ...rows.map((r) => Math.max(r.income, r.expense)));
-  const groupWidth = CHART_WIDTH / 12;
+  const groupWidth = MONTHLY_CHART_WIDTH / 12;
   const barWidth = groupWidth * 0.32;
-  const baseY = CHART_HEIGHT;
+  const baseY = MONTHLY_CHART_HEIGHT;
 
   return (
     <svg
-      viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT + 24}`}
+      viewBox={`0 0 ${MONTHLY_CHART_WIDTH} ${MONTHLY_CHART_HEIGHT + 24}`}
       role="img"
       aria-label="Graphique des revenus et dépenses par mois"
       style={{ width: "100%", maxWidth: 800, height: "auto" }}
     >
-      <line x1={0} y1={CHART_HEIGHT} x2={CHART_WIDTH} y2={CHART_HEIGHT} stroke="#DDD3BE" />
+      <line
+        x1={0}
+        y1={MONTHLY_CHART_HEIGHT}
+        x2={MONTHLY_CHART_WIDTH}
+        y2={MONTHLY_CHART_HEIGHT}
+        stroke="#DDD3BE"
+      />
       {rows.map((row, i) => {
         const x0 = i * groupWidth + groupWidth * 0.12;
-        const incomeHeight = (row.income / maxValue) * (CHART_HEIGHT - 20);
-        const expenseHeight = (row.expense / maxValue) * (CHART_HEIGHT - 20);
+        const incomeHeight = (row.income / maxValue) * (MONTHLY_CHART_HEIGHT - 20);
+        const expenseHeight = (row.expense / maxValue) * (MONTHLY_CHART_HEIGHT - 20);
         return (
           // fixed 12-month layout: index is a stable, meaningful key here
           <g key={i}>
@@ -60,7 +66,7 @@ function BarChart({ rows }: { rows: { income: number; expense: number }[] }) {
             />
             <text
               x={x0 + barWidth + 1.5}
-              y={CHART_HEIGHT + 16}
+              y={MONTHLY_CHART_HEIGHT + 16}
               fontSize={10}
               textAnchor="middle"
               fill="#726B5E"
@@ -114,7 +120,7 @@ export function MonthlyReportPanel() {
         <p>Chargement…</p>
       ) : (
         <>
-          <BarChart rows={rows} />
+          <MonthlyBarChart rows={rows} />
           <div
             style={{
               display: "flex",

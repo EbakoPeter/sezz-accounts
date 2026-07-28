@@ -23,12 +23,13 @@ describe("App menu navigation", () => {
     expect(await screen.findByText(/premier lancement/i)).toBeInTheDocument();
   });
 
-  it("defaults to the Comptes menu, Nouveau Compte content, with no dropdown open", async () => {
+  it("defaults to the Accueil menu (dashboard), with no dropdown open", async () => {
     const session = await createTestUser("admin");
     renderWithSession(<App />, session);
 
     const tabs = await screen.findAllByRole("tab");
     expect(tabs.map((t) => t.getAttribute("aria-label"))).toEqual([
+      "Accueil",
       "Comptes",
       "Opérations",
       "Budget",
@@ -40,10 +41,10 @@ describe("App menu navigation", () => {
     ]);
     // the active tab shows its full name even visually — only the
     // inactive ones are abbreviated
-    expect(tabs[0]).toHaveTextContent("Comptes");
-    expect(tabs[1]).toHaveTextContent("OPER");
-    expect(screen.getByRole("tab", { name: /comptes/i })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("heading", { name: "Comptes" })).toBeInTheDocument();
+    expect(tabs[0]).toHaveTextContent("Accueil");
+    expect(tabs[1]).toHaveTextContent("CPTS");
+    expect(screen.getByRole("tab", { name: /accueil/i })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("heading", { name: "Accueil" })).toBeInTheDocument();
     // no dropdown unfolded on first load — it only appears once a menu
     // with submenus is actually clicked
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
@@ -63,9 +64,10 @@ describe("App menu navigation", () => {
     expect(within(dropdown).getByRole("menuitemradio", { name: "Dettes" })).toBeInTheDocument();
     expect(within(dropdown).getByRole("menuitemradio", { name: "Créances" })).toBeInTheDocument();
     // clicking the parent menu also navigates to its first submenu
-    // immediately, same as before — the dropdown is an addition, not a
-    // replacement for that behavior
-    expect(screen.getByRole("heading", { name: "Dettes" })).toBeInTheDocument();
+    // immediately (now alphabetically first: Créances before Dettes),
+    // same as before — the dropdown is an addition, not a replacement
+    // for that behavior
+    expect(screen.getByRole("heading", { name: "Créances" })).toBeInTheDocument();
   });
 
   it("closes the dropdown and switches content when a submenu item is clicked", async () => {
@@ -77,10 +79,10 @@ describe("App menu navigation", () => {
     await user.click(screen.getByRole("tab", { name: /dettes & créances/i }));
     await screen.findByRole("menu");
 
-    await user.click(screen.getByRole("menuitemradio", { name: "Créances" }));
+    await user.click(screen.getByRole("menuitemradio", { name: "Dettes" }));
 
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Créances" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Dettes" })).toBeInTheDocument();
   });
 
   it("toggles the dropdown shut when its own already-open menu is clicked again", async () => {

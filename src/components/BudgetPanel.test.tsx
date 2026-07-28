@@ -325,6 +325,16 @@ describe("BudgetPanel", () => {
       expect(screen.queryByText(/engagements sur le budget/i)).not.toBeInTheDocument();
     });
 
+    it("groups the budget line dropdown by category, showing the parent category as a group label", async () => {
+      const session = await createTestUser("admin");
+      await seedCategoryAndSubcategory();
+      renderWithSession(<BudgetPanel />, session);
+
+      const dropdown = await screen.findByLabelText(/ligne budgétaire/i);
+      const group = within(dropdown).getByRole("group", { name: "Vie Courante" });
+      expect(within(group).getByRole("option", { name: "Scolarité" })).toBeInTheDocument();
+    });
+
     it("creates an engagement and reduces the visible remaining amount", async () => {
       const session = await createTestUser("admin");
       await seedCategoryAndSubcategory();

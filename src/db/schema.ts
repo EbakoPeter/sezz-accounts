@@ -49,7 +49,7 @@ export type BudgetCategoryRow = Pick<BudgetCategory, "id" | "createdAt" | "updat
   WithSyncMeta;
 export type BudgetSubcategoryRow = Pick<
   BudgetSubcategory,
-  "id" | "categoryId" | "createdAt" | "updatedAt"
+  "id" | "categoryId" | "autoAllocateFromDebts" | "createdAt" | "updatedAt"
 > &
   WithSyncMeta;
 export type DebtRow = Pick<

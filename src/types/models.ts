@@ -74,8 +74,17 @@ export interface BudgetSubcategory {
   id: string;
   categoryId: string;
   name: string;
-  /** Planned spend per month, in whole FCFA. Zero means "not provisioned". */
+  /** Planned spend per month, in whole FCFA. Zero means "not provisioned".
+   * Ignored (and never read) for a subcategory with autoAllocateFromDebts
+   * set — its effective allocation is always computed live instead, never
+   * stored, see getBudgetSummary's own comment on this. */
   monthlyAllocation: number;
+  /** Marks the one, system-created subcategory whose allocation is always
+   * the live sum of every unsettled debt's planned monthly payment,
+   * rather than a value someone sets by hand. At most one subcategory
+   * should ever have this set — see ensureDebtBudgetLine in
+   * debtBudgetLine.ts, the only place that creates one. */
+  autoAllocateFromDebts?: boolean;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

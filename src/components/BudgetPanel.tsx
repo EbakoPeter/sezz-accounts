@@ -457,7 +457,12 @@ export function BudgetPanel({ view = "both" }: { view?: "forecast" | "engagement
                           )}
                         </td>
                         <td className="num">
-                          {canManage ? (
+                          {sub.autoAllocatedFromDebts ? (
+                            <span title="Calculé automatiquement à partir des mensualités prévisionnelles des dettes en cours.">
+                              {formatFcfa(sub.monthlyAllocation)}{" "}
+                              <span className="empty">(auto)</span>
+                            </span>
+                          ) : canManage ? (
                             <input
                               type="number"
                               defaultValue={sub.monthlyAllocation}
@@ -550,10 +555,14 @@ export function BudgetPanel({ view = "both" }: { view?: "forecast" | "engagement
                       <option value="" disabled>
                         Choisir…
                       </option>
-                      {allSubcategories.map((sub) => (
-                        <option key={sub.subcategoryId} value={sub.subcategoryId}>
-                          {sub.name}
-                        </option>
+                      {(summary ?? []).map((category) => (
+                        <optgroup key={category.categoryId} label={category.name}>
+                          {category.subcategories.map((sub) => (
+                            <option key={sub.subcategoryId} value={sub.subcategoryId}>
+                              {sub.name}
+                            </option>
+                          ))}
+                        </optgroup>
                       ))}
                     </select>
                   </div>
@@ -626,10 +635,14 @@ export function BudgetPanel({ view = "both" }: { view?: "forecast" | "engagement
                               value={editEngagementSubcategoryId}
                               onChange={(e) => setEditEngagementSubcategoryId(e.target.value)}
                             >
-                              {allSubcategories.map((sub) => (
-                                <option key={sub.subcategoryId} value={sub.subcategoryId}>
-                                  {sub.name}
-                                </option>
+                              {(summary ?? []).map((category) => (
+                                <optgroup key={category.categoryId} label={category.name}>
+                                  {category.subcategories.map((sub) => (
+                                    <option key={sub.subcategoryId} value={sub.subcategoryId}>
+                                      {sub.name}
+                                    </option>
+                                  ))}
+                                </optgroup>
                               ))}
                             </select>
                           </td>

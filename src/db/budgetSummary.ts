@@ -2,6 +2,7 @@ import type { SezzAccountsDatabase } from "./schema";
 import { db as defaultDb } from "./schema";
 import { fromStorageRows } from "./encryptedRecord";
 import type { BudgetCategory, BudgetSubcategory, Transaction, Engagement } from "@/types/models";
+import { computeDebtBudgetAllocation } from "./debtBudgetLine";
 
 export interface SubcategorySummary {
   subcategoryId: string;
@@ -25,6 +26,11 @@ export interface SubcategorySummary {
    * warning) keep meaning exactly what they already meant. Null when
    * monthlyAllocation is 0 — "not provisioned", not "0% used". */
   percentUsed: number | null;
+  /** True for the one, system-managed subcategory whose monthlyAllocation
+   * above is always the live sum of unsettled debts' planned payments —
+   * see debtBudgetLine.ts. The UI uses this to show that figure as
+   * informational rather than as something to type a new value into. */
+  autoAllocatedFromDebts: boolean;
 }
 
 export interface CategorySummary {
@@ -111,6 +117,12 @@ export async function getBudgetSummary(
     else subcategoriesByCategory.set(sub.categoryId, [sub]);
   }
 
+  // Computed once up front, not per-subcategory below: at most one
+  // subcategory ever has autoAllocateFromDebts set (see
+  // ensureDebtBudgetLine), so there's never a reason to recompute this
+  // more than once per call regardless of how many categories exist.
+  const debtAllocation = await computeDebtBudgetAllocation(database);
+
   return categories.map((category) => {
     const subs = (subcategoriesByCategory.get(category.id) ?? [])
       .slice()
@@ -118,15 +130,23 @@ export async function getBudgetSummary(
       .map((sub): SubcategorySummary => {
         const actual = actualBySubcategory.get(sub.id) ?? 0;
         const engaged = engagedBySubcategory.get(sub.id) ?? 0;
+        // The one subcategory ensureDebtBudgetLine creates never has its
+        // own stored monthlyAllocation read at all — its effective
+        // allocation is always this live figure instead, exactly like
+        // every other value here that's computed rather than stored.
+        const monthlyAllocation = sub.autoAllocateFromDebts
+          ? debtAllocation
+          : sub.monthlyAllocation;
         return {
           subcategoryId: sub.id,
           categoryId: sub.categoryId,
           name: sub.name,
-          monthlyAllocation: sub.monthlyAllocation,
+          monthlyAllocation,
           actual,
           engaged,
-          remaining: sub.monthlyAllocation - actual - engaged,
-          percentUsed: sub.monthlyAllocation > 0 ? (actual / sub.monthlyAllocation) * 100 : null,
+          remaining: monthlyAllocation - actual - engaged,
+          percentUsed: monthlyAllocation > 0 ? (actual / monthlyAllocation) * 100 : null,
+          autoAllocatedFromDebts: sub.autoAllocateFromDebts === true,
         };
       });
 

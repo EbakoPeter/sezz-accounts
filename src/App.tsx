@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { HomePanel } from "@/components/HomePanel";
 import { AccountsPanel } from "@/components/AccountsPanel";
 import { TransactionsPanel } from "@/components/TransactionsPanel";
 import { BudgetPanel } from "@/components/BudgetPanel";
@@ -37,13 +38,14 @@ interface MenuDef {
 }
 
 const MENUS: MenuDef[] = [
+  { id: "home", label: "Accueil", abbrev: "ACCU" },
   {
     id: "accounts",
     label: "Comptes",
     abbrev: "CPTS",
     submenus: [
-      { id: "new", label: "Nouveau Compte" },
       { id: "list", label: "Listing" },
+      { id: "new", label: "Nouveau Compte" },
     ],
   },
   {
@@ -51,8 +53,8 @@ const MENUS: MenuDef[] = [
     label: "Opérations",
     abbrev: "OPER",
     submenus: [
-      { id: "transfers", label: "Transferts" },
       { id: "operations", label: "Opérations" },
+      { id: "transfers", label: "Transferts" },
     ],
   },
   {
@@ -60,8 +62,8 @@ const MENUS: MenuDef[] = [
     label: "Budget",
     abbrev: "BDGT",
     submenus: [
-      { id: "forecast", label: "Prévisionnel" },
       { id: "engagements", label: "Engagements" },
+      { id: "forecast", label: "Prévisionnel" },
     ],
   },
   {
@@ -69,8 +71,8 @@ const MENUS: MenuDef[] = [
     label: "Dettes & Créances",
     abbrev: "D&C",
     submenus: [
-      { id: "debts", label: "Dettes" },
       { id: "receivables", label: "Créances" },
+      { id: "debts", label: "Dettes" },
     ],
   },
   {
@@ -79,8 +81,8 @@ const MENUS: MenuDef[] = [
     abbrev: "RAPP",
     requires: "viewReports",
     submenus: [
-      { id: "monthly", label: "Mensuel" },
       { id: "general", label: "Général" },
+      { id: "monthly", label: "Mensuel" },
       { id: "custom", label: "Personnalisé" },
       { id: "cashflow", label: "Trésorerie" },
     ],
@@ -107,8 +109,8 @@ const MENUS: MenuDef[] = [
 
 export function App() {
   const { currentUser, logout } = useAuth();
-  const [activeMenu, setActiveMenu] = useState("accounts");
-  const [activeSubmenu, setActiveSubmenu] = useState<string | null>("new");
+  const [activeMenu, setActiveMenu] = useState("home");
+  const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
   // Which top-level menu's submenu dropdown is currently unfolded, if
   // any — deliberately separate from activeMenu/activeSubmenu (which
   // track what content is showing): a menu can be the active one while
@@ -250,6 +252,7 @@ export function App() {
         id={`tabpanel-${selectedMenu.id}`}
         aria-labelledby={`tab-${selectedMenu.id}`}
       >
+        {selectedMenu.id === "home" && <HomePanel />}
         {selectedMenu.id === "accounts" && (
           <AccountsPanel view={selectedSubmenuId === "new" ? "new" : "list"} />
         )}

@@ -6,6 +6,7 @@ import { assertPositiveAmount } from "@/lib/money";
 import { ValidationError, NotFoundError } from "@/lib/errors";
 import { toStorageRow, fromStorageRow, fromStorageRows } from "./encryptedRecord";
 import { logDeletion } from "./deletionLog";
+import { ensureDebtBudgetLine } from "./debtBudgetLine";
 
 const SENSITIVE_DEBT_FIELDS = ["counterparty", "amount", "dueDate", "description"] as const;
 
@@ -81,6 +82,11 @@ export function createDebtsRepository(database: SezzAccountsDatabase = defaultDb
         updatedAt: now,
       };
       await database.debts.add(await toStorageRow(debt, SENSITIVE_DEBT_FIELDS));
+      if (debt.kind === "debt") {
+        // A créance (money owed *to* the household) isn't a spending
+        // obligation, so it never triggers this — only an actual debt.
+        await ensureDebtBudgetLine(database);
+      }
       return debt;
     },
 
@@ -138,6 +144,9 @@ export function createDebtsRepository(database: SezzAccountsDatabase = defaultDb
       }
 
       await database.debts.put(await toStorageRow(next, SENSITIVE_DEBT_FIELDS));
+      if (next.kind === "debt") {
+        await ensureDebtBudgetLine(database);
+      }
       return next;
     },
 
