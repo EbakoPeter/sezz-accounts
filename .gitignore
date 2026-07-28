@@ -7,3 +7,10 @@ coverage/
 # Generated reports (downloaded via the app, or left over from local
 # testing of the report-generation code) — never part of the source.
 *.pdf
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
