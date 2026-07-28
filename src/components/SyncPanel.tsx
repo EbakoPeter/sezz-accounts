@@ -8,6 +8,14 @@ import {
   type SyncSession,
 } from "@/sync/syncClient";
 import { syncNow, getLastSyncStatus } from "@/sync/syncEngine";
+import {
+  buildBackup,
+  parseBackup,
+  summarizeBackup,
+  restoreBackup,
+  type BackupFile,
+  type BackupSummary,
+} from "@/backup/backupEngine";
 
 type Mode = "register" | "login";
 
@@ -27,6 +35,16 @@ export function SyncPanel() {
   // entry, so both show up here without this component needing to know
   // which one happened.
   const status = useLiveQuery(() => getLastSyncStatus(), []);
+
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [pendingRestore, setPendingRestore] = useState<{
+    backup: BackupFile;
+    summary: BackupSummary;
+  } | null>(null);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
+  const [restoring, setRestoring] = useState(false);
+  const [restoreFileInputKey, setRestoreFileInputKey] = useState(0);
 
   useEffect(() => {
     getSyncSession().then(setSession);
@@ -66,6 +84,77 @@ export function SyncPanel() {
       // failure (see getLastSyncStatus above), which is what's displayed.
     } finally {
       setSyncing(false);
+    }
+  }
+
+  async function handleDownloadBackup() {
+    setExportError(null);
+    setExporting(true);
+    try {
+      const backup = await buildBackup();
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const datePart = new Date(backup.exportedAt).toISOString().slice(0, 10);
+      link.href = url;
+      link.download = `sezz-sauvegarde-${datePart}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : "Erreur inattendue.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  function readFileAsText(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result ?? ""));
+      reader.onerror = () => reject(new Error("Impossible de lire ce fichier."));
+      reader.readAsText(file);
+    });
+  }
+
+  async function handleBackupFileSelected(event: React.ChangeEvent<HTMLInputElement>) {
+    setRestoreError(null);
+    setPendingRestore(null);
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const content = await readFileAsText(file);
+      const backup = parseBackup(content);
+      setPendingRestore({ backup, summary: summarizeBackup(backup) });
+    } catch (error) {
+      setRestoreError(error instanceof Error ? error.message : "Erreur inattendue.");
+      setRestoreFileInputKey((k) => k + 1); // clears the file input for a retry
+    }
+  }
+
+  async function handleConfirmRestore() {
+    if (!pendingRestore) return;
+    if (
+      !window.confirm(
+        "Cette action va remplacer TOUTES les données actuelles de cet appareil par celles de " +
+          "la sauvegarde. Ce qui existe actuellement et n'est pas dans la sauvegarde sera perdu. " +
+          "Cette action est irréversible. Voulez-vous vraiment continuer ?",
+      )
+    ) {
+      return;
+    }
+    setRestoring(true);
+    setRestoreError(null);
+    try {
+      await restoreBackup(pendingRestore.backup);
+      // A wholesale data replacement leaves this session's own state (the
+      // in-memory DEK, whichever user is "logged in") potentially
+      // mismatched with what's now actually stored — reloading is the
+      // simplest way to guarantee a clean re-initialization against the
+      // restored data, back at the login screen.
+      window.location.reload();
+    } catch (error) {
+      setRestoreError(error instanceof Error ? error.message : "Erreur inattendue.");
+      setRestoring(false);
     }
   }
 
@@ -172,6 +261,75 @@ export function SyncPanel() {
           )}
         </div>
       )}
+
+      <section className="accent-sage" aria-labelledby="backup-heading">
+        <h3 id="backup-heading">Sauvegarde locale</h3>
+        <p className="tagline">
+          Un fichier téléchargé sur cet appareil, indépendant du serveur de synchronisation — utile
+          pour garder une copie avant un changement important, ou pour transférer vos données vers
+          un nouvel appareil sans passer par la synchronisation. Les données sensibles restent
+          chiffrées à l&apos;intérieur du fichier exactement comme dans l&apos;application.
+        </p>
+
+        <button type="button" onClick={handleDownloadBackup} disabled={exporting}>
+          {exporting ? "Préparation…" : "Télécharger une sauvegarde"}
+        </button>
+        {exportError && (
+          <p role="alert" className="form-error">
+            {exportError}
+          </p>
+        )}
+
+        <p>
+          <strong>Restaurer une sauvegarde</strong>
+        </p>
+        <p className="tagline">
+          Remplace toutes les données actuelles de cet appareil par celles du fichier choisi. Cette
+          action est irréversible.
+        </p>
+        <div className="field">
+          <label htmlFor="restore-file">Fichier de sauvegarde</label>
+          <input
+            key={restoreFileInputKey}
+            id="restore-file"
+            type="file"
+            accept=".json,application/json"
+            onChange={handleBackupFileSelected}
+          />
+        </div>
+        {restoreError && (
+          <p role="alert" className="form-error">
+            {restoreError}
+          </p>
+        )}
+        {pendingRestore && (
+          <div className="note-box" role="status">
+            <p>
+              Sauvegarde du{" "}
+              <strong>{new Date(pendingRestore.summary.exportedAt).toLocaleString("fr-FR")}</strong>{" "}
+              — {pendingRestore.summary.totalRecords} enregistrement(s) au total.
+            </p>
+            <p className="tagline">
+              Restaurer remplacera toutes les données actuelles de cet appareil par celles-ci.
+              L&apos;application se rechargera une fois terminé.
+            </p>
+            <button type="button" onClick={handleConfirmRestore} disabled={restoring}>
+              {restoring ? "Restauration…" : "Restaurer cette sauvegarde"}
+            </button>{" "}
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => {
+                setPendingRestore(null);
+                setRestoreFileInputKey((k) => k + 1);
+              }}
+              disabled={restoring}
+            >
+              Annuler
+            </button>
+          </div>
+        )}
+      </section>
     </section>
   );
 }

@@ -189,4 +189,129 @@ describe("SyncPanel", () => {
     expect(status).toHaveTextContent(/3 élément\(s\) envoyé/i);
     expect(status).toHaveTextContent(/1 reçu/i);
   });
+
+  it("shows the backup section even with no sync session configured", async () => {
+    await renderAuthenticated(<SyncPanel />);
+
+    expect(
+      await screen.findByRole("button", { name: /télécharger une sauvegarde/i }),
+    ).toBeInTheDocument();
+    expect(await screen.findByLabelText(/fichier de sauvegarde/i)).toBeInTheDocument();
+  });
+
+  it("downloads a backup when the button is clicked", async () => {
+    const user = userEvent.setup();
+    const createObjectURL = vi.fn().mockReturnValue("blob:mock-url");
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", { ...URL, createObjectURL, revokeObjectURL });
+    // jsdom doesn't implement the special "download" attribute behavior a
+    // real browser gives an <a> click — without this, it tries to
+    // actually navigate to the blob: URL and logs a "not implemented"
+    // error, which is noise, not a real failure, but worth silencing.
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    await renderAuthenticated(<SyncPanel />);
+
+    await user.click(await screen.findByRole("button", { name: /télécharger une sauvegarde/i }));
+
+    await waitFor(() => {
+      expect(createObjectURL).toHaveBeenCalledTimes(1);
+      expect(revokeObjectURL).toHaveBeenCalledWith("blob:mock-url");
+    });
+    clickSpy.mockRestore();
+  });
+
+  it("shows an error and does not offer to restore when the chosen file isn't a valid backup", async () => {
+    const user = userEvent.setup();
+    await renderAuthenticated(<SyncPanel />);
+
+    const file = new File(["not valid json{{{"], "bad.json", { type: "application/json" });
+    await user.upload(await screen.findByLabelText(/fichier de sauvegarde/i), file);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/pas une sauvegarde/i);
+    expect(
+      screen.queryByRole("button", { name: /restaurer cette sauvegarde/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a summary and a restore button once a valid backup file is chosen", async () => {
+    const user = userEvent.setup();
+    await renderAuthenticated(<SyncPanel />);
+
+    const content = JSON.stringify({
+      version: 1,
+      exportedAt: new Date("2026-01-15T10:00:00Z").getTime(),
+      tables: { accounts: [{ id: "acc-1" }], transactions: [{ id: "tx-1" }] },
+    });
+    const file = new File([content], "backup.json", { type: "application/json" });
+    await user.upload(await screen.findByLabelText(/fichier de sauvegarde/i), file);
+
+    const notice = await screen.findByRole("status");
+    expect(notice).toHaveTextContent(/2 enregistrement/i);
+    expect(screen.getByRole("button", { name: /restaurer cette sauvegarde/i })).toBeInTheDocument();
+  });
+
+  it("does not restore when the confirmation dialog is cancelled", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    const user = userEvent.setup();
+    await renderAuthenticated(<SyncPanel />);
+
+    const content = JSON.stringify({ version: 1, exportedAt: 1000, tables: { accounts: [] } });
+    const file = new File([content], "backup.json", { type: "application/json" });
+    await user.upload(await screen.findByLabelText(/fichier de sauvegarde/i), file);
+    await user.click(await screen.findByRole("button", { name: /restaurer cette sauvegarde/i }));
+
+    expect(window.confirm).toHaveBeenCalledTimes(1);
+    // still showing the pending restore, nothing applied yet
+    expect(screen.getByRole("button", { name: /restaurer cette sauvegarde/i })).toBeInTheDocument();
+  });
+
+  it("restores and reloads the app once confirmed", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const reload = vi.fn();
+    vi.stubGlobal("location", { ...window.location, reload });
+    const user = userEvent.setup();
+    await renderAuthenticated(<SyncPanel />);
+
+    await db.accounts.put({
+      id: "acc-existing",
+      createdAt: 1000,
+      updatedAt: 1000,
+      _enc: { iv: "iv", data: "old" },
+    });
+    const content = JSON.stringify({
+      version: 1,
+      exportedAt: 1000,
+      tables: {
+        accounts: [
+          { id: "acc-restored", createdAt: 1000, updatedAt: 1000, _enc: { iv: "iv", data: "d" } },
+        ],
+      },
+    });
+    const file = new File([content], "backup.json", { type: "application/json" });
+    await user.upload(await screen.findByLabelText(/fichier de sauvegarde/i), file);
+    await user.click(await screen.findByRole("button", { name: /restaurer cette sauvegarde/i }));
+
+    await waitFor(async () => {
+      expect(await db.accounts.get("acc-existing")).toBeUndefined();
+      expect(await db.accounts.get("acc-restored")).toBeDefined();
+    });
+    expect(reload).toHaveBeenCalledTimes(1);
+    await db.accounts.clear();
+  });
+
+  it("clears the pending restore when Annuler is clicked", async () => {
+    const user = userEvent.setup();
+    await renderAuthenticated(<SyncPanel />);
+
+    const content = JSON.stringify({ version: 1, exportedAt: 1000, tables: { accounts: [] } });
+    const file = new File([content], "backup.json", { type: "application/json" });
+    await user.upload(await screen.findByLabelText(/fichier de sauvegarde/i), file);
+    await screen.findByRole("button", { name: /restaurer cette sauvegarde/i });
+
+    await user.click(screen.getByRole("button", { name: /^annuler$/i }));
+
+    expect(
+      screen.queryByRole("button", { name: /restaurer cette sauvegarde/i }),
+    ).not.toBeInTheDocument();
+  });
 });

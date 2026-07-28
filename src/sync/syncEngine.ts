@@ -48,7 +48,7 @@ import type { SyncSession } from "./syncClient";
  * "as far as this device knows, no version of this exists on the server".
  */
 
-const SYNCABLE_TABLES: readonly SyncableTableName[] = [
+export const SYNCABLE_TABLES: readonly SyncableTableName[] = [
   "accounts",
   "transactions",
   "transfers",
