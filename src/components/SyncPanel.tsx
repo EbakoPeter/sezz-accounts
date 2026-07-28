@@ -8,6 +8,7 @@ import {
   type SyncSession,
 } from "@/sync/syncClient";
 import { syncNow, getLastSyncStatus } from "@/sync/syncEngine";
+import { PageHeader } from "./PageHeader";
 import {
   buildBackup,
   parseBackup,
@@ -161,7 +162,7 @@ export function SyncPanel() {
   if (session === null) {
     return (
       <section aria-labelledby="sync-heading">
-        <h2 id="sync-heading">Synchronisation</h2>
+        <PageHeader title="Synchronisation" section="sync" id="sync-heading" />
         <p>Chargement…</p>
       </section>
     );
@@ -169,7 +170,7 @@ export function SyncPanel() {
 
   return (
     <section aria-labelledby="sync-heading">
-      <h2 id="sync-heading">Synchronisation entre appareils</h2>
+      <PageHeader title="Synchronisation" section="sync" id="sync-heading" />
       <p className="tagline">
         Un serveur ne fait que transmettre des données déjà chiffrées entre vos appareils — il ne
         peut jamais les lire. Se connecter ici ne déverrouille rien : seul votre mot de passe

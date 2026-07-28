@@ -1,3 +1,4 @@
+import { useState, type FormEvent } from "react";
 import { useAuth } from "@/auth/AuthContext";
 import { useAccountsWithBalances } from "@/hooks/useAccountsWithBalances";
 import { useBudgetSummary } from "@/hooks/useBudgetSummary";
@@ -5,6 +6,8 @@ import { useRecommendations } from "@/hooks/useRecommendations";
 import { useMonthlyReport } from "@/hooks/useMonthlyReport";
 import { formatFcfa } from "@/lib/money";
 import { MonthlyBarChart } from "./MonthlyReportPanel";
+import { PageHeader } from "./PageHeader";
+import { usersRepository } from "@/repositories";
 import type { InsightSeverity } from "@/db/recommendations";
 
 const SEVERITY_STYLE: Record<
@@ -121,6 +124,31 @@ export function HomePanel() {
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
 
+  const [situationRevealed, setSituationRevealed] = useState(false);
+  const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
+  const [situationPassword, setSituationPassword] = useState("");
+  const [situationError, setSituationError] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(false);
+
+  async function handleRevealSituation(event: FormEvent) {
+    event.preventDefault();
+    setSituationError(null);
+    setVerifying(true);
+    try {
+      if (!currentUser) return;
+      const isValid = await usersRepository.verifyOwnPassword(currentUser.id, situationPassword);
+      if (isValid) {
+        setSituationRevealed(true);
+        setShowPasswordPrompt(false);
+        setSituationPassword("");
+      } else {
+        setSituationError("Mot de passe incorrect.");
+      }
+    } finally {
+      setVerifying(false);
+    }
+  }
+
   const accounts = useAccountsWithBalances();
   const budgetSummary = useBudgetSummary(year, month);
   const insights = useRecommendations(year, month);
@@ -150,7 +178,7 @@ export function HomePanel() {
 
   return (
     <section aria-labelledby="home-heading">
-      <h2 id="home-heading">Accueil</h2>
+      <PageHeader title="Accueil" section="home" id="home-heading" />
       <p className="tagline">
         Vue d&apos;ensemble de votre situation, au {now.toLocaleDateString("fr-FR")}.
       </p>
@@ -158,10 +186,59 @@ export function HomePanel() {
       <div className="dashboard-grid">
         <section className="accent-ink" aria-labelledby="home-situation-heading">
           <h3 id="home-situation-heading">Situation financière</h3>
-          {accounts === undefined ? (
+          {!situationRevealed ? (
+            <>
+              <p className="tagline">
+                Masquée par défaut — utile si quelqu&apos;un d&apos;autre peut voir cet écran.
+              </p>
+              {!showPasswordPrompt ? (
+                <button type="button" onClick={() => setShowPasswordPrompt(true)}>
+                  Afficher
+                </button>
+              ) : (
+                <form
+                  onSubmit={handleRevealSituation}
+                  aria-label="Afficher la situation financière"
+                >
+                  <div className="field">
+                    <label htmlFor="situation-password">Votre mot de passe</label>
+                    <input
+                      type="password"
+                      id="situation-password"
+                      value={situationPassword}
+                      onChange={(e) => setSituationPassword(e.target.value)}
+                      autoFocus
+                    />
+                  </div>
+                  <button type="submit" disabled={verifying}>
+                    {verifying ? "Vérification…" : "Confirmer"}
+                  </button>{" "}
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => {
+                      setShowPasswordPrompt(false);
+                      setSituationPassword("");
+                      setSituationError(null);
+                    }}
+                  >
+                    Annuler
+                  </button>
+                  {situationError && (
+                    <p role="alert" className="form-error">
+                      {situationError}
+                    </p>
+                  )}
+                </form>
+              )}
+            </>
+          ) : accounts === undefined ? (
             <p>Chargement…</p>
           ) : (
             <>
+              <button type="button" className="ghost" onClick={() => setSituationRevealed(false)}>
+                Masquer à nouveau
+              </button>
               <PieChart
                 slices={balanceSlices}
                 ariaLabel="Répartition du solde par compte"

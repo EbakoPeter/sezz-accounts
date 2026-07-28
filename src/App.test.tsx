@@ -97,9 +97,9 @@ describe("App menu navigation", () => {
     await user.click(screen.getByRole("tab", { name: /budget/i }));
 
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
-    // still on Budget's content — only the dropdown closed, navigation
-    // did not change
-    expect(screen.getByRole("heading", { name: "Budget Prévisionnel" })).toBeInTheDocument();
+    // still on Budget's content (Engagements, alphabetically first among
+    // its submenus) — only the dropdown closed, navigation did not change
+    expect(screen.getByRole("heading", { name: "Engagement" })).toBeInTheDocument();
   });
 
   it("shows a menu's abbreviation while inactive, and its full name once it becomes active", async () => {

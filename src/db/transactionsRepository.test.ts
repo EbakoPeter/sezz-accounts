@@ -434,7 +434,11 @@ describe("TransactionsRepository", () => {
     });
 
     it("rejects settling a cancelled engagement", async () => {
-      await engagements.update(engagementId, { status: "cancelled" });
+      // seeded directly on the table -- status isn't settable through the
+      // repository's own update() (see engagementsRepository.ts); this
+      // test is about assertSettlesEngagement's own behavior given a
+      // cancelled engagement, not about how it became cancelled
+      await database.engagements.update(engagementId, { status: "cancelled" });
       await expect(
         transactions.create({
           accountId,

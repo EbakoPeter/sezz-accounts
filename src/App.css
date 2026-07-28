@@ -27,6 +27,23 @@
   --text: #2b2620;
   --text-dim: #726b5e;
 
+  /* Section colors — one per top-level menu, used only by the sticky
+     page header (see .page-header below), never by the existing
+     accent-gold/sage/ink nested-section treatment, which stays as it
+     was. Reuses ink/gold/sage for the three menus already strongly
+     associated with them elsewhere in this file; the rest are new,
+     chosen to stay within the same muted, warm "ledger" register
+     rather than introducing a saturated, clashing color per page. */
+  --hdr-home: var(--ink);
+  --hdr-accounts: var(--gold);
+  --hdr-operations: var(--sage);
+  --hdr-budget: #8b4049;
+  --hdr-debts: #a8672f;
+  --hdr-reports: #4d6b7a;
+  --hdr-recommendations: #6b5277;
+  --hdr-users: #7a6a3d;
+  --hdr-sync: #3d6b63;
+
   /* Type */
   --font-display: "Newsreader", Georgia, serif;
   --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
@@ -44,6 +61,11 @@
   --shadow-card: 0 1px 2px rgba(22, 51, 62, 0.04), 0 8px 24px rgba(22, 51, 62, 0.06);
   --shadow-raised: 0 4px 20px rgba(22, 51, 62, 0.12);
   --transition: 150ms ease;
+  /* The sticky top nav's own height (padding + tab-bar), referenced by
+     .page-header and table thead below so each can stack correctly
+     underneath it rather than each guessing its own offset. */
+  --nav-height: 60px;
+  --page-header-height: 52px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -87,6 +109,62 @@ body {
     max-width: 100vw;
     padding: var(--space-4) var(--space-3) var(--space-5);
   }
+}
+
+/* The one title every panel uses (see PageHeader.tsx) instead of each
+   writing its own <h2> — same sticky behavior, same centered/uppercase
+   treatment, same structure everywhere, with only the color varying
+   per section (data-section, matched against --hdr-* above) so ink,
+   comptes, budget, etc. each still read as visually distinct pages
+   rather than one undifferentiated header repeated throughout. */
+.page-header {
+  position: sticky;
+  top: var(--nav-height);
+  z-index: 90;
+  text-align: center;
+  padding: var(--space-3) var(--space-4);
+  margin: 0 0 var(--space-5);
+  border-radius: var(--radius-md);
+  background: var(--section-color, var(--ink));
+  box-shadow: var(--shadow-card);
+}
+
+.page-header h2 {
+  margin: 0;
+  color: #f4efe2;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.page-header[data-section="home"] {
+  --section-color: var(--hdr-home);
+}
+.page-header[data-section="accounts"] {
+  --section-color: var(--hdr-accounts);
+}
+.page-header[data-section="operations"] {
+  --section-color: var(--hdr-operations);
+}
+.page-header[data-section="budget"] {
+  --section-color: var(--hdr-budget);
+}
+.page-header[data-section="debts"] {
+  --section-color: var(--hdr-debts);
+}
+.page-header[data-section="reports"] {
+  --section-color: var(--hdr-reports);
+}
+.page-header[data-section="recommendations"] {
+  --section-color: var(--hdr-recommendations);
+}
+.page-header[data-section="users"] {
+  --section-color: var(--hdr-users);
+}
+.page-header[data-section="sync"] {
+  --section-color: var(--hdr-sync);
 }
 
 /* Focus visibility — kept deliberately strong; a finance app is exactly
@@ -181,6 +259,25 @@ section.accent-ink h3 {
   color: var(--ink-light);
 }
 
+/* Budget Prévisionnel's category/subcategory creation forms — a warm,
+   dashed-border "fill this in" card, deliberately unlike both the plain
+   white table below it and the solid-border accent-* nested sections
+   used elsewhere, so the recording area reads as its own distinct kind
+   of surface rather than blending into either. */
+.budget-entry-section {
+  background: linear-gradient(180deg, #fffaf0 0%, #fdf3e0 100%);
+  border: 2px dashed var(--gold);
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-5);
+  margin-bottom: var(--space-5);
+}
+
+.budget-entry-section form + form {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px dashed var(--line);
+}
+
 section h2 {
   font-family: var(--font-display);
   font-weight: 600;
@@ -224,10 +321,16 @@ input,
 select {
   padding: 9px 11px;
   border: 1px solid #cbc1aa;
+  border-left: 3px solid var(--gold);
   border-radius: var(--radius-sm);
   font-size: 0.9rem;
   font-family: var(--font-body);
-  background: var(--surface);
+  /* A warm cream, not the same flat white every plain surface uses —
+     together with the gold left edge, this is what makes "this is
+     something you write into" read at a glance, distinct from a
+     computed/read-only figure sitting in plain text right next to it. */
+  background: #fffdf7;
+  box-shadow: inset 0 1px 3px rgba(22, 51, 62, 0.05);
   color: var(--text);
   transition:
     border-color var(--transition),
@@ -243,7 +346,22 @@ select:hover {
 input:focus,
 select:focus {
   border-color: var(--gold);
-  box-shadow: 0 0 0 3px rgba(201, 138, 59, 0.15);
+  box-shadow:
+    inset 0 1px 3px rgba(22, 51, 62, 0.05),
+    0 0 0 3px rgba(201, 138, 59, 0.15);
+}
+
+/* An auto-calculated figure sitting inline with, or in the same table
+   column as, an editable one — italic and muted rather than plain text,
+   so it reads unmistakably as "derived, not something to type into"
+   even without its own explanatory title="" tooltip. Used specifically
+   for values computed live rather than stored (e.g. the "Dettes"
+   budget line's allocation, a subcategory's actual/remaining/percentUsed
+   figures) — an ordinary read-only display (an account balance, a
+   report total) doesn't need this treatment on its own. */
+.computed {
+  font-style: italic;
+  color: var(--text-dim);
 }
 
 button {
@@ -339,6 +457,14 @@ th {
   text-transform: uppercase;
   border-bottom: 2px solid var(--ink);
   white-space: nowrap;
+  /* Stuck just below the nav + page header stack, so a long table's
+     column names stay visible while scrolling through its rows —
+     needs its own opaque background since a stuck header otherwise
+     lets scrolled-under row content show through it. */
+  position: sticky;
+  top: calc(var(--nav-height) + var(--page-header-height));
+  z-index: 10;
+  background: var(--surface);
 }
 
 td {
@@ -481,8 +607,12 @@ tfoot th {
    row, since a wrapped tab bar on a phone eats vertical space the
    content needs more. */
 .tab-bar-wrapper {
-  position: relative;
-  margin-bottom: var(--space-5);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--paper);
+  padding-top: var(--space-2);
+  margin: calc(var(--space-2) * -1) 0 var(--space-5);
 }
 
 .tab-bar {

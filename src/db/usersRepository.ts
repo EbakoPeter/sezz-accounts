@@ -102,6 +102,26 @@ export function createUsersRepository(database: SezzAccountsDatabase = defaultDb
   }
 
   return {
+    /** Checks a password against one specific user's own stored hash,
+     * purely to gate revealing something already-decrypted-in-memory
+     * (see HomePanel's hidden financial situation) behind a step-up
+     * confirmation — never used for the app's own login, and never
+     * proceeds past just this yes/no check. Deliberately does not touch
+     * the active DEK, unlike authenticate() below, and deliberately does
+     * not apply that same function's lockout tracking: this isn't a
+     * login attempt, and counting it as one could lock someone out of the
+     * app entirely over a few mistyped attempts at revealing a dashboard
+     * summary, an unrelated and far more disruptive consequence than
+     * what this check itself protects. Whoever is running this already
+     * has an unlocked, authenticated session as this exact user; this
+     * only adds a deliberate pause in front of one specific piece of
+     * content within it. */
+    async verifyOwnPassword(userId: string, password: string): Promise<boolean> {
+      const row = await database.users.get(userId);
+      if (!row) return false;
+      return verifyPassword(password, { hash: row.passwordHash, salt: row.passwordSalt });
+    },
+
     /** The very first user ever created is always forced to full admin
      * permissions, regardless of what role/permissions were requested —
      * otherwise a mistake on the first run could lock the app's own

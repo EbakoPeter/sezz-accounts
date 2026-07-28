@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMonthlyReport } from "@/hooks/useMonthlyReport";
 import { useAuth } from "@/auth/AuthContext";
 import { formatFcfa } from "@/lib/money";
+import { PageHeader } from "./PageHeader";
 
 const MONTH_NAMES = [
   "Janvier",
@@ -92,7 +93,7 @@ export function MonthlyReportPanel() {
   if (!currentUser?.permissions.viewReports) {
     return (
       <section aria-labelledby="monthly-report-heading">
-        <h2 id="monthly-report-heading">Rapport Mensuel</h2>
+        <PageHeader title="Rapport Mensuel" section="reports" id="monthly-report-heading" />
         <p className="permission-notice">
           Vous n&apos;avez pas la permission de consulter les rapports.
         </p>
@@ -102,7 +103,7 @@ export function MonthlyReportPanel() {
 
   return (
     <section aria-labelledby="monthly-report-heading">
-      <h2 id="monthly-report-heading">Rapport Mensuel</h2>
+      <PageHeader title="Rapport Mensuel" section="reports" id="monthly-report-heading" />
       <p className="tagline">Revenus et dépenses, triés de janvier à décembre.</p>
 
       <div className="field" style={{ marginBottom: 16 }}>

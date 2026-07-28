@@ -3,6 +3,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { usersRepository, roleTemplatesRepository } from "@/repositories";
 import { useAuth } from "@/auth/AuthContext";
 import { ROLE_LABELS, PERMISSION_LABELS } from "@/lib/permissions";
+import { PageHeader } from "./PageHeader";
 import type { Permissions, UserRole } from "@/types/models";
 
 const PERMISSION_KEYS = Object.keys(PERMISSION_LABELS) as (keyof Permissions)[];
@@ -34,10 +35,12 @@ export function UsersPanel({ view = "both" }: { view?: "list" | "profile" | "bot
   const [regeneratedCode, setRegeneratedCode] = useState<string | null>(null);
   const [templateError, setTemplateError] = useState<string | null>(null);
 
+  const pageTitle = view === "profile" ? "Profil" : "Utilisateurs";
+
   if (!currentUser?.permissions.manageUsers) {
     return (
       <section aria-labelledby="users-heading">
-        <h2 id="users-heading">Utilisateurs</h2>
+        <PageHeader title={pageTitle} section="users" id="users-heading" />
         <p className="permission-notice">
           Vous n&apos;avez pas la permission de gérer les utilisateurs.
         </p>
@@ -150,7 +153,7 @@ export function UsersPanel({ view = "both" }: { view?: "list" | "profile" | "bot
 
   return (
     <section aria-labelledby="users-heading">
-      <h2 id="users-heading">Utilisateurs</h2>
+      <PageHeader title={pageTitle} section="users" id="users-heading" />
 
       {(view === "list" || view === "both") && (
         <>

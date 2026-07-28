@@ -94,7 +94,7 @@ describe("BudgetPanel", () => {
     expect(await within(table).findByText("Transport")).toBeInTheDocument();
   });
 
-  it("updates an allocation inline and reflects it live", async () => {
+  it("only changes an allocation through Modifier/Enregistrer, never by typing directly in the table", async () => {
     const session = await createTestUser("admin");
     await db.budgetCategories.add(
       await encryptedFixture(
@@ -119,15 +119,27 @@ describe("BudgetPanel", () => {
     const user = userEvent.setup();
     renderWithSession(<BudgetPanel />, session);
 
+    // the amount is plain, read-only text before Modifier is clicked --
+    // no input to type into at all
+    const transportRow = (await screen.findByText("Transport")).closest("tr")!;
+    expect(screen.queryByLabelText("Budget mensuel de Transport")).not.toBeInTheDocument();
+
+    await user.click(within(transportRow).getByRole("button", { name: /modifier/i }));
     const input = await screen.findByLabelText("Budget mensuel de Transport");
     expect(input).toHaveValue(10000);
     await user.clear(input);
     await user.type(input, "30000");
-    await user.tab(); // triggers onBlur
+
+    // still unsaved until Enregistrer is clicked
+    let row = await db.budgetSubcategories.get("sub-1");
+    let updated = row && (await fromStorageRow<BudgetSubcategory>(row));
+    expect(updated?.monthlyAllocation).toBe(10000);
+
+    await user.click(screen.getByRole("button", { name: /enregistrer/i }));
 
     await waitFor(async () => {
-      const row = await db.budgetSubcategories.get("sub-1");
-      const updated = row && (await fromStorageRow<BudgetSubcategory>(row));
+      row = await db.budgetSubcategories.get("sub-1");
+      updated = row && (await fromStorageRow<BudgetSubcategory>(row));
       expect(updated?.monthlyAllocation).toBe(30000);
     });
   });
@@ -325,14 +337,18 @@ describe("BudgetPanel", () => {
       expect(screen.queryByText(/engagements sur le budget/i)).not.toBeInTheDocument();
     });
 
-    it("groups the budget line dropdown by category, showing the parent category as a group label", async () => {
+    it("groups the budget line dropdown by category, and shows each line's remaining balance", async () => {
       const session = await createTestUser("admin");
       await seedCategoryAndSubcategory();
       renderWithSession(<BudgetPanel />, session);
 
       const dropdown = await screen.findByLabelText(/ligne budgétaire/i);
       const group = within(dropdown).getByRole("group", { name: "Vie Courante" });
-      expect(within(group).getByRole("option", { name: "Scolarité" })).toBeInTheDocument();
+      // no transactions/engagements seeded yet, so the remaining balance
+      // equals the full 50 000 allocation from seedCategoryAndSubcategory
+      expect(
+        within(group).getByRole("option", { name: /Scolarité.*Restant.*50 000/ }),
+      ).toBeInTheDocument();
     });
 
     it("creates an engagement and reduces the visible remaining amount", async () => {
@@ -362,7 +378,7 @@ describe("BudgetPanel", () => {
       });
     });
 
-    it("changes an engagement's status", async () => {
+    it("shows the engagement's status as plain read-only text, never an editable control", async () => {
       const session = await createTestUser("admin");
       await seedCategoryAndSubcategory();
       await db.engagements.add(
@@ -380,49 +396,59 @@ describe("BudgetPanel", () => {
           ["amount", "label", "note"] as const,
         ),
       );
-      const user = userEvent.setup();
-      renderWithSession(<BudgetPanel />, session);
-
-      const statusSelect = await screen.findByLabelText(/statut de l'engagement test/i);
-      await user.selectOptions(statusSelect, "realized");
-
-      await waitFor(async () => {
-        const updated = await db.engagements.get("eng-1");
-        const decrypted = await fromStorageRow<{ status: string }>(updated!);
-        expect(decrypted.status).toBe("realized");
-      });
-    });
-
-    it("shows Payé: Oui once an engagement is réalisé, Non otherwise", async () => {
-      const session = await createTestUser("admin");
-      await seedCategoryAndSubcategory();
-      await db.engagements.add(
-        await encryptedFixture<Engagement, "amount" | "label" | "note">(
-          {
-            id: "eng-1",
-            subcategoryId: "sub-1",
-            date: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-15`,
-            status: "engaged" as const,
-            amount: 10000,
-            label: "Test",
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-          },
-          ["amount", "label", "note"] as const,
-        ),
-      );
-      const user = userEvent.setup();
       renderWithSession(<BudgetPanel />, session);
 
       const row = (await screen.findByText("Test")).closest("tr")!;
-      expect(row).toHaveTextContent("Non");
+      // status is derived exclusively from whether a real expense settles
+      // this engagement (see transactionsRepository's
+      // assertSettlesEngagement/setEngagementStatus) -- there is
+      // deliberately no dropdown or other control here to change it
+      // directly, on this row or anywhere else on the page
+      expect(within(row).getByText("Engagé")).toBeInTheDocument();
+      expect(within(row).queryByRole("combobox")).not.toBeInTheDocument();
+      expect(screen.queryByLabelText(/statut de l'engagement test/i)).not.toBeInTheDocument();
+    });
 
-      const statusSelect = await screen.findByLabelText(/statut de l'engagement test/i);
-      await user.selectOptions(statusSelect, "realized");
+    it("shows Payé: Oui for a réalisé engagement, Non for one still engagé", async () => {
+      const session = await createTestUser("admin");
+      await seedCategoryAndSubcategory();
+      const dateStr = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-15`;
+      await db.engagements.add(
+        await encryptedFixture<Engagement, "amount" | "label" | "note">(
+          {
+            id: "eng-pending",
+            subcategoryId: "sub-1",
+            date: dateStr,
+            status: "engaged" as const,
+            amount: 10000,
+            label: "En attente",
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          },
+          ["amount", "label", "note"] as const,
+        ),
+      );
+      await db.engagements.add(
+        await encryptedFixture<Engagement, "amount" | "label" | "note">(
+          {
+            id: "eng-done",
+            subcategoryId: "sub-1",
+            date: dateStr,
+            status: "realized" as const,
+            amount: 10000,
+            label: "Réglé",
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          },
+          ["amount", "label", "note"] as const,
+        ),
+      );
+      renderWithSession(<BudgetPanel />, session);
 
-      await waitFor(() => {
-        expect(row).toHaveTextContent("Oui");
-      });
+      const pendingRow = (await screen.findByText("En attente")).closest("tr")!;
+      const doneRow = (await screen.findByText("Réglé")).closest("tr")!;
+      expect(pendingRow).toHaveTextContent("Non");
+      expect(doneRow).toHaveTextContent("Oui");
     });
 
     it("edits an engagement's amount and label", async () => {

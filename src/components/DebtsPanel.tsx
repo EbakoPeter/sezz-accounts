@@ -3,6 +3,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { debtsRepository, debtPaymentsRepository } from "@/repositories";
 import { useAccountsWithBalances } from "@/hooks/useAccountsWithBalances";
 import { useDebtSummaries } from "@/hooks/useDebtSummaries";
+import { PageHeader } from "./PageHeader";
 import { useAuth } from "@/auth/AuthContext";
 import { formatFcfa } from "@/lib/money";
 import type { Debt, DebtKind } from "@/types/models";
@@ -212,9 +213,13 @@ export function DebtsPanel({ view = "both" }: { view?: "debts" | "receivables" |
 
   return (
     <section aria-labelledby="debts-heading">
-      <h2 id="debts-heading">
-        {view === "debts" ? "Dettes" : view === "receivables" ? "Créances" : "Dettes & Créances"}
-      </h2>
+      <PageHeader
+        title={
+          view === "debts" ? "Dettes" : view === "receivables" ? "Créances" : "Dettes & Créances"
+        }
+        section="debts"
+        id="debts-heading"
+      />
       <p className="tagline">
         « Dette » = argent que vous devez · « Créance » = argent qu&apos;on vous doit.
       </p>
@@ -376,7 +381,7 @@ export function DebtsPanel({ view = "both" }: { view?: "debts" | "receivables" |
                     <td className={`num ${remaining < 0 ? "negative" : ""}`}>
                       {formatFcfa(remaining)}
                     </td>
-                    <td className="num">
+                    <td className="num computed">
                       {plannedMonthlyPayment === null ? "—" : formatFcfa(plannedMonthlyPayment)}
                     </td>
                     <td>{STATUS_LABELS[status]}</td>
@@ -405,7 +410,7 @@ export function DebtsPanel({ view = "both" }: { view?: "debts" | "receivables" |
                     <td className={`num ${remaining < 0 ? "negative" : ""}`}>
                       {formatFcfa(remaining)}
                     </td>
-                    <td className="num">
+                    <td className="num computed">
                       {plannedMonthlyPayment === null ? "—" : formatFcfa(plannedMonthlyPayment)}
                     </td>
                     <td>{STATUS_LABELS[status]}</td>

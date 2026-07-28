@@ -6,6 +6,7 @@ import { useBudgetSummary } from "@/hooks/useBudgetSummary";
 import { useAuth } from "@/auth/AuthContext";
 import { formatFcfa } from "@/lib/money";
 import type { TransactionKind } from "@/types/models";
+import { PageHeader } from "./PageHeader";
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -238,10 +239,11 @@ export function TransactionsPanel({
   }
 
   const hasAccounts = (accounts?.length ?? 0) > 0;
+  const pageTitle = view === "transfers" ? "Transferts" : "Opérations";
 
   return (
     <section aria-labelledby="transactions-heading">
-      <h2 id="transactions-heading">Opérations</h2>
+      <PageHeader title={pageTitle} section="operations" id="transactions-heading" />
 
       {(view === "operations" || view === "both") &&
         (!canManage ? (

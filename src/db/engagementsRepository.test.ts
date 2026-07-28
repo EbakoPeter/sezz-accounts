@@ -141,26 +141,27 @@ describe("EngagementsRepository", () => {
   });
 
   describe("update", () => {
-    it("changes the status to realized", async () => {
+    it("never changes status via update, even if a caller bypasses the type system", async () => {
       const engagement = await engagements.create({
         subcategoryId,
         amount: 1000,
         label: "X",
         date: "2026-01-01",
       });
-      const updated = await engagements.update(engagement.id, { status: "realized" });
-      expect(updated.status).toBe("realized");
-    });
+      expect(engagement.status).toBe("engaged");
 
-    it("changes the status to cancelled", async () => {
-      const engagement = await engagements.create({
-        subcategoryId,
-        amount: 1000,
-        label: "X",
-        date: "2026-01-01",
-      });
-      const updated = await engagements.update(engagement.id, { status: "cancelled" });
-      expect(updated.status).toBe("cancelled");
+      // status is deliberately not part of EngagementUpdate -- this
+      // simulates a caller that bypasses TypeScript entirely (plain JS,
+      // an `any`-typed value, a stray extra property), confirming the
+      // repository itself ignores it rather than relying on the type
+      // system as the only thing preventing this
+      const updated = await engagements.update(engagement.id, {
+        label: "Y",
+        status: "realized",
+      } as unknown as Parameters<typeof engagements.update>[1]);
+
+      expect(updated.label).toBe("Y");
+      expect(updated.status).toBe("engaged");
     });
 
     it("updates the amount and label", async () => {

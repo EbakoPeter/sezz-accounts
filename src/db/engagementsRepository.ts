@@ -93,6 +93,15 @@ export function createEngagementsRepository(database: SezzAccountsDatabase = def
       return row ? decryptEngagement(row) : undefined;
     },
 
+    /** `status` is deliberately absent from EngagementUpdate — it isn't a
+     * field someone edits, it's a fact derived from whether a real
+     * expense actually settles this engagement (see
+     * transactionsRepository's assertSettlesEngagement/setEngagementStatus,
+     * which write directly to this table's status field through their own
+     * path, entirely separate from this method). Accepting an arbitrary
+     * status here would let a person mark something "réalisé" with no
+     * expense behind it at all, silently drifting from what actually
+     * happened. */
     async update(id: string, patch: EngagementUpdate): Promise<Engagement> {
       const row = await database.engagements.get(id);
       if (!row) throw new NotFoundError("Engagement", id);
@@ -113,9 +122,6 @@ export function createEngagementsRepository(database: SezzAccountsDatabase = def
       }
       if (patch.label !== undefined) {
         next.label = assertValidLabel(patch.label);
-      }
-      if (patch.status !== undefined) {
-        next.status = patch.status;
       }
       if (patch.note !== undefined) {
         next.note = patch.note;

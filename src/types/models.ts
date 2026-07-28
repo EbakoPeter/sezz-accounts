@@ -230,7 +230,7 @@ export interface Engagement {
 export type NewEngagement = Pick<Engagement, "subcategoryId" | "amount" | "label" | "date"> &
   Partial<Pick<Engagement, "note">>;
 export type EngagementUpdate = Partial<
-  Pick<Engagement, "subcategoryId" | "amount" | "label" | "date" | "status" | "note">
+  Pick<Engagement, "subcategoryId" | "amount" | "label" | "date" | "note">
 >;
 
 /**

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "@/auth/AuthContext";
 import { db } from "@/db/schema";
+import { PageHeader } from "./PageHeader";
 
 function currentYearMonth(): { year: number; month: number } {
   const now = new Date();
@@ -43,10 +44,19 @@ export function ReportsPanel({
   const [cashBusy, setCashBusy] = useState(false);
   const [cashError, setCashError] = useState<string | null>(null);
 
+  const pageTitle =
+    section === "general"
+      ? "Rapport Général"
+      : section === "custom"
+        ? "Rapport Personnalisé"
+        : section === "cashflow"
+          ? "Trésorerie"
+          : "Rapports";
+
   if (!canView) {
     return (
       <section aria-labelledby="reports-heading">
-        <h2 id="reports-heading">Rapports</h2>
+        <PageHeader title={pageTitle} section="reports" id="reports-heading" />
         <p className="permission-notice">
           Vous n&apos;avez pas la permission de consulter les rapports.
         </p>
@@ -99,7 +109,7 @@ export function ReportsPanel({
 
   return (
     <section aria-labelledby="reports-heading">
-      <h2 id="reports-heading">Rapports</h2>
+      <PageHeader title={pageTitle} section="reports" id="reports-heading" />
 
       {(section === "general" || section === "all") && (
         <section className="accent-ink" aria-labelledby="general-report-heading">

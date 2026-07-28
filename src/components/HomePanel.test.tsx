@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { HomePanel } from "./HomePanel";
 import { db } from "@/db/schema";
-import { clearActiveDek } from "@/lib/encryptionSession";
+import { clearActiveDek, getActiveDek } from "@/lib/encryptionSession";
 import { encryptedFixture } from "@/test/encryptedFixture";
 import { createTestUser, renderWithSession, renderAuthenticated } from "@/test/renderAuthenticated";
+import { usersRepository } from "@/repositories";
 import type { Transaction, BudgetCategory, BudgetSubcategory } from "@/types/models";
 
 afterEach(async () => {
@@ -23,7 +25,96 @@ function currentMonthDate(day: string) {
 }
 
 describe("HomePanel", () => {
-  it("shows the cumulative balance across all accounts", async () => {
+  it("hides the financial situation by default", async () => {
+    await renderAuthenticated(<HomePanel />);
+
+    const situation = (await screen.findByText(/situation financière/i)).closest("section")!;
+    expect(within(situation).getByText(/masquée par défaut/i)).toBeInTheDocument();
+    expect(within(situation).queryByRole("img")).not.toBeInTheDocument();
+    expect(within(situation).getByRole("button", { name: /^afficher$/i })).toBeInTheDocument();
+  });
+
+  it("rejects a wrong password and keeps the content hidden", async () => {
+    const session = await createTestUser("admin");
+    const user = userEvent.setup();
+    renderWithSession(<HomePanel />, session);
+
+    const situation = (await screen.findByText(/situation financière/i)).closest("section")!;
+    await user.click(within(situation).getByRole("button", { name: /^afficher$/i }));
+    await user.type(within(situation).getByLabelText(/votre mot de passe/i), "wrong");
+    await user.click(within(situation).getByRole("button", { name: /^confirmer$/i }));
+
+    expect(await within(situation).findByRole("alert")).toHaveTextContent(/incorrect/i);
+    expect(within(situation).queryByRole("img")).not.toBeInTheDocument();
+  });
+
+  it("reveals the situation once the current user's own password is entered, and can be hidden again", async () => {
+    const session = await createTestUser("admin");
+    await db.accounts.add(
+      await encryptedFixture(
+        { id: "acc-1", name: "Compte A", initialBalance: 50000, createdAt: 1, updatedAt: 1 },
+        ["name", "initialBalance"] as const,
+      ),
+    );
+    const user = userEvent.setup();
+    renderWithSession(<HomePanel />, session);
+
+    const situation = (await screen.findByText(/situation financière/i)).closest("section")!;
+    await user.click(within(situation).getByRole("button", { name: /^afficher$/i }));
+    await user.type(within(situation).getByLabelText(/votre mot de passe/i), "test-password-123");
+    await user.click(within(situation).getByRole("button", { name: /^confirmer$/i }));
+
+    await within(situation).findByRole("img");
+    expect(within(situation).getByText(/solde cumulé/i)).toHaveTextContent("50 000 FCFA");
+
+    await user.click(within(situation).getByRole("button", { name: /masquer à nouveau/i }));
+
+    expect(within(situation).queryByRole("img")).not.toBeInTheDocument();
+    expect(within(situation).getByRole("button", { name: /^afficher$/i })).toBeInTheDocument();
+  });
+
+  it("rejects a different user's password, even an admin's — only the logged-in user's own works", async () => {
+    // distinct, explicit passwords specifically to make this unambiguous,
+    // rather than relying on createTestUser's shared convenience password
+    // for both users
+    const { user: adminUser } = await usersRepository.create({
+      username: "the-admin",
+      displayName: "The Admin",
+      password: "admin-only-password",
+      role: "admin",
+    });
+    const { user: viewerUser } = await usersRepository.create({
+      username: "the-viewer",
+      displayName: "The Viewer",
+      password: "viewer-only-password",
+      role: "viewer",
+    });
+    void adminUser;
+    const dek = getActiveDek();
+    if (!dek) throw new Error("Expected an active DEK after creating users.");
+    const user = userEvent.setup();
+    renderWithSession(<HomePanel />, { user: viewerUser, dek });
+
+    const situation = (await screen.findByText(/situation financière/i)).closest("section")!;
+    await user.click(within(situation).getByRole("button", { name: /^afficher$/i }));
+    await user.type(within(situation).getByLabelText(/votre mot de passe/i), "admin-only-password");
+    await user.click(within(situation).getByRole("button", { name: /^confirmer$/i }));
+
+    expect(await within(situation).findByRole("alert")).toHaveTextContent(/incorrect/i);
+    expect(within(situation).queryByRole("img")).not.toBeInTheDocument();
+
+    // but the viewer's own password does work
+    await user.clear(within(situation).getByLabelText(/votre mot de passe/i));
+    await user.type(
+      within(situation).getByLabelText(/votre mot de passe/i),
+      "viewer-only-password",
+    );
+    await user.click(within(situation).getByRole("button", { name: /^confirmer$/i }));
+
+    await within(situation).findByRole("button", { name: /masquer à nouveau/i });
+  });
+
+  it("shows the cumulative balance across all accounts once revealed", async () => {
     const session = await createTestUser("admin");
     await db.accounts.add(
       await encryptedFixture(
@@ -37,10 +128,14 @@ describe("HomePanel", () => {
         ["name", "initialBalance"] as const,
       ),
     );
-
+    const user = userEvent.setup();
     renderWithSession(<HomePanel />, session);
 
     const situation = (await screen.findByText(/situation financière/i)).closest("section")!;
+    await user.click(within(situation).getByRole("button", { name: /^afficher$/i }));
+    await user.type(within(situation).getByLabelText(/votre mot de passe/i), "test-password-123");
+    await user.click(within(situation).getByRole("button", { name: /^confirmer$/i }));
+
     await within(situation).findByRole("img", { name: /répartition du solde par compte/i });
     expect(within(situation).getByText(/Compte A/)).toBeInTheDocument();
     expect(within(situation).getByText(/Compte B/)).toBeInTheDocument();

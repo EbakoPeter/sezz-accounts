@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { HomePanel } from "@/components/HomePanel";
 import { AccountsPanel } from "@/components/AccountsPanel";
 import { TransactionsPanel } from "@/components/TransactionsPanel";
+import { ForecastCreditPanel } from "@/components/ForecastCreditPanel";
 import { BudgetPanel } from "@/components/BudgetPanel";
 import { DebtsPanel } from "@/components/DebtsPanel";
 import { MonthlyReportPanel } from "@/components/MonthlyReportPanel";
@@ -53,6 +54,7 @@ const MENUS: MenuDef[] = [
     label: "Opérations",
     abbrev: "OPER",
     submenus: [
+      { id: "forecastCredit", label: "Crédit Prév (CP)" },
       { id: "operations", label: "Opérations" },
       { id: "transfers", label: "Transferts" },
     ],
@@ -256,7 +258,10 @@ export function App() {
         {selectedMenu.id === "accounts" && (
           <AccountsPanel view={selectedSubmenuId === "new" ? "new" : "list"} />
         )}
-        {selectedMenu.id === "transactions" && (
+        {selectedMenu.id === "transactions" && selectedSubmenuId === "forecastCredit" && (
+          <ForecastCreditPanel />
+        )}
+        {selectedMenu.id === "transactions" && selectedSubmenuId !== "forecastCredit" && (
           <TransactionsPanel
             view={selectedSubmenuId === "transfers" ? "transfers" : "operations"}
           />

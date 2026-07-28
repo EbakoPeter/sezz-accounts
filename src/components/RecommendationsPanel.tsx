@@ -1,6 +1,7 @@
 import { useRecommendations } from "@/hooks/useRecommendations";
 import { useAuth } from "@/auth/AuthContext";
 import type { InsightSeverity } from "@/db/recommendations";
+import { PageHeader } from "./PageHeader";
 
 const SEVERITY_STYLE: Record<
   InsightSeverity,
@@ -19,7 +20,11 @@ export function RecommendationsPanel() {
   if (!currentUser?.permissions.viewReports) {
     return (
       <section aria-labelledby="recommendations-heading">
-        <h2 id="recommendations-heading">Recommandations</h2>
+        <PageHeader
+          title="Recommandations"
+          section="recommendations"
+          id="recommendations-heading"
+        />
         <p className="permission-notice">
           Vous n&apos;avez pas la permission de consulter les recommandations.
         </p>
@@ -29,7 +34,7 @@ export function RecommendationsPanel() {
 
   return (
     <section aria-labelledby="recommendations-heading">
-      <h2 id="recommendations-heading">Recommandations</h2>
+      <PageHeader title="Recommandations" section="recommendations" id="recommendations-heading" />
       <p className="tagline">
         Analyse automatique du mois en cours, calculée uniquement à partir de vos données — rien
         n&apos;est envoyé à l&apos;extérieur.

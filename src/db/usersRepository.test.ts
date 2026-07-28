@@ -131,6 +131,73 @@ describe("UsersRepository", () => {
     });
   });
 
+  describe("verifyOwnPassword", () => {
+    it("returns true when the password matches that specific user's own password", async () => {
+      const { user } = await users.create({
+        username: "user1",
+        displayName: "User",
+        password: "correct-horse-battery",
+        role: "standard",
+      });
+
+      expect(await users.verifyOwnPassword(user.id, "correct-horse-battery")).toBe(true);
+    });
+
+    it("returns false for a wrong password", async () => {
+      const { user } = await users.create({
+        username: "user1",
+        displayName: "User",
+        password: "correct-horse-battery",
+        role: "standard",
+      });
+
+      expect(await users.verifyOwnPassword(user.id, "wrong-password")).toBe(false);
+    });
+
+    it("returns false when the password matches a *different* user, even an admin", async () => {
+      const { user: admin } = await users.create({
+        username: "admin1",
+        displayName: "Admin",
+        password: "admin-password-123",
+        role: "admin",
+      });
+      const { user: standardUser } = await users.create({
+        username: "standard1",
+        displayName: "Standard",
+        password: "standard-password-123",
+        role: "standard",
+      });
+      void admin;
+
+      // the standard user's own password does not unlock using the
+      // admin's password, and vice versa -- this checks one specific
+      // account, never any other regardless of role
+      expect(await users.verifyOwnPassword(standardUser.id, "admin-password-123")).toBe(false);
+    });
+
+    it("returns false for a user id that does not exist", async () => {
+      expect(await users.verifyOwnPassword("no-such-id", "anything")).toBe(false);
+    });
+
+    it("does not change the active session or lock the account on repeated wrong attempts", async () => {
+      const { user } = await users.create({
+        username: "user1",
+        displayName: "User",
+        password: "correct-horse-battery",
+        role: "standard",
+      });
+
+      for (let i = 0; i < 10; i++) {
+        expect(await users.verifyOwnPassword(user.id, "wrong")).toBe(false);
+      }
+
+      // still able to log in normally afterward -- confirms this never
+      // touched the same lockout counter authenticate() uses
+      const result = await users.authenticate("user1", "correct-horse-battery");
+      expect(result.user.id).toBe(user.id);
+    });
+  });
+
   describe("authenticate", () => {
     beforeEach(async () => {
       await users.create({

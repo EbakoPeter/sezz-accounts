@@ -3,6 +3,7 @@ import { accountsRepository } from "@/repositories";
 import { useAccountsWithBalances } from "@/hooks/useAccountsWithBalances";
 import { useAuth } from "@/auth/AuthContext";
 import { formatFcfa } from "@/lib/money";
+import { PageHeader } from "./PageHeader";
 
 export function AccountsPanel({ view = "both" }: { view?: "new" | "list" | "both" }) {
   const accounts = useAccountsWithBalances();
@@ -77,9 +78,12 @@ export function AccountsPanel({ view = "both" }: { view?: "new" | "list" | "both
     }
   }
 
+  const pageTitle =
+    view === "new" ? "Nouveau Compte" : view === "list" ? "Listing des Comptes" : "Comptes";
+
   return (
     <section aria-labelledby="accounts-heading">
-      <h2 id="accounts-heading">Comptes</h2>
+      <PageHeader title={pageTitle} section="accounts" id="accounts-heading" />
 
       {(view === "new" || view === "both") &&
         (!canManage ? (

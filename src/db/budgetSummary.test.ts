@@ -320,14 +320,21 @@ describe("getBudgetSummary", () => {
         label: "Réalisé",
         date: "2026-01-15",
       });
-      await engagements.update(realized.id, { status: "realized" });
+      // status is deliberately not settable via the repository's own
+      // update() (see engagementsRepository.ts) -- these two rows are
+      // seeded directly on the table itself, exactly the kind of
+      // internal-only write the real settle/revert logic in
+      // transactionsRepository also uses, to set up the scenario this
+      // test actually cares about (how getBudgetSummary treats each
+      // status), not to test update() itself.
+      await database.engagements.update(realized.id, { status: "realized" });
       const cancelled = await engagements.create({
         subcategoryId: sub.id,
         amount: 5000,
         label: "Annulé",
         date: "2026-01-15",
       });
-      await engagements.update(cancelled.id, { status: "cancelled" });
+      await database.engagements.update(cancelled.id, { status: "cancelled" });
 
       const summary = await getBudgetSummary(2026, 1, database);
       const scolarite = summary[0]?.subcategories.find((s) => s.name === "Scolarité");

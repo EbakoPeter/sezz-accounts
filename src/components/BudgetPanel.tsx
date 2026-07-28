@@ -9,6 +9,7 @@ import { useBudgetSummary } from "@/hooks/useBudgetSummary";
 import { useAuth } from "@/auth/AuthContext";
 import { formatFcfa } from "@/lib/money";
 import type { EngagementStatus } from "@/types/models";
+import { PageHeader } from "./PageHeader";
 
 function currentYearMonth(): { year: number; month: number } {
   const now = new Date();
@@ -37,6 +38,7 @@ export function BudgetPanel({ view = "both" }: { view?: "forecast" | "engagement
 
   const [editingSubcategoryId, setEditingSubcategoryId] = useState<string | null>(null);
   const [editSubcategoryName, setEditSubcategoryName] = useState("");
+  const [editSubcategoryAllocation, setEditSubcategoryAllocation] = useState("");
 
   const engagements = useLiveQuery(
     () => engagementsRepository.list({ year, month }),
@@ -84,19 +86,6 @@ export function BudgetPanel({ view = "both" }: { view?: "forecast" | "engagement
       setSubAllocation("0");
     } catch (error) {
       setSubError(error instanceof Error ? error.message : "Erreur inattendue.");
-    }
-  }
-
-  async function handleAllocationChange(subcategoryId: string, value: string) {
-    const amount = Number(value);
-    if (!Number.isFinite(amount)) return;
-    try {
-      await budgetSubcategoriesRepository.update(subcategoryId, { monthlyAllocation: amount });
-    } catch (error) {
-      setRowError({
-        id: subcategoryId,
-        message: error instanceof Error ? error.message : "Erreur inattendue.",
-      });
     }
   }
 
@@ -152,10 +141,15 @@ export function BudgetPanel({ view = "both" }: { view?: "forecast" | "engagement
     }
   }
 
-  function handleStartEditSubcategory(sub: { subcategoryId: string; name: string }) {
+  function handleStartEditSubcategory(sub: {
+    subcategoryId: string;
+    name: string;
+    monthlyAllocation: number;
+  }) {
     setRowError(null);
     setEditingSubcategoryId(sub.subcategoryId);
     setEditSubcategoryName(sub.name);
+    setEditSubcategoryAllocation(String(sub.monthlyAllocation));
   }
 
   function handleCancelEditSubcategory() {
@@ -165,7 +159,10 @@ export function BudgetPanel({ view = "both" }: { view?: "forecast" | "engagement
   async function handleSaveEditSubcategory(id: string) {
     setRowError(null);
     try {
-      await budgetSubcategoriesRepository.update(id, { name: editSubcategoryName });
+      await budgetSubcategoriesRepository.update(id, {
+        name: editSubcategoryName,
+        monthlyAllocation: Number(editSubcategoryAllocation),
+      });
       setEditingSubcategoryId(null);
     } catch (error) {
       setRowError({ id, message: error instanceof Error ? error.message : "Erreur inattendue." });
@@ -200,18 +197,6 @@ export function BudgetPanel({ view = "both" }: { view?: "forecast" | "engagement
     setEngagementRowError(null);
     try {
       await engagementsRepository.remove(id);
-    } catch (error) {
-      setEngagementRowError({
-        id,
-        message: error instanceof Error ? error.message : "Erreur inattendue.",
-      });
-    }
-  }
-
-  async function handleChangeEngagementStatus(id: string, status: EngagementStatus) {
-    setEngagementRowError(null);
-    try {
-      await engagementsRepository.update(id, { status });
     } catch (error) {
       setEngagementRowError({
         id,
@@ -271,9 +256,12 @@ export function BudgetPanel({ view = "both" }: { view?: "forecast" | "engagement
     year: "numeric",
   });
 
+  const pageTitle =
+    view === "engagements" ? "Engagement" : view === "forecast" ? "Budget Prévisionnel" : "Budget";
+
   return (
     <section aria-labelledby="budget-heading">
-      <h2 id="budget-heading">Budget Prévisionnel</h2>
+      <PageHeader title={pageTitle} section="budget" id="budget-heading" />
 
       <div className="field" style={{ marginBottom: 16 }}>
         <label htmlFor="budget-month">Mois analysé</label>
@@ -295,7 +283,7 @@ export function BudgetPanel({ view = "both" }: { view?: "forecast" | "engagement
             Vous n&apos;avez pas la permission de modifier le budget prévisionnel.
           </p>
         ) : (
-          <>
+          <div className="budget-entry-section">
             <form onSubmit={handleCreateCategory} aria-label="Ajouter une catégorie">
               <div className="field">
                 <label htmlFor="cat-name">Nouvelle catégorie</label>
@@ -358,7 +346,7 @@ export function BudgetPanel({ view = "both" }: { view?: "forecast" | "engagement
                 )}
               </form>
             )}
-          </>
+          </div>
         ))}
 
       {(view === "forecast" || view === "both") &&
@@ -458,30 +446,33 @@ export function BudgetPanel({ view = "both" }: { view?: "forecast" | "engagement
                         </td>
                         <td className="num">
                           {sub.autoAllocatedFromDebts ? (
-                            <span title="Calculé automatiquement à partir des mensualités prévisionnelles des dettes en cours.">
+                            <span
+                              className="computed"
+                              title="Calculé automatiquement à partir des mensualités prévisionnelles des dettes en cours."
+                            >
                               {formatFcfa(sub.monthlyAllocation)}{" "}
                               <span className="empty">(auto)</span>
                             </span>
-                          ) : canManage ? (
+                          ) : editingSubcategoryId === sub.subcategoryId ? (
                             <input
                               type="number"
-                              defaultValue={sub.monthlyAllocation}
+                              value={editSubcategoryAllocation}
                               aria-label={`Budget mensuel de ${sub.name}`}
-                              onBlur={(e) =>
-                                handleAllocationChange(sub.subcategoryId, e.target.value)
-                              }
+                              onChange={(e) => setEditSubcategoryAllocation(e.target.value)}
                               style={{ width: 100, textAlign: "right" }}
                             />
                           ) : (
                             formatFcfa(sub.monthlyAllocation)
                           )}
                         </td>
-                        <td className="num">{formatFcfa(sub.actual)}</td>
-                        <td className="num">{formatFcfa(sub.engaged)}</td>
-                        <td className={`num ${sub.remaining < 0 ? "negative" : ""}`}>
+                        <td className="num computed">{formatFcfa(sub.actual)}</td>
+                        <td className="num computed">{formatFcfa(sub.engaged)}</td>
+                        <td className={`num computed ${sub.remaining < 0 ? "negative" : ""}`}>
                           {formatFcfa(sub.remaining)}
                         </td>
-                        <td className={`num ${(sub.percentUsed ?? 0) > 100 ? "negative" : ""}`}>
+                        <td
+                          className={`num computed ${(sub.percentUsed ?? 0) > 100 ? "negative" : ""}`}
+                        >
                           {sub.percentUsed === null ? "—" : `${sub.percentUsed.toFixed(0)}%`}
                         </td>
                         <td>
@@ -559,7 +550,7 @@ export function BudgetPanel({ view = "both" }: { view?: "forecast" | "engagement
                         <optgroup key={category.categoryId} label={category.name}>
                           {category.subcategories.map((sub) => (
                             <option key={sub.subcategoryId} value={sub.subcategoryId}>
-                              {sub.name}
+                              {sub.name} — Restant : {formatFcfa(sub.remaining)}
                             </option>
                           ))}
                         </optgroup>
@@ -639,7 +630,7 @@ export function BudgetPanel({ view = "both" }: { view?: "forecast" | "engagement
                                 <optgroup key={category.categoryId} label={category.name}>
                                   {category.subcategories.map((sub) => (
                                     <option key={sub.subcategoryId} value={sub.subcategoryId}>
-                                      {sub.name}
+                                      {sub.name} — Restant : {formatFcfa(sub.remaining)}
                                     </option>
                                   ))}
                                 </optgroup>
@@ -690,26 +681,7 @@ export function BudgetPanel({ view = "both" }: { view?: "forecast" | "engagement
                           <td>{subcategoryNameById.get(engagement.subcategoryId) ?? "—"}</td>
                           <td className="truncate">{engagement.label}</td>
                           <td className="num">{formatFcfa(engagement.amount)}</td>
-                          <td>
-                            {canManage ? (
-                              <select
-                                aria-label={`Statut de l'engagement ${engagement.label}`}
-                                value={engagement.status}
-                                onChange={(e) =>
-                                  handleChangeEngagementStatus(
-                                    engagement.id,
-                                    e.target.value as EngagementStatus,
-                                  )
-                                }
-                              >
-                                <option value="engaged">Engagé</option>
-                                <option value="realized">Réalisé</option>
-                                <option value="cancelled">Annulé</option>
-                              </select>
-                            ) : (
-                              STATUS_LABELS[engagement.status]
-                            )}
-                          </td>
+                          <td>{STATUS_LABELS[engagement.status]}</td>
                           <td>{engagement.status === "realized" ? "Oui" : "Non"}</td>
                           <td>
                             {canManage && (
