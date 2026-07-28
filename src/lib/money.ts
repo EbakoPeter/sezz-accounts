@@ -15,6 +15,9 @@ export function assertPositiveAmount(value: number, fieldLabel = "Le montant"): 
   if (!Number.isInteger(value)) {
     throw new ValidationError(`${fieldLabel} doit être un nombre entier (pas de centimes).`);
   }
+  if (!Number.isSafeInteger(value)) {
+    throw new ValidationError(`${fieldLabel} est trop grand pour être représenté précisément.`);
+  }
   if (value <= 0) {
     throw new ValidationError(`${fieldLabel} doit être strictement positif.`);
   }
@@ -27,6 +30,9 @@ export function assertNonNegativeAmount(value: number, fieldLabel = "Le montant"
   }
   if (!Number.isInteger(value)) {
     throw new ValidationError(`${fieldLabel} doit être un nombre entier (pas de centimes).`);
+  }
+  if (!Number.isSafeInteger(value)) {
+    throw new ValidationError(`${fieldLabel} est trop grand pour être représenté précisément.`);
   }
   if (value < 0) {
     throw new ValidationError(`${fieldLabel} ne peut pas être négatif.`);

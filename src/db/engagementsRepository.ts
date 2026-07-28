@@ -129,7 +129,7 @@ export function createEngagementsRepository(database: SezzAccountsDatabase = def
       const existing = await database.engagements.get(id);
       if (!existing) throw new NotFoundError("Engagement", id);
       await database.engagements.delete(id);
-      await logDeletion(database, "engagements", id);
+      await logDeletion(database, "engagements", id, existing.seq ?? 0);
     },
   };
 }

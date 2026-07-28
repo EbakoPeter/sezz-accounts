@@ -1,0 +1,22 @@
+# Cloudflare Pages/Workers static-asset hosting reads this file directly —
+# security headers a <meta> tag can't fully express (frame-ancestors,
+# most of CSP) or shouldn't (X-Frame-Options has no meta-tag equivalent
+# at all). Scoped to every path.
+#
+# connect-src allows any https: destination rather than a fixed list —
+# the sync feature deliberately lets a person type in any server address
+# of their own choosing (see SyncPanel.tsx), so this can't be narrowed to
+# specific hosts without breaking that; still meaningfully restricts to
+# encrypted connections only, blocking plain http:.
+#
+# style-src needs 'unsafe-inline': a handful of components use React's
+# inline `style` prop for small one-off layout tweaks. This is a real,
+# accepted gap, not an oversight — inline *styles* can't execute code the
+# way inline *scripts* can, which is why script-src below stays strict
+# with no such allowance.
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(), camera=(), microphone=()
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src https:; frame-ancestors 'none'

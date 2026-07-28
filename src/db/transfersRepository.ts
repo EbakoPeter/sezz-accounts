@@ -121,7 +121,7 @@ export function createTransfersRepository(database: SezzAccountsDatabase = defau
       const existing = await database.transfers.get(id);
       if (!existing) throw new NotFoundError("Transfert", id);
       await database.transfers.delete(id);
-      await logDeletion(database, "transfers", id);
+      await logDeletion(database, "transfers", id, existing.seq ?? 0);
     },
   };
 }

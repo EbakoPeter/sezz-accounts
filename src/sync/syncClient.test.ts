@@ -117,7 +117,7 @@ describe("logoutSyncAccount", () => {
 
   it("resets the push/pull cursors, not just the credentials", async () => {
     await database.syncConfig.put({ key: "lastPushedAt", value: "12345" });
-    await database.syncConfig.put({ key: "lastPulledAt", value: "12345" });
+    await database.syncConfig.put({ key: "lastPulledSeq", value: "12345" });
 
     await logoutSyncAccount(database);
 

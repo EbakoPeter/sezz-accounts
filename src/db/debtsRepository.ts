@@ -164,14 +164,14 @@ export function createDebtsRepository(database: SezzAccountsDatabase = defaultDb
         database.deletionLog,
         async () => {
           if (paymentCount > 0) {
-            const paymentIds = await database.debtPayments.where("debtId").equals(id).primaryKeys();
+            const payments = await database.debtPayments.where("debtId").equals(id).toArray();
             await database.debtPayments.where("debtId").equals(id).delete();
-            for (const paymentId of paymentIds) {
-              await logDeletion(database, "debtPayments", paymentId);
+            for (const payment of payments) {
+              await logDeletion(database, "debtPayments", payment.id, payment.seq ?? 0);
             }
           }
           await database.debts.delete(id);
-          await logDeletion(database, "debts", id);
+          await logDeletion(database, "debts", id, row.seq ?? 0);
         },
       );
     },

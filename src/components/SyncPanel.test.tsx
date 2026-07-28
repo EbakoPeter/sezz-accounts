@@ -106,6 +106,7 @@ describe("SyncPanel", () => {
     await user.click(screen.getByRole("button", { name: /créer le compte de synchronisation/i }));
     await screen.findByText(/connecté à/i);
 
+    fetch.mockResolvedValueOnce(jsonResponse({ totalRecords: 0, latestUpdatedAt: 0 })); // summary
     fetch.mockResolvedValueOnce(jsonResponse({ accepted: 0, serverTime: 1000 })); // push
     fetch.mockResolvedValueOnce(jsonResponse({ records: [], serverTime: 2000 })); // pull
     await user.click(screen.getByRole("button", { name: /synchroniser maintenant/i }));

@@ -13,6 +13,17 @@ import type {
 } from "@/types/models";
 import type { WithEncrypted } from "./encryptedRecord";
 
+/** Every row's actual stored shape, once the sync protocol below needs to
+ * track a server log position for it — see the module comment in
+ * syncEngine.ts for the full reasoning. `seq` is managed exclusively by
+ * the sync engine itself (set on pull, or after a push is accepted),
+ * never by a repository's create()/update() — a brand new local record
+ * has no seq at all until it's first synced, which is exactly what
+ * "undefined" already means here without needing a special sentinel. */
+export interface WithSyncMeta extends WithEncrypted {
+  seq?: number;
+}
+
 /**
  * These are the shapes actually written to IndexedDB — structural
  * (queryable) fields in the clear, sensitive fields bundled into one
@@ -21,7 +32,7 @@ import type { WithEncrypted } from "./encryptedRecord";
  * converting to/from its entity's logical type (Account, Transaction, ...)
  * on the way in/out — Dexie itself only ever sees these storage shapes.
  */
-export type AccountRow = Pick<Account, "id" | "createdAt" | "updatedAt"> & WithEncrypted;
+export type AccountRow = Pick<Account, "id" | "createdAt" | "updatedAt"> & WithSyncMeta;
 export type TransactionRow = Pick<
   Transaction,
   | "id"
@@ -33,34 +44,34 @@ export type TransactionRow = Pick<
   | "createdAt"
   | "updatedAt"
 > &
-  WithEncrypted;
+  WithSyncMeta;
 export type BudgetCategoryRow = Pick<BudgetCategory, "id" | "createdAt" | "updatedAt"> &
-  WithEncrypted;
+  WithSyncMeta;
 export type BudgetSubcategoryRow = Pick<
   BudgetSubcategory,
   "id" | "categoryId" | "createdAt" | "updatedAt"
 > &
-  WithEncrypted;
+  WithSyncMeta;
 export type DebtRow = Pick<
   Debt,
   "id" | "accountId" | "kind" | "reference" | "date" | "createdAt" | "updatedAt"
 > &
-  WithEncrypted;
+  WithSyncMeta;
 export type DebtPaymentRow = Pick<
   DebtPayment,
   "id" | "debtId" | "accountId" | "date" | "createdAt" | "updatedAt"
 > &
-  WithEncrypted;
+  WithSyncMeta;
 export type TransferRow = Pick<
   Transfer,
   "id" | "fromAccountId" | "toAccountId" | "date" | "createdAt" | "updatedAt"
 > &
-  WithEncrypted;
+  WithSyncMeta;
 export type EngagementRow = Pick<
   Engagement,
   "id" | "subcategoryId" | "date" | "status" | "createdAt" | "updatedAt"
 > &
-  WithEncrypted;
+  WithSyncMeta;
 export type UserRow = Pick<
   User,
   | "id"
@@ -80,7 +91,7 @@ export type UserRow = Pick<
   | "createdAt"
   | "updatedAt"
 > &
-  WithEncrypted;
+  WithSyncMeta;
 
 /** `permissions` is deliberately kept structural (unencrypted), matching
  * the same field on UserRow above — a permit/deny configuration isn't
@@ -89,7 +100,7 @@ export type UserRow = Pick<
  * fits the sync engine's uniform "every row has _enc" row shape without
  * needing a special case there for the one table with nothing to
  * encrypt. */
-export type RoleTemplateRow = RoleTemplate & WithEncrypted;
+export type RoleTemplateRow = RoleTemplate & WithSyncMeta;
 
 /** Every table sync can push/pull, by its Dexie table name — deliberately a
  * plain string union rather than importing each repository, since this
@@ -121,6 +132,13 @@ export interface DeletionLogEntry {
   tableName: SyncableTableName;
   recordId: string;
   deletedAt: number;
+  /** This device's last-known server log position for the record at the
+   * moment it was deleted locally — becomes the tombstone's baseSeq when
+   * pushed (see syncEngine.ts's module comment). 0 for a record that was
+   * created and deleted locally before ever being synced at all, which
+   * the server correctly treats the same as "never existed" rather than
+   * rejecting as a stale deletion. */
+  baseSeq: number;
   /** Set once this entry has been included in a successful push — entries
    * with this set are pruned on a later sync rather than kept forever. */
   pushedAt?: number;
@@ -132,7 +150,8 @@ export interface DeletionLogEntry {
  * localStorage: it keeps every piece of this app's state in one place
  * (Dexie), inspectable with the same tooling as everything else. */
 export interface SyncConfigEntry {
-  key: "serverUrl" | "token" | "syncAccountId" | "lastPushedAt" | "lastPulledAt" | "lastSyncStatus";
+  key:
+    "serverUrl" | "token" | "syncAccountId" | "lastPushedAt" | "lastPulledSeq" | "lastSyncStatus";
   value: string;
 }
 

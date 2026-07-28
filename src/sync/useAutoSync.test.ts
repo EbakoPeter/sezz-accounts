@@ -33,7 +33,7 @@ describe("useAutoSync", () => {
   it("syncs once automatically when the app opens, if a session exists", async () => {
     vi.spyOn(syncClient, "getSyncSession").mockResolvedValue(fakeSession);
     const syncNowSpy = vi.spyOn(syncEngine, "syncNow").mockResolvedValue({
-      push: { pushed: 0 },
+      push: { pushed: 0, conflicts: [] },
       pull: { pulled: 0, deleted: 0 },
     });
 
@@ -44,7 +44,7 @@ describe("useAutoSync", () => {
   it("syncs again after the interval elapses", async () => {
     vi.spyOn(syncClient, "getSyncSession").mockResolvedValue(fakeSession);
     const syncNowSpy = vi.spyOn(syncEngine, "syncNow").mockResolvedValue({
-      push: { pushed: 0 },
+      push: { pushed: 0, conflicts: [] },
       pull: { pulled: 0, deleted: 0 },
     });
 
@@ -58,7 +58,7 @@ describe("useAutoSync", () => {
   it("syncs when the device comes back online", async () => {
     vi.spyOn(syncClient, "getSyncSession").mockResolvedValue(fakeSession);
     const syncNowSpy = vi.spyOn(syncEngine, "syncNow").mockResolvedValue({
-      push: { pushed: 0 },
+      push: { pushed: 0, conflicts: [] },
       pull: { pulled: 0, deleted: 0 },
     });
 
@@ -73,7 +73,8 @@ describe("useAutoSync", () => {
     vi.spyOn(syncClient, "getSyncSession").mockResolvedValue(fakeSession);
     let resolveFirst!: () => void;
     const firstAttempt = new Promise<syncEngine.SyncResult>((resolve) => {
-      resolveFirst = () => resolve({ push: { pushed: 0 }, pull: { pulled: 0, deleted: 0 } });
+      resolveFirst = () =>
+        resolve({ push: { pushed: 0, conflicts: [] }, pull: { pulled: 0, deleted: 0 } });
     });
     const syncNowSpy = vi.spyOn(syncEngine, "syncNow").mockReturnValueOnce(firstAttempt);
 
@@ -90,7 +91,7 @@ describe("useAutoSync", () => {
   it("does not sync again after unmounting", async () => {
     vi.spyOn(syncClient, "getSyncSession").mockResolvedValue(fakeSession);
     const syncNowSpy = vi.spyOn(syncEngine, "syncNow").mockResolvedValue({
-      push: { pushed: 0 },
+      push: { pushed: 0, conflicts: [] },
       pull: { pulled: 0, deleted: 0 },
     });
 

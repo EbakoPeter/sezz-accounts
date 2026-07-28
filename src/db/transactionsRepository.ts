@@ -261,7 +261,7 @@ export function createTransactionsRepository(database: SezzAccountsDatabase = de
       if (!existing) throw new NotFoundError("Opération", id);
       const decrypted = await decryptTransaction(existing);
       await database.transactions.delete(id);
-      await logDeletion(database, "transactions", id);
+      await logDeletion(database, "transactions", id, existing.seq ?? 0);
 
       if (decrypted.kind === "expense" && decrypted.engagementId) {
         // deleting the expense that settled this engagement un-settles

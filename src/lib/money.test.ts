@@ -22,6 +22,26 @@ describe("assertPositiveAmount", () => {
   it("rejects NaN and Infinity", () => {
     expect(() => assertPositiveAmount(NaN)).toThrow(ValidationError);
     expect(() => assertPositiveAmount(Infinity)).toThrow(ValidationError);
+    expect(() => assertPositiveAmount(-Infinity)).toThrow(ValidationError);
+  });
+
+  it("rejects negative zero (still not strictly positive)", () => {
+    expect(() => assertPositiveAmount(-0)).toThrow(ValidationError);
+  });
+
+  it("accepts the largest safely representable integer", () => {
+    expect(() => assertPositiveAmount(Number.MAX_SAFE_INTEGER)).not.toThrow();
+  });
+
+  it("rejects a value beyond safe integer precision, even though Number.isInteger alone says yes", () => {
+    // beyond 2^53, floating point can no longer represent every integer
+    // exactly -- Number.isInteger(x) can still return true for a value
+    // that isn't really the number it claims to be, so this needs its
+    // own explicit check rather than trusting isInteger alone.
+    const beyondSafeInteger = Number.MAX_SAFE_INTEGER + 10;
+    expect(Number.isInteger(beyondSafeInteger)).toBe(true);
+    expect(() => assertPositiveAmount(beyondSafeInteger)).toThrow(ValidationError);
+    expect(() => assertPositiveAmount(beyondSafeInteger)).toThrow(/trop grand/i);
   });
 
   it("includes the custom field label in the error message", () => {
@@ -36,6 +56,10 @@ describe("assertNonNegativeAmount", () => {
 
   it("rejects negative numbers", () => {
     expect(() => assertNonNegativeAmount(-1)).toThrow(ValidationError);
+  });
+
+  it("rejects a value beyond safe integer precision", () => {
+    expect(() => assertNonNegativeAmount(Number.MAX_SAFE_INTEGER + 10)).toThrow(ValidationError);
   });
 });
 

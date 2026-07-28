@@ -103,11 +103,11 @@ export function createAccountsRepository(database: SezzAccountsDatabase = defaul
       if (!row) throw new NotFoundError("Compte", id);
       const existing = await decryptAccount(row);
 
-      const [dependentTransactionIds, dependentDebts] = await Promise.all([
-        database.transactions.where("accountId").equals(id).primaryKeys(),
+      const [dependentTransactions, dependentDebts] = await Promise.all([
+        database.transactions.where("accountId").equals(id).toArray(),
         database.debts.where("accountId").equals(id).toArray(),
       ]);
-      const totalDependents = dependentTransactionIds.length + dependentDebts.length;
+      const totalDependents = dependentTransactions.length + dependentDebts.length;
       if (totalDependents > 0 && !options.force) {
         throw new ValidationError(
           `Impossible de supprimer « ${existing.name} » : ${totalDependents} élément(s) (opérations et/ou dettes) y sont encore rattaché(s).`,
@@ -122,30 +122,27 @@ export function createAccountsRepository(database: SezzAccountsDatabase = defaul
         database.debtPayments,
         database.deletionLog,
         async () => {
-          if (dependentTransactionIds.length > 0) {
+          if (dependentTransactions.length > 0) {
             await database.transactions.where("accountId").equals(id).delete();
-            for (const txId of dependentTransactionIds) {
-              await logDeletion(database, "transactions", txId);
+            for (const tx of dependentTransactions) {
+              await logDeletion(database, "transactions", tx.id, tx.seq ?? 0);
             }
           }
           for (const debt of dependentDebts) {
-            const paymentIds = await database.debtPayments
-              .where("debtId")
-              .equals(debt.id)
-              .primaryKeys();
+            const payments = await database.debtPayments.where("debtId").equals(debt.id).toArray();
             await database.debtPayments.where("debtId").equals(debt.id).delete();
-            for (const paymentId of paymentIds) {
-              await logDeletion(database, "debtPayments", paymentId);
+            for (const payment of payments) {
+              await logDeletion(database, "debtPayments", payment.id, payment.seq ?? 0);
             }
           }
           if (dependentDebts.length > 0) {
             await database.debts.where("accountId").equals(id).delete();
             for (const debt of dependentDebts) {
-              await logDeletion(database, "debts", debt.id);
+              await logDeletion(database, "debts", debt.id, debt.seq ?? 0);
             }
           }
           await database.accounts.delete(id);
-          await logDeletion(database, "accounts", id);
+          await logDeletion(database, "accounts", id, row.seq ?? 0);
         },
       );
     },

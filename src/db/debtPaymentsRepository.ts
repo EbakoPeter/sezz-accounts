@@ -103,7 +103,7 @@ export function createDebtPaymentsRepository(database: SezzAccountsDatabase = de
       const existing = await database.debtPayments.get(id);
       if (!existing) throw new NotFoundError("Remboursement", id);
       await database.debtPayments.delete(id);
-      await logDeletion(database, "debtPayments", id);
+      await logDeletion(database, "debtPayments", id, existing.seq ?? 0);
     },
   };
 }

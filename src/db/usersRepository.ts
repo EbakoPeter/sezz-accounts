@@ -320,7 +320,7 @@ export function createUsersRepository(database: SezzAccountsDatabase = defaultDb
         }
       }
       await database.users.delete(id);
-      await logDeletion(database, "users", id);
+      await logDeletion(database, "users", id, row.seq ?? 0);
     },
 
     /** Looks up a user by username, verifies the password, and unwraps

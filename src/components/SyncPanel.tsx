@@ -155,6 +155,13 @@ export function SyncPanel() {
               Dernière synchronisation à {new Date(status.attemptedAt).toLocaleTimeString("fr-FR")}{" "}
               — {status.pushed} élément(s) envoyé(s), {status.pulled} reçu(s), {status.deleted}{" "}
               suppression(s) appliquée(s).
+              {(status.conflicts ?? 0) > 0 && (
+                <>
+                  {" "}
+                  {status.conflicts} élément(s) modifié(s) ailleurs entre-temps n&apos;ont pas été
+                  envoyés — la version la plus à jour a été reçue à la place.
+                </>
+              )}
             </p>
           )}
           {status && !status.success && (

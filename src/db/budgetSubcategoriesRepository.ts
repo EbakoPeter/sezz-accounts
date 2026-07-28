@@ -155,7 +155,7 @@ export function createBudgetSubcategoriesRepository(database: SezzAccountsDataba
           }
           await database.engagements.where("subcategoryId").equals(id).delete();
           for (const engagement of dependentEngagements) {
-            await logDeletion(database, "engagements", engagement.id);
+            await logDeletion(database, "engagements", engagement.id, engagement.seq ?? 0);
           }
           // Re-queried now, after the loop above already unlinked anything
           // settling one of this subcategory's engagements — this only
@@ -171,7 +171,7 @@ export function createBudgetSubcategoriesRepository(database: SezzAccountsDataba
             await database.transactions.put({ ...rest, updatedAt: Date.now() });
           }
           await database.budgetSubcategories.delete(id);
-          await logDeletion(database, "budgetSubcategories", id);
+          await logDeletion(database, "budgetSubcategories", id, row.seq ?? 0);
         },
       );
     },

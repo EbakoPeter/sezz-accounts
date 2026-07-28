@@ -118,7 +118,7 @@ export function createBudgetCategoriesRepository(database: SezzAccountsDatabase 
             }
             await database.engagements.where("subcategoryId").equals(sub.id).delete();
             for (const engagement of dependentEngagements) {
-              await logDeletion(database, "engagements", engagement.id);
+              await logDeletion(database, "engagements", engagement.id, engagement.seq ?? 0);
             }
 
             // a transaction may also reference this subcategory directly
@@ -135,10 +135,10 @@ export function createBudgetCategoriesRepository(database: SezzAccountsDatabase 
           }
           await database.budgetSubcategories.where("categoryId").equals(id).delete();
           for (const sub of subcategories) {
-            await logDeletion(database, "budgetSubcategories", sub.id);
+            await logDeletion(database, "budgetSubcategories", sub.id, sub.seq ?? 0);
           }
           await database.budgetCategories.delete(id);
-          await logDeletion(database, "budgetCategories", id);
+          await logDeletion(database, "budgetCategories", id, row.seq ?? 0);
         },
       );
     },
