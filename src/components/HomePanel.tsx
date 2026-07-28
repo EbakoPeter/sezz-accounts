@@ -16,89 +16,100 @@ const SEVERITY_STYLE: Record<
   warning: { background: "#F5E3E1", border: "#B23A34", label: "⚠" },
 };
 
+/** A rotating palette for pies with more slices than a fixed semantic
+ * color can cover (accounts, whose number and identity aren't known
+ * ahead of time) — the two-slice pies below (income/expense,
+ * spent/remaining) use fixed, meaningful colors instead, matching the
+ * green/red convention already used everywhere else in the app. */
+const PALETTE = ["#16333E", "#C98A3B", "#4C7A5B", "#B23A34", "#726B5E", "#8A9A5B"];
+
 function point(cx: number, cy: number, radius: number, angleDeg: number) {
   const rad = (angleDeg * Math.PI) / 180;
   return { x: cx + radius * Math.sin(rad), y: cy - radius * Math.cos(rad) };
 }
 
-/** A two-slice pie (income/expense) — deliberately not a generic n-slice
- * component, since this dashboard only ever needs these two values. Draws
- * clockwise from the top, the conventional orientation for this kind of
- * chart. */
-function IncomeExpensePie({ income, expense }: { income: number; expense: number }) {
-  const total = income + expense;
+interface PieSlice {
+  label: string;
+  value: number;
+  color: string;
+}
+
+/** A generic pie — any number of non-negative slices, drawn clockwise
+ * from the top (the conventional orientation). Every statistic on this
+ * dashboard is expressed through this same component, rather than each
+ * picking its own chart type, per the request that each one reads as a
+ * pie specifically. Slices with a value of 0 (or negative — a pie can't
+ * meaningfully represent a negative share of a whole) are simply
+ * skipped rather than drawn as nothing. */
+function PieChart({
+  slices,
+  ariaLabel,
+  emptyMessage,
+}: {
+  slices: PieSlice[];
+  ariaLabel: string;
+  emptyMessage: string;
+}) {
+  const positiveSlices = slices.filter((s) => s.value > 0);
+  const total = positiveSlices.reduce((sum, s) => sum + s.value, 0);
   const size = 200;
   const cx = size / 2;
   const cy = size / 2;
   const radius = 80;
 
   if (total <= 0) {
-    return <p className="empty">Aucune opération ce mois-ci.</p>;
+    return <p className="empty">{emptyMessage}</p>;
   }
 
-  const incomeAngle = (income / total) * 360;
-  const start = point(cx, cy, radius, 0);
-  const mid = point(cx, cy, radius, incomeAngle);
-  const end = point(cx, cy, radius, 360);
-  const incomeLargeArc = incomeAngle > 180 ? 1 : 0;
-  const expenseLargeArc = 360 - incomeAngle > 180 ? 1 : 0;
-
-  const incomePath = `M ${cx},${cy} L ${start.x},${start.y} A ${radius},${radius} 0 ${incomeLargeArc},1 ${mid.x},${mid.y} Z`;
-  const expensePath = `M ${cx},${cy} L ${mid.x},${mid.y} A ${radius},${radius} 0 ${expenseLargeArc},1 ${end.x},${end.y} Z`;
+  let cumulativeAngle = 0;
+  const arcs = positiveSlices.map((slice) => {
+    const sliceAngle = (slice.value / total) * 360;
+    const startAngle = cumulativeAngle;
+    const endAngle = cumulativeAngle + sliceAngle;
+    cumulativeAngle = endAngle;
+    const start = point(cx, cy, radius, startAngle);
+    const end = point(cx, cy, radius, endAngle);
+    const largeArc = sliceAngle > 180 ? 1 : 0;
+    return {
+      path: `M ${cx},${cy} L ${start.x},${start.y} A ${radius},${radius} 0 ${largeArc},1 ${end.x},${end.y} Z`,
+      color: slice.color,
+    };
+  });
 
   return (
     <svg
       viewBox={`0 0 ${size} ${size}`}
       role="img"
-      aria-label={`Répartition entrées/sorties du mois : ${formatFcfa(income)} d'entrées, ${formatFcfa(expense)} de sorties`}
-      style={{ width: "100%", maxWidth: 220, height: "auto" }}
+      aria-label={ariaLabel}
+      style={{ width: "100%", maxWidth: 200, height: "auto" }}
     >
-      {income > 0 && <path d={incomePath} fill="#4C7A5B" />}
-      {expense > 0 && <path d={expensePath} fill="#B23A34" />}
+      {arcs.map((arc, i) => (
+        // a fixed set of slices computed fresh every render from the same
+        // underlying data — index is a stable, meaningful key here, same
+        // as the fixed 12-month bar chart elsewhere in this app
+        <path key={i} d={arc.path} fill={arc.color} />
+      ))}
     </svg>
   );
 }
 
-/** One horizontal bar per subcategory — % of allocation actually used
- * (real spending only, matching the same "engagements don't count toward
- * this percentage" rule budgetSummary itself already applies). Capped
- * visually at 100% width even when a line runs over, with the bar itself
- * turning the same red used everywhere else in the app for a negative/
- * over-budget figure — the number alongside it still shows the real
- * percentage, uncapped. */
-function BudgetExecutionBars({
-  categories,
-}: {
-  categories: { name: string; subcategories: { name: string; percentUsed: number | null }[] }[];
-}) {
-  const rows = categories.flatMap((c) =>
-    c.subcategories
-      .filter((s) => s.percentUsed !== null)
-      .map((s) => ({ label: `${c.name} — ${s.name}`, percentUsed: s.percentUsed! })),
-  );
-
-  if (rows.length === 0) {
-    return <p className="empty">Aucune ligne budgétaire provisionnée pour le moment.</p>;
-  }
-
+function PieLegend({ slices }: { slices: PieSlice[] }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      {rows.map((row) => (
-        <div key={row.label}>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: ".8rem" }}>
-            <span>{row.label}</span>
-            <span>{Math.round(row.percentUsed)}%</span>
-          </div>
-          <div style={{ background: "#EFE7D3", borderRadius: 4, height: 8, overflow: "hidden" }}>
-            <div
-              style={{
-                width: `${Math.min(100, Math.max(0, row.percentUsed))}%`,
-                height: "100%",
-                background: row.percentUsed > 100 ? "#B23A34" : "#4C7A5B",
-              }}
-            />
-          </div>
-        </div>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px", fontSize: ".78rem" }}>
+      {slices.map((slice) => (
+        <span key={slice.label}>
+          <span
+            style={{
+              display: "inline-block",
+              width: 10,
+              height: 10,
+              background: slice.color,
+              borderRadius: 2,
+              marginRight: 5,
+            }}
+          />
+          {slice.label} — {formatFcfa(slice.value)}
+        </span>
       ))}
     </div>
   );
@@ -120,6 +131,23 @@ export function HomePanel() {
   const currentIncome = currentMonthRow?.income ?? 0;
   const currentExpense = currentMonthRow?.expense ?? 0;
 
+  const balanceSlices: PieSlice[] = (accounts ?? []).map((account, i) => ({
+    label: account.name,
+    value: account.balance,
+    color: PALETTE[i % PALETTE.length]!,
+  }));
+
+  const provisionedLines = (budgetSummary ?? []).flatMap((c) =>
+    c.subcategories.filter((s) => s.percentUsed !== null),
+  );
+  const totalAllocated = provisionedLines.reduce((sum, s) => sum + s.monthlyAllocation, 0);
+  const totalSpent = provisionedLines.reduce((sum, s) => sum + s.actual, 0);
+  const budgetSlices: PieSlice[] = [
+    { label: "Dépensé", value: Math.min(totalSpent, totalAllocated), color: "#B23A34" },
+    { label: "Restant", value: Math.max(0, totalAllocated - totalSpent), color: "#4C7A5B" },
+  ];
+  const overrun = totalSpent - totalAllocated;
+
   return (
     <section aria-labelledby="home-heading">
       <h2 id="home-heading">Accueil</h2>
@@ -127,71 +155,80 @@ export function HomePanel() {
         Vue d&apos;ensemble de votre situation, au {now.toLocaleDateString("fr-FR")}.
       </p>
 
-      <section className="accent-ink" aria-labelledby="home-situation-heading">
-        <h3 id="home-situation-heading">Situation financière</h3>
-        {accounts === undefined ? (
-          <p>Chargement…</p>
-        ) : (
-          <p>
-            Solde cumulé de tous les comptes :{" "}
-            <strong className={totalBalance < 0 ? "negative" : ""}>
-              {formatFcfa(totalBalance)}
-            </strong>{" "}
-            <span className="empty">({accounts.length} compte(s))</span>
-          </p>
+      <div className="dashboard-grid">
+        <section className="accent-ink" aria-labelledby="home-situation-heading">
+          <h3 id="home-situation-heading">Situation financière</h3>
+          {accounts === undefined ? (
+            <p>Chargement…</p>
+          ) : (
+            <>
+              <PieChart
+                slices={balanceSlices}
+                ariaLabel="Répartition du solde par compte"
+                emptyMessage="Aucun compte avec un solde positif à répartir."
+              />
+              <PieLegend slices={balanceSlices} />
+              <p>
+                Solde cumulé de tous les comptes :{" "}
+                <strong className={totalBalance < 0 ? "negative" : ""}>
+                  {formatFcfa(totalBalance)}
+                </strong>{" "}
+                <span className="empty">({accounts.length} compte(s))</span>
+              </p>
+            </>
+          )}
+        </section>
+
+        {currentUser?.permissions.viewReports && (
+          <>
+            <section className="accent-gold" aria-labelledby="home-pie-heading">
+              <h3 id="home-pie-heading">Entrées et sorties du mois</h3>
+              {monthlyRows === undefined ? (
+                <p>Chargement…</p>
+              ) : (
+                <>
+                  <PieChart
+                    slices={[
+                      { label: "Entrées", value: currentIncome, color: "#4C7A5B" },
+                      { label: "Sorties", value: currentExpense, color: "#B23A34" },
+                    ]}
+                    ariaLabel={`Répartition entrées/sorties du mois : ${formatFcfa(currentIncome)} d'entrées, ${formatFcfa(currentExpense)} de sorties`}
+                    emptyMessage="Aucune opération ce mois-ci."
+                  />
+                  <PieLegend
+                    slices={[
+                      { label: "Entrées", value: currentIncome, color: "#4C7A5B" },
+                      { label: "Sorties", value: currentExpense, color: "#B23A34" },
+                    ]}
+                  />
+                </>
+              )}
+            </section>
+
+            <section className="accent-sage" aria-labelledby="home-budget-heading">
+              <h3 id="home-budget-heading">Exécution du budget (mois en cours)</h3>
+              {budgetSummary === undefined ? (
+                <p>Chargement…</p>
+              ) : (
+                <>
+                  <PieChart
+                    slices={budgetSlices}
+                    ariaLabel="Répartition dépensé/restant du budget du mois"
+                    emptyMessage="Aucune ligne budgétaire provisionnée pour le moment."
+                  />
+                  <PieLegend slices={budgetSlices} />
+                  {overrun > 0 && (
+                    <p className="negative">Dépassement global : {formatFcfa(overrun)}</p>
+                  )}
+                </>
+              )}
+            </section>
+          </>
         )}
-      </section>
+      </div>
 
       {currentUser?.permissions.viewReports && (
         <>
-          <section className="accent-gold" aria-labelledby="home-pie-heading">
-            <h3 id="home-pie-heading">Entrées et sorties du mois</h3>
-            {monthlyRows === undefined ? (
-              <p>Chargement…</p>
-            ) : (
-              <>
-                <IncomeExpensePie income={currentIncome} expense={currentExpense} />
-                <div style={{ display: "flex", gap: 18, fontSize: ".78rem", color: "#726B5E" }}>
-                  <span>
-                    <span
-                      style={{
-                        display: "inline-block",
-                        width: 10,
-                        height: 10,
-                        background: "#4C7A5B",
-                        borderRadius: 2,
-                        marginRight: 5,
-                      }}
-                    />
-                    Entrées — {formatFcfa(currentIncome)}
-                  </span>
-                  <span>
-                    <span
-                      style={{
-                        display: "inline-block",
-                        width: 10,
-                        height: 10,
-                        background: "#B23A34",
-                        borderRadius: 2,
-                        marginRight: 5,
-                      }}
-                    />
-                    Sorties — {formatFcfa(currentExpense)}
-                  </span>
-                </div>
-              </>
-            )}
-          </section>
-
-          <section className="accent-sage" aria-labelledby="home-budget-heading">
-            <h3 id="home-budget-heading">Exécution du budget (mois en cours)</h3>
-            {budgetSummary === undefined ? (
-              <p>Chargement…</p>
-            ) : (
-              <BudgetExecutionBars categories={budgetSummary} />
-            )}
-          </section>
-
           <section aria-labelledby="home-operations-heading">
             <h3 id="home-operations-heading">Opérations sur l&apos;année</h3>
             {monthlyRows === undefined ? (

@@ -41,6 +41,9 @@ describe("HomePanel", () => {
     renderWithSession(<HomePanel />, session);
 
     const situation = (await screen.findByText(/situation financière/i)).closest("section")!;
+    await within(situation).findByRole("img", { name: /répartition du solde par compte/i });
+    expect(within(situation).getByText(/Compte A/)).toBeInTheDocument();
+    expect(within(situation).getByText(/Compte B/)).toBeInTheDocument();
     await within(situation).findByText(/80 000 FCFA/);
     expect(within(situation).getByText(/2 compte/)).toBeInTheDocument();
   });
@@ -84,7 +87,7 @@ describe("HomePanel", () => {
     expect(within(pieSection).queryByRole("img")).not.toBeInTheDocument();
   });
 
-  it("shows a bar per provisioned budget line, with its category as a prefix", async () => {
+  it("shows the budget execution as a spent/remaining pie, aggregated across provisioned lines", async () => {
     const session = await createTestUser("admin");
     await db.budgetCategories.add(
       await encryptedFixture<BudgetCategory, "name">(
@@ -109,7 +112,9 @@ describe("HomePanel", () => {
     renderWithSession(<HomePanel />, session);
 
     const budgetSection = (await screen.findByText(/exécution du budget/i)).closest("section")!;
-    await within(budgetSection).findByText(/Vie Courante — Alimentation/);
+    await within(budgetSection).findByRole("img");
+    expect(within(budgetSection).getByText(/Restant/)).toBeInTheDocument();
+    expect(within(budgetSection).getByText(/50 000 FCFA/)).toBeInTheDocument();
   });
 
   it("shows the year's operations chart", async () => {

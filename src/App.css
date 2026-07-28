@@ -72,13 +72,19 @@ body {
 }
 
 .app {
-  max-width: 960px;
+  /* A fixed 960px left most of a real desktop monitor empty on either
+     side — this scales with the viewport instead, capped at 1400px so
+     an ultra-wide monitor doesn't stretch text/tables into an
+     unreasonably long line, but otherwise using the space actually
+     available rather than a narrow fixed column regardless of it. */
+  max-width: min(1400px, 96vw);
   margin: 0 auto;
   padding: var(--space-5) var(--space-4) var(--space-6);
 }
 
 @media (max-width: 600px) {
   .app {
+    max-width: 100vw;
     padding: var(--space-4) var(--space-3) var(--space-5);
   }
 }
@@ -121,6 +127,17 @@ section {
     padding: var(--space-4);
     border-radius: var(--radius-md);
   }
+}
+
+/* Accueil's statistic cards — side by side once there's room for them,
+   stacked on a narrow screen. minmax(280px, 1fr) means the number of
+   columns falls out of the available width naturally rather than being
+   hardcoded to a specific breakpoint-by-breakpoint count. */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-4);
+  align-items: start;
 }
 
 section section {
