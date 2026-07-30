@@ -1,7 +1,14 @@
 import { useState } from "react";
+import { useLiveQuery } from "dexie-react-hooks";
 import { useAuth } from "@/auth/AuthContext";
 import { db } from "@/db/schema";
+import { createTransactionsRepository } from "@/db/transactionsRepository";
+import { createAccountsRepository } from "@/db/accountsRepository";
+import { formatFcfa } from "@/lib/money";
 import { PageHeader } from "./PageHeader";
+
+const transactionsRepository = createTransactionsRepository();
+const accountsRepository = createAccountsRepository();
 
 function currentYearMonth(): { year: number; month: number } {
   const now = new Date();
@@ -36,8 +43,28 @@ export function ReportsPanel({
 
   const [opsFrom, setOpsFrom] = useState(firstOfMonthIso());
   const [opsTo, setOpsTo] = useState(todayIso());
+  const [opsKind, setOpsKind] = useState<"all" | "income" | "expense">("all");
   const [opsBusy, setOpsBusy] = useState(false);
   const [opsError, setOpsError] = useState<string | null>(null);
+
+  // Live preview — lets the person actually see what a filter combination
+  // turns up before committing to a PDF download, rather than downloading
+  // blind and finding out the period or type was wrong only after opening
+  // the file.
+  const opsPreview = useLiveQuery(async () => {
+    if (opsFrom > opsTo) return [];
+    const rows = await transactionsRepository.list({
+      from: opsFrom,
+      to: opsTo,
+      ...(opsKind === "all" ? {} : { kind: opsKind }),
+    });
+    const accounts = await accountsRepository.list();
+    const accountNameById = new Map(accounts.map((a) => [a.id, a.name]));
+    return rows
+      .slice()
+      .reverse()
+      .map((tx) => ({ ...tx, accountName: accountNameById.get(tx.accountId) ?? "—" }));
+  }, [opsFrom, opsTo, opsKind]);
 
   const [cashFrom, setCashFrom] = useState(isoMonth(defaultYear, defaultMonth));
   const [cashTo, setCashTo] = useState(isoMonth(defaultYear, defaultMonth));
@@ -85,7 +112,7 @@ export function ReportsPanel({
     try {
       if (opsFrom > opsTo) throw new Error("La date de début doit précéder la date de fin.");
       const { downloadOperationsReport } = await import("@/reports/operationsReport");
-      await downloadOperationsReport(db, opsFrom, opsTo);
+      await downloadOperationsReport(db, opsFrom, opsTo, opsKind === "all" ? undefined : opsKind);
     } catch (error) {
       setOpsError(error instanceof Error ? error.message : "Erreur inattendue.");
     } finally {
@@ -162,6 +189,18 @@ export function ReportsPanel({
               onChange={(e) => setOpsTo(e.target.value)}
             />
           </div>
+          <div className="field">
+            <label htmlFor="ops-report-kind">Type</label>
+            <select
+              id="ops-report-kind"
+              value={opsKind}
+              onChange={(e) => setOpsKind(e.target.value as "all" | "income" | "expense")}
+            >
+              <option value="all">Toutes les opérations</option>
+              <option value="income">Revenus uniquement</option>
+              <option value="expense">Dépenses uniquement</option>
+            </select>
+          </div>
           <button type="button" onClick={handleDownloadOperations} disabled={opsBusy}>
             {opsBusy ? "Génération…" : "Télécharger en PDF"}
           </button>
@@ -169,6 +208,45 @@ export function ReportsPanel({
             <p role="alert" className="form-error">
               {opsError}
             </p>
+          )}
+
+          <p className="tagline" style={{ marginTop: 16 }}>
+            Aperçu — {opsPreview?.length ?? 0} opération(s) correspondant aux filtres.
+          </p>
+          {opsFrom > opsTo ? (
+            <p className="empty">La date de début doit précéder la date de fin.</p>
+          ) : opsPreview === undefined ? (
+            <p>Chargement…</p>
+          ) : opsPreview.length === 0 ? (
+            <p className="empty">Aucune opération pour cette période et ce type.</p>
+          ) : (
+            <div className="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Compte</th>
+                    <th>Type</th>
+                    <th>Libellé</th>
+                    <th className="num">Montant</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {opsPreview.map((tx) => (
+                    <tr key={tx.id}>
+                      <td>{tx.date}</td>
+                      <td className="truncate">{tx.accountName}</td>
+                      <td>{tx.kind === "income" ? "Revenu" : "Dépense"}</td>
+                      <td className="truncate">{tx.label}</td>
+                      <td className={`num ${tx.kind === "expense" ? "negative" : ""}`}>
+                        {tx.kind === "expense" ? "-" : "+"}
+                        {formatFcfa(tx.amount)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </section>
       )}

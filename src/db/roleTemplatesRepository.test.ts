@@ -42,6 +42,25 @@ describe("RoleTemplatesRepository", () => {
       const second = await roleTemplates.list();
       expect(second.find((t) => t.id === "admin")?.permissions.manageBudget).toBe(false);
     });
+
+    it("never throws and never duplicates a role when two seeding reads overlap on a fresh database", async () => {
+      // Reproduces the real crash this was found from: useLiveQuery calls
+      // list() again as soon as it sees the seeding writes from the first
+      // call land, so a second, overlapping call can start seeding the
+      // same role before the first one's own add() has committed. On a
+      // fast machine the window barely opens; on slower hardware
+      // (reported specifically as a phone crash) it opens wide enough to
+      // hit reliably. Simulated here as two truly concurrent calls
+      // against the same never-seeded database, which is exactly what
+      // useLiveQuery's own re-invocation looks like from this repository's
+      // point of view.
+      const [firstRun, secondRun] = await Promise.all([roleTemplates.list(), roleTemplates.list()]);
+
+      expect(firstRun.map((t) => t.id)).toEqual(["admin", "standard", "viewer"]);
+      expect(secondRun.map((t) => t.id)).toEqual(["admin", "standard", "viewer"]);
+      const stored = await database.roleTemplates.toArray();
+      expect(stored).toHaveLength(3);
+    });
   });
 
   describe("getById", () => {

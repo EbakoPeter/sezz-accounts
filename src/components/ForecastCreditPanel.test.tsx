@@ -5,6 +5,10 @@ import { ForecastCreditPanel } from "./ForecastCreditPanel";
 import { db } from "@/db/schema";
 import { clearActiveDek } from "@/lib/encryptionSession";
 import { createTestUser, renderWithSession, renderAuthenticated } from "@/test/renderAuthenticated";
+import { accountsRepository } from "@/repositories";
+import { createTransactionsRepository } from "@/db/transactionsRepository";
+
+const transactionsRepository = createTransactionsRepository();
 
 afterEach(async () => {
   await db.users.clear();
@@ -83,6 +87,32 @@ describe("ForecastCreditPanel", () => {
     expect(screen.getByRole("row", { name: /salaire/i })).toBeInTheDocument();
     const forecastAccounts = (await db.accounts.toArray()).length;
     expect(forecastAccounts).toBe(1);
+  });
+
+  it("never shows a transaction belonging to a different account", async () => {
+    const user = userEvent.setup();
+    await renderAuthenticated(<ForecastCreditPanel />);
+
+    // an unrelated account with its own transaction, seeded directly so
+    // it exists before the forecast account is ever created
+    const otherAccount = await accountsRepository.create({
+      name: "Compte Courant",
+      initialBalance: 0,
+    });
+    await transactionsRepository.create({
+      accountId: otherAccount.id,
+      kind: "income",
+      date: "2026-01-01",
+      label: "Revenu sans rapport",
+      amount: 999999,
+    });
+
+    await user.type(screen.getByLabelText(/source/i), "Salaire");
+    await user.type(screen.getByLabelText(/montant/i), "150000");
+    await user.click(screen.getByRole("button", { name: /créditer/i }));
+
+    await screen.findByRole("row", { name: /salaire/i });
+    expect(screen.queryByRole("row", { name: /revenu sans rapport/i })).not.toBeInTheDocument();
   });
 
   it("hides the form (but not existing history) for a user without manageTransactions", async () => {

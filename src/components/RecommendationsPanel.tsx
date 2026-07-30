@@ -7,8 +7,8 @@ const SEVERITY_STYLE: Record<
   InsightSeverity,
   { background: string; border: string; label: string }
 > = {
-  success: { background: "#E4EEE6", border: "#4C7A5B", label: "✓" },
-  info: { background: "#FBEFD8", border: "#C98A3B", label: "ℹ" },
+  success: { background: "#E4EEE6", border: "#3D6B52", label: "✓" },
+  info: { background: "#FBEFD8", border: "#B8923F", label: "ℹ" },
   warning: { background: "#F5E3E1", border: "#B23A34", label: "⚠" },
 };
 

@@ -39,10 +39,12 @@ export function ForecastCreditPanel() {
     const accounts = await accountsRepository.list();
     const forecastAccount = accounts.find((a) => a.name === FORECAST_ACCOUNT_NAME);
     if (!forecastAccount) return [];
-    const all = await transactionsRepository.list();
-    return all
-      .filter((t) => t.accountId === forecastAccount.id)
-      .sort((a, b) => b.date.localeCompare(a.date));
+    // Uses the accountId index rather than decrypting every transaction
+    // in the database just to filter down to this one account's own —
+    // the same query transactionsRepository.list() already exposes for
+    // exactly this purpose.
+    const own = await transactionsRepository.list({ accountId: forecastAccount.id });
+    return own.sort((a, b) => b.date.localeCompare(a.date));
   }, []);
 
   const [source, setSource] = useState("");

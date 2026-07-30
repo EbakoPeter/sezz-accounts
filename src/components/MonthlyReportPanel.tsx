@@ -54,7 +54,7 @@ export function MonthlyBarChart({ rows }: { rows: { income: number; expense: num
               y={baseY - incomeHeight}
               width={barWidth}
               height={incomeHeight}
-              fill="#4C7A5B"
+              fill="#3D6B52"
               rx={2}
             />
             <rect
@@ -137,7 +137,7 @@ export function MonthlyReportPanel() {
                   display: "inline-block",
                   width: 10,
                   height: 10,
-                  background: "#4C7A5B",
+                  background: "#3D6B52",
                   borderRadius: 2,
                   marginRight: 5,
                 }}

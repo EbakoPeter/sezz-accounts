@@ -2,7 +2,6 @@ import type { SezzAccountsDatabase } from "./schema";
 import { db as defaultDb } from "./schema";
 import type { BudgetCategory, BudgetSubcategory, Debt, DebtPayment } from "@/types/models";
 import { toStorageRow, fromStorageRow, fromStorageRows } from "./encryptedRecord";
-import { generateId } from "@/lib/id";
 import { monthsBetween } from "./debtSummary";
 
 const SENSITIVE_CATEGORY_FIELDS = ["name"] as const;
@@ -10,6 +9,12 @@ const SENSITIVE_SUBCATEGORY_FIELDS = ["name", "monthlyAllocation"] as const;
 
 const CATEGORY_NAME = "Dettes";
 const SUBCATEGORY_NAME = "Dette";
+
+/** Fixed, well-known ids rather than freshly generated ones — see
+ * ensureDebtBudgetLine's own comment for why, and forecastAccount.ts's
+ * matching comment for the underlying race this avoids in more detail. */
+const AUTO_CATEGORY_ID = "debts-budget-category-singleton";
+const AUTO_SUBCATEGORY_ID = "debts-budget-subcategory-singleton";
 
 /**
  * Ensures the auto-managed "Dette" budget line exists, creating both it
@@ -23,6 +28,19 @@ const SUBCATEGORY_NAME = "Dette";
  * an existing "Dettes" category by name rather than creating a
  * duplicate if the person already happened to make one of their own.
  *
+ * Uses fixed ids for the category/subcategory this function itself
+ * creates, for the same reason forecastAccount.ts's ensureForecastAccount
+ * does — see its own comment for the full reasoning. In short: this can
+ * be triggered once per debt, including many in quick succession during
+ * an initial sync pull, and two overlapping calls both seeing "no
+ * auto-allocated line yet" would otherwise both create one. A category
+ * or subcategory's *name* is encrypted, so "does one with this name
+ * exist" can't safely be checked inside a single atomic transaction the
+ * way roleTemplatesRepository.ts's fix does (that field is a plain,
+ * unencrypted primary key); a fixed id sidesteps needing to, since
+ * Dexie's own uniqueness constraint on that key means at most one of two
+ * concurrent add() calls can ever succeed.
+ *
  * This function only ensures the *line* exists — its actual allocation
  * is never stored here or anywhere else; see
  * computeDebtBudgetAllocation below, which getBudgetSummary calls live
@@ -35,30 +53,44 @@ export async function ensureDebtBudgetLine(
   const alreadyExists = existingSubcategoryRows.some((row) => row.autoAllocateFromDebts === true);
   if (alreadyExists) return;
 
-  const categoryRows = await database.budgetCategories.toArray();
-  let categoryId: string | undefined;
-  for (const row of categoryRows) {
-    const category = await fromStorageRow<BudgetCategory>(row);
-    if (category.name === CATEGORY_NAME) {
-      categoryId = category.id;
-      break;
+  const now = Date.now();
+  let categoryId: string;
+
+  const existingAutoCategory = await database.budgetCategories.get(AUTO_CATEGORY_ID);
+  if (existingAutoCategory) {
+    categoryId = AUTO_CATEGORY_ID;
+  } else {
+    const categoryRows = await database.budgetCategories.toArray();
+    let legacyMatch: string | undefined;
+    for (const row of categoryRows) {
+      const category = await fromStorageRow<BudgetCategory>(row);
+      if (category.name === CATEGORY_NAME) {
+        legacyMatch = category.id;
+        break;
+      }
+    }
+    if (legacyMatch) {
+      categoryId = legacyMatch;
+    } else {
+      const category: BudgetCategory = {
+        id: AUTO_CATEGORY_ID,
+        name: CATEGORY_NAME,
+        createdAt: now,
+        updatedAt: now,
+      };
+      const row = await toStorageRow(category, SENSITIVE_CATEGORY_FIELDS);
+      try {
+        await database.budgetCategories.add(row);
+      } catch (err) {
+        const stillMissing = await database.budgetCategories.get(AUTO_CATEGORY_ID);
+        if (!stillMissing) throw err;
+      }
+      categoryId = AUTO_CATEGORY_ID;
     }
   }
 
-  const now = Date.now();
-  if (!categoryId) {
-    categoryId = generateId();
-    const category: BudgetCategory = {
-      id: categoryId,
-      name: CATEGORY_NAME,
-      createdAt: now,
-      updatedAt: now,
-    };
-    await database.budgetCategories.add(await toStorageRow(category, SENSITIVE_CATEGORY_FIELDS));
-  }
-
   const subcategory: BudgetSubcategory = {
-    id: generateId(),
+    id: AUTO_SUBCATEGORY_ID,
     categoryId,
     name: SUBCATEGORY_NAME,
     // Never actually read — see the field's own comment in models.ts —
@@ -70,9 +102,13 @@ export async function ensureDebtBudgetLine(
     createdAt: now,
     updatedAt: now,
   };
-  await database.budgetSubcategories.add(
-    await toStorageRow(subcategory, SENSITIVE_SUBCATEGORY_FIELDS),
-  );
+  const subcategoryRow = await toStorageRow(subcategory, SENSITIVE_SUBCATEGORY_FIELDS);
+  try {
+    await database.budgetSubcategories.add(subcategoryRow);
+  } catch (err) {
+    const stillMissing = await database.budgetSubcategories.get(AUTO_SUBCATEGORY_ID);
+    if (!stillMissing) throw err;
+  }
 }
 
 /** The live sum this budget line's allocation always equals: every

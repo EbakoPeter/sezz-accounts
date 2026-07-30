@@ -56,6 +56,20 @@ describe("ensureDebtBudgetLine", () => {
     const debtLine = subcategoryRows.find((r) => r.autoAllocateFromDebts === true);
     expect(debtLine?.categoryId).toBe(existing.id);
   });
+
+  it("never throws and never duplicates the category/line when two calls overlap on a fresh database", async () => {
+    // The same race roleTemplatesRepository.ts and forecastAccount.ts
+    // were both found to have: two overlapping calls both see "no
+    // auto-allocated line yet" and both try to create one. Plausible here
+    // specifically because this runs once per debt created, including
+    // many in quick succession during an initial sync pull.
+    await Promise.all([ensureDebtBudgetLine(database), ensureDebtBudgetLine(database)]);
+
+    const categoryRows = await database.budgetCategories.toArray();
+    expect(categoryRows).toHaveLength(1);
+    const subcategoryRows = await database.budgetSubcategories.toArray();
+    expect(subcategoryRows.filter((r) => r.autoAllocateFromDebts === true)).toHaveLength(1);
+  });
 });
 
 describe("computeDebtBudgetAllocation", () => {

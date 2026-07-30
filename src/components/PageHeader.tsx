@@ -15,11 +15,14 @@ export type PageSection =
  * uppercase via CSS text-transform rather than uppercasing the string
  * itself, so a screen reader still hears "Engagement" rather than
  * spelling out "E-N-G-A-G-E-M-E-N-T" as if it were an acronym; sticky
- * just below the main nav; background color varies by `section`, so
- * each area of the app still reads as visually distinct even though
- * every one of them now shares the exact same header structure). Every
- * panel is expected to render exactly one of these, as its own first
- * element.
+ * just below the main nav). Every header uses the same navy background
+ * and gold title deliberately — one disciplined statement repeated
+ * everywhere, not a different hue per section — matching the app's
+ * "Executive Navy & Gold" direction. `section` is passed through as a
+ * data-section attribute for anyone that wants to key off which page
+ * this is (styling or otherwise), even though the current styling
+ * itself no longer varies by it. Every panel is expected to render
+ * exactly one of these, as its own first element.
  */
 export function PageHeader({
   title,

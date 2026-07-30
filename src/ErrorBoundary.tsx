@@ -53,7 +53,7 @@ export function ErrorScreen({ error, context }: { error: unknown; context: strin
         wordBreak: "break-word",
       }}
     >
-      <h2 style={{ color: "#16333e", fontFamily: "Georgia, serif" }}>
+      <h2 style={{ color: "#0d1b2a", fontFamily: "Georgia, serif" }}>
         Erreur au chargement ({context})
       </h2>
       <p>
@@ -65,7 +65,7 @@ export function ErrorScreen({ error, context }: { error: unknown; context: strin
           <p style={{ fontSize: "0.75rem", color: "#726b5e" }}>{stack}</p>
         </>
       )}
-      <p style={{ marginTop: 20, color: "#16333e" }}>
+      <p style={{ marginTop: 20, color: "#0d1b2a" }}>
         Cette page décrit l&apos;erreur au lieu de rester blanche, précisément pour pouvoir la
         diagnostiquer. Copiez ce message.
       </p>

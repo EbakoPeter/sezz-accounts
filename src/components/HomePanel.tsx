@@ -14,8 +14,8 @@ const SEVERITY_STYLE: Record<
   InsightSeverity,
   { background: string; border: string; label: string }
 > = {
-  success: { background: "#E4EEE6", border: "#4C7A5B", label: "✓" },
-  info: { background: "#FBEFD8", border: "#C98A3B", label: "ℹ" },
+  success: { background: "#E1EBE4", border: "#3D6B52", label: "✓" },
+  info: { background: "#F3E9D3", border: "#B8923F", label: "ℹ" },
   warning: { background: "#F5E3E1", border: "#B23A34", label: "⚠" },
 };
 
@@ -24,7 +24,7 @@ const SEVERITY_STYLE: Record<
  * ahead of time) — the two-slice pies below (income/expense,
  * spent/remaining) use fixed, meaningful colors instead, matching the
  * green/red convention already used everywhere else in the app. */
-const PALETTE = ["#16333E", "#C98A3B", "#4C7A5B", "#B23A34", "#726B5E", "#8A9A5B"];
+const PALETTE = ["#0D1B2A", "#B8923F", "#3D6B52", "#B23A34", "#5A5340", "#5F5330"];
 
 function point(cx: number, cy: number, radius: number, angleDeg: number) {
   const rad = (angleDeg * Math.PI) / 180;
@@ -129,10 +129,24 @@ export function HomePanel() {
   const [situationPassword, setSituationPassword] = useState("");
   const [situationError, setSituationError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [throttledUntil, setThrottledUntil] = useState<number | null>(null);
+
+  // A light, local-only throttle -- not the shared account lockout
+  // authenticate() uses, and deliberately so: this only ever gates
+  // re-displaying an already-decrypted summary for the person already
+  // signed in as this exact user, not a real login, so treating repeated
+  // wrong guesses here as a lockout-worthy event would risk locking
+  // someone out of the whole app over mistyping a password while trying
+  // to peek at a dashboard card. Resets whenever the page reloads, since
+  // this state was never meant to persist across sessions in the first
+  // place.
+  const isThrottled = throttledUntil !== null && Date.now() < throttledUntil;
 
   async function handleRevealSituation(event: FormEvent) {
     event.preventDefault();
     setSituationError(null);
+    if (isThrottled) return;
     setVerifying(true);
     try {
       if (!currentUser) return;
@@ -141,8 +155,17 @@ export function HomePanel() {
         setSituationRevealed(true);
         setShowPasswordPrompt(false);
         setSituationPassword("");
+        setFailedAttempts(0);
+        setThrottledUntil(null);
       } else {
-        setSituationError("Mot de passe incorrect.");
+        const attempts = failedAttempts + 1;
+        setFailedAttempts(attempts);
+        if (attempts >= 5) {
+          setThrottledUntil(Date.now() + 30_000);
+          setSituationError("Trop de tentatives. Réessayez dans 30 secondes.");
+        } else {
+          setSituationError("Mot de passe incorrect.");
+        }
       }
     } finally {
       setVerifying(false);
@@ -172,7 +195,7 @@ export function HomePanel() {
   const totalSpent = provisionedLines.reduce((sum, s) => sum + s.actual, 0);
   const budgetSlices: PieSlice[] = [
     { label: "Dépensé", value: Math.min(totalSpent, totalAllocated), color: "#B23A34" },
-    { label: "Restant", value: Math.max(0, totalAllocated - totalSpent), color: "#4C7A5B" },
+    { label: "Restant", value: Math.max(0, totalAllocated - totalSpent), color: "#3D6B52" },
   ];
   const overrun = totalSpent - totalAllocated;
 
@@ -210,7 +233,7 @@ export function HomePanel() {
                       autoFocus
                     />
                   </div>
-                  <button type="submit" disabled={verifying}>
+                  <button type="submit" disabled={verifying || isThrottled}>
                     {verifying ? "Vérification…" : "Confirmer"}
                   </button>{" "}
                   <button
@@ -266,7 +289,7 @@ export function HomePanel() {
                 <>
                   <PieChart
                     slices={[
-                      { label: "Entrées", value: currentIncome, color: "#4C7A5B" },
+                      { label: "Entrées", value: currentIncome, color: "#3D6B52" },
                       { label: "Sorties", value: currentExpense, color: "#B23A34" },
                     ]}
                     ariaLabel={`Répartition entrées/sorties du mois : ${formatFcfa(currentIncome)} d'entrées, ${formatFcfa(currentExpense)} de sorties`}
@@ -274,7 +297,7 @@ export function HomePanel() {
                   />
                   <PieLegend
                     slices={[
-                      { label: "Entrées", value: currentIncome, color: "#4C7A5B" },
+                      { label: "Entrées", value: currentIncome, color: "#3D6B52" },
                       { label: "Sorties", value: currentExpense, color: "#B23A34" },
                     ]}
                   />

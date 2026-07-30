@@ -428,7 +428,9 @@ export function UsersPanel({ view = "both" }: { view?: "list" | "profile" | "bot
                                 checked={permitted}
                                 onChange={(e) => handleTogglePrivilege(r, key, e.target.checked)}
                               />{" "}
-                              {permitted ? "Permit" : "Deny"}
+                              <span className="permit-deny-label">
+                                {permitted ? "Permit" : "Deny"}
+                              </span>
                             </label>
                           </td>
                         );

@@ -70,4 +70,43 @@ describe("generateOperationsReportPdf", () => {
     // transaction contributes nothing to the January report
     expect(Math.abs(withOutOfRange.output().length - empty.output().length)).toBeLessThan(50);
   });
+
+  it("restricts the report to just one kind when the kind filter is given", async () => {
+    await seedExpenseDirectly({ date: "2030-01-05", label: "Dépense filtrée", amount: 5000 });
+    const now = Date.now();
+    await database.transactions.add(
+      await encryptedFixture<Transaction, "label" | "amount" | "note">(
+        {
+          id: generateId(),
+          accountId,
+          kind: "income",
+          date: "2030-01-10",
+          label: "Revenu filtré",
+          amount: 8000,
+          createdAt: now,
+          updatedAt: now,
+        },
+        ["label", "amount", "note"],
+      ),
+    );
+
+    const everything = await generateOperationsReportPdf(database, "2030-01-01", "2030-01-31");
+    const incomeOnly = await generateOperationsReportPdf(
+      database,
+      "2030-01-01",
+      "2030-01-31",
+      "income",
+    );
+    const expenseOnly = await generateOperationsReportPdf(
+      database,
+      "2030-01-01",
+      "2030-01-31",
+      "expense",
+    );
+
+    // each filtered report only has one row's worth of content, so both
+    // should be meaningfully smaller than the unfiltered one with both
+    expect(incomeOnly.output().length).toBeLessThan(everything.output().length);
+    expect(expenseOnly.output().length).toBeLessThan(everything.output().length);
+  });
 });

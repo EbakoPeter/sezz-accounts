@@ -49,6 +49,24 @@ describe("ensureForecastAccount", () => {
     const all = await accounts.list();
     expect(all.filter((a) => a.name === FORECAST_ACCOUNT_NAME)).toHaveLength(1);
   });
+
+  it("never throws and never duplicates the account when two calls overlap on a fresh database", async () => {
+    // The same race roleTemplatesRepository.ts was found to have, on a
+    // real phone: two overlapping calls both see "doesn't exist yet"
+    // and both try to create one. The fixed id (rather than a freshly
+    // generated one) is what makes this safe here -- at most one of two
+    // concurrent add() calls against the same primary key can succeed;
+    // the loser's own add() throws, which ensureForecastAccount catches
+    // and resolves by simply reusing what the winner just created.
+    const [firstId, secondId] = await Promise.all([
+      ensureForecastAccount(database),
+      ensureForecastAccount(database),
+    ]);
+
+    expect(firstId).toBe(secondId);
+    const all = await accounts.list();
+    expect(all.filter((a) => a.name === FORECAST_ACCOUNT_NAME)).toHaveLength(1);
+  });
 });
 
 describe("creditForecastAccount", () => {

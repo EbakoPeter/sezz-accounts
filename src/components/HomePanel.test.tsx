@@ -73,6 +73,31 @@ describe("HomePanel", () => {
     expect(within(situation).getByRole("button", { name: /^afficher$/i })).toBeInTheDocument();
   });
 
+  it("temporarily blocks further attempts after 5 wrong passwords in a row", async () => {
+    const session = await createTestUser("admin");
+    const user = userEvent.setup();
+    renderWithSession(<HomePanel />, session);
+
+    const situation = (await screen.findByText(/situation financière/i)).closest("section")!;
+    await user.click(within(situation).getByRole("button", { name: /^afficher$/i }));
+    const input = await screen.findByLabelText(/votre mot de passe/i);
+    const confirmButton = screen.getByRole("button", { name: /^confirmer$/i });
+
+    for (let i = 0; i < 4; i++) {
+      await user.clear(input);
+      await user.type(input, "wrong");
+      await user.click(confirmButton);
+      await within(situation).findByRole("alert");
+    }
+    // the 5th wrong attempt crosses the threshold
+    await user.clear(input);
+    await user.type(input, "wrong");
+    await user.click(confirmButton);
+
+    expect(await within(situation).findByRole("alert")).toHaveTextContent(/trop de tentatives/i);
+    expect(confirmButton).toBeDisabled();
+  });
+
   it("rejects a different user's password, even an admin's — only the logged-in user's own works", async () => {
     // distinct, explicit passwords specifically to make this unambiguous,
     // rather than relying on createTestUser's shared convenience password

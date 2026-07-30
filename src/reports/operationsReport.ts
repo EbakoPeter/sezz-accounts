@@ -6,17 +6,19 @@ import { formatFcfa } from "@/lib/money";
 import { createReportDocument, addReportTable, downloadReport } from "./pdfDocument";
 
 /** All operations between `from` and `to` (inclusive, "YYYY-MM-DD"),
- * chronological, with a running total row at the end — the "relevé" a
- * bank-style operations report is expected to look like. */
+ * optionally restricted to just income or just expenses, chronological,
+ * with a running total row at the end — the "relevé" a bank-style
+ * operations report is expected to look like. */
 export async function generateOperationsReportPdf(
   database: SezzAccountsDatabase,
   from: string,
   to: string,
+  kind?: "income" | "expense",
 ): Promise<jsPDF> {
   const transactionsRepo = createTransactionsRepository(database);
   const accountsRepo = createAccountsRepository(database);
   const [transactions, accounts] = await Promise.all([
-    transactionsRepo.list({ from, to }),
+    transactionsRepo.list({ from, to, ...(kind ? { kind } : {}) }),
     accountsRepo.list(),
   ]);
   const accountNameById = new Map(accounts.map((a) => [a.id, a.name]));
@@ -24,9 +26,15 @@ export async function generateOperationsReportPdf(
   // list() sorts most-recent-first; a ledger reads naturally chronological
   const chronological = transactions.slice().reverse();
 
+  const kindLabel =
+    kind === "income"
+      ? " — revenus uniquement"
+      : kind === "expense"
+        ? " — dépenses uniquement"
+        : "";
   const doc = createReportDocument(
     "Rapport par opérations",
-    `Du ${from} au ${to} — ${chronological.length} opération(s)`,
+    `Du ${from} au ${to}${kindLabel} — ${chronological.length} opération(s)`,
   );
 
   const totalIncome = chronological
@@ -56,7 +64,9 @@ export async function downloadOperationsReport(
   database: SezzAccountsDatabase,
   from: string,
   to: string,
+  kind?: "income" | "expense",
 ): Promise<void> {
-  const doc = await generateOperationsReportPdf(database, from, to);
-  downloadReport(doc, `sezz-rapport-operations-${from}-au-${to}.pdf`);
+  const doc = await generateOperationsReportPdf(database, from, to, kind);
+  const kindSuffix = kind ? `-${kind === "income" ? "revenus" : "depenses"}` : "";
+  downloadReport(doc, `sezz-rapport-operations-${from}-au-${to}${kindSuffix}.pdf`);
 }

@@ -7,42 +7,31 @@
    rather than discovering them only after this file finishes loading. */
 
 :root {
-  /* Palette */
-  --ink: #16333e;
-  --ink-light: #24485a;
-  --gold: #c98a3b;
+  /* Palette — "Executive Navy & Gold": a deeper, more restrained navy
+     and a metallic brass gold rather than the warmer amber this app
+     started with, deliberately closer to how private banking and
+     wealth-management products present themselves — serious about
+     money first, approachable second, rather than the other way
+     around. Every other rule in this file reads these as custom
+     properties, so this section is the entire palette shift. */
+  --ink: #0d1b2a;
+  --ink-light: #1c3348;
+  --gold: #b8923f;
   /* Near-black rather than --ink for text sitting directly on --gold —
      --ink measures at roughly 4.5:1 contrast against gold, technically
      passing WCAG AA but with no real margin, which is exactly the kind
      of pairing that reads as unclear on an actual phone screen even
      when it "should" pass on paper. This measures at roughly 9:1. */
   --gold-text: #1a1006;
-  --gold-soft: #e7c692;
-  --sage: #4c7a5b;
+  --gold-soft: #e8c877;
+  --sage: #3d6b52;
   --red: #b23a34;
-  --paper: #faf7f1;
-  --surface: #ffffff;
-  --line: #ddd3be;
+  --paper: #f5f2e9;
+  --surface: #fffdf7;
+  --line: #d8d2c0;
   --line-soft: #ece5d4;
-  --text: #2b2620;
-  --text-dim: #726b5e;
-
-  /* Section colors — one per top-level menu, used only by the sticky
-     page header (see .page-header below), never by the existing
-     accent-gold/sage/ink nested-section treatment, which stays as it
-     was. Reuses ink/gold/sage for the three menus already strongly
-     associated with them elsewhere in this file; the rest are new,
-     chosen to stay within the same muted, warm "ledger" register
-     rather than introducing a saturated, clashing color per page. */
-  --hdr-home: var(--ink);
-  --hdr-accounts: var(--gold);
-  --hdr-operations: var(--sage);
-  --hdr-budget: #8b4049;
-  --hdr-debts: #a8672f;
-  --hdr-reports: #4d6b7a;
-  --hdr-recommendations: #6b5277;
-  --hdr-users: #7a6a3d;
-  --hdr-sync: #3d6b63;
+  --text: #2e2a20;
+  --text-dim: #5a5340;
 
   /* Type */
   --font-display: "Newsreader", Georgia, serif;
@@ -109,14 +98,36 @@ body {
     max-width: 100vw;
     padding: var(--space-4) var(--space-3) var(--space-5);
   }
+  /* Three stacked sticky bars (nav, page header, table head) cost
+     proportionally far more of a short phone screen than a desktop
+     monitor -- kept sticky (the request was for every page to have
+     one, not just on desktop) but shrunk so they don't crowd out the
+     actual content underneath them. Button min-height is deliberately
+     left alone even here: that's a touch-target size, a genuine
+     accessibility floor, not just visual padding to trim. */
+  :root {
+    --nav-height: 52px;
+    --page-header-height: 40px;
+  }
+  .tab-bar-wrapper {
+    padding-top: var(--space-1);
+  }
+  .page-header {
+    padding: var(--space-2) var(--space-3);
+  }
+  .page-header h2 {
+    font-size: 1.1rem;
+  }
 }
 
 /* The one title every panel uses (see PageHeader.tsx) instead of each
    writing its own <h2> — same sticky behavior, same centered/uppercase
-   treatment, same structure everywhere, with only the color varying
-   per section (data-section, matched against --hdr-* above) so ink,
-   comptes, budget, etc. each still read as visually distinct pages
-   rather than one undifferentiated header repeated throughout. */
+   treatment, same structure everywhere. Deliberately one disciplined
+   navy-and-gold statement repeated on every page rather than a
+   different hue per section (an earlier version varied color by
+   data-section — see PageHeader.tsx's own history) — restraint, not
+   variety, is what actually reads as "executive"/"private banking"
+   rather than a colorful rainbow undermining that tone. */
 .page-header {
   position: sticky;
   top: var(--nav-height);
@@ -125,46 +136,19 @@ body {
   padding: var(--space-3) var(--space-4);
   margin: 0 0 var(--space-5);
   border-radius: var(--radius-md);
-  background: var(--section-color, var(--ink));
+  background: var(--ink);
+  border-bottom: 3px solid var(--gold);
   box-shadow: var(--shadow-card);
 }
 
 .page-header h2 {
   margin: 0;
-  color: #f4efe2;
+  color: var(--gold-soft);
   font-family: var(--font-display);
   font-size: 1.5rem;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-}
-
-.page-header[data-section="home"] {
-  --section-color: var(--hdr-home);
-}
-.page-header[data-section="accounts"] {
-  --section-color: var(--hdr-accounts);
-}
-.page-header[data-section="operations"] {
-  --section-color: var(--hdr-operations);
-}
-.page-header[data-section="budget"] {
-  --section-color: var(--hdr-budget);
-}
-.page-header[data-section="debts"] {
-  --section-color: var(--hdr-debts);
-}
-.page-header[data-section="reports"] {
-  --section-color: var(--hdr-reports);
-}
-.page-header[data-section="recommendations"] {
-  --section-color: var(--hdr-recommendations);
-}
-.page-header[data-section="users"] {
-  --section-color: var(--hdr-users);
-}
-.page-header[data-section="sync"] {
-  --section-color: var(--hdr-sync);
 }
 
 /* Focus visibility — kept deliberately strong; a finance app is exactly
@@ -437,6 +421,16 @@ button:disabled {
   .table-scroll {
     margin: 0 calc(var(--space-4) * -1);
     padding: 0 var(--space-4);
+  }
+  /* The Profil grid's own checkbox columns don't need "Permit"/"Deny"
+     spelled out next to every box on a narrow phone -- the checkbox's
+     own state already shows it visually, and the full wording survives
+     in the checkbox's own aria-label for anyone using a screen reader.
+     Cuts each role column down to roughly a third of the width it
+     needed before, the main contributor to this table requiring more
+     horizontal scroll than any other in the app. */
+  .permit-deny-label {
+    display: none;
   }
 }
 

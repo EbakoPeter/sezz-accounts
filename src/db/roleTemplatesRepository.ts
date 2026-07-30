@@ -17,10 +17,42 @@ export function createRoleTemplatesRepository(database: SezzAccountsDatabase = d
    * ROLE_DEFAULT_PERMISSIONS on first read if it doesn't exist yet — a
    * migration that runs the first time it's needed rather than as a
    * schema version bump, so the seed logic lives in exactly one place
-   * instead of being duplicated between a migration and this repository. */
+   * instead of being duplicated between a migration and this repository.
+   *
+   * The get-then-add is wrapped in its own read-write transaction
+   * deliberately: list() below calls this for all three roles
+   * concurrently via Promise.all, and useLiveQuery re-invokes list()
+   * again as soon as it sees any of those writes land — meaning a
+   * second, overlapping call can start seeding the same role before the
+   * first one's add() has committed. Without a transaction, both see
+   * "doesn't exist yet" and both call add(), and the second one throws
+   * a ConstraintError with no error boundary to catch it, taking the
+   * whole page down. A transaction serializes concurrent calls against
+   * the same store, so the second one's own get() correctly sees what
+   * the first already committed. This raced rarely on a fast desktop
+   * (the window was narrow) and reliably on slower hardware (every
+   * IndexedDB round trip is slower, widening it) — which is exactly the
+   * "crashes on phone" report this fixes.
+   *
+   * toStorageRow/fromStorageRow are deliberately called *outside* the
+   * transaction, before and after it rather than inside: they call the
+   * Web Crypto API, a native, non-Dexie promise, and awaiting one inside
+   * a Dexie transaction breaks the microtask chain Dexie uses to know
+   * the transaction is still in use — it commits early and every
+   * request issued after throws PrematureCommitError. The transaction
+   * body below is a plain, uninterrupted sequence of IndexedDB requests
+   * only, which is what Dexie transactions actually require. */
   async function ensureSeeded(role: UserRole): Promise<RoleTemplate> {
-    const row = await database.roleTemplates.get(role);
-    if (row) return fromStorageRow<RoleTemplate>(row);
+    // Fast path first: the overwhelming majority of reads find the role
+    // already seeded, and a plain (non-transactional) get() for that case
+    // avoids opening a read-write transaction on every single read —
+    // Dexie's liveQuery treats an "rw" transaction as a possible table
+    // mutation for reactivity purposes regardless of what it actually did,
+    // so doing this unconditionally caused every read to look like a
+    // write and retrigger reactive queries needlessly. Only escalate to
+    // the transactional path below when seeding might actually be needed.
+    const existingRow = await database.roleTemplates.get(role);
+    if (existingRow) return fromStorageRow<RoleTemplate>(existingRow);
 
     const now = Date.now();
     const template: RoleTemplate = {
@@ -29,8 +61,16 @@ export function createRoleTemplatesRepository(database: SezzAccountsDatabase = d
       createdAt: now,
       updatedAt: now,
     };
-    await database.roleTemplates.add(await toStorageRow(template, SENSITIVE_ROLE_TEMPLATE_FIELDS));
-    return template;
+    const candidateRow = await toStorageRow(template, SENSITIVE_ROLE_TEMPLATE_FIELDS);
+
+    const row = await database.transaction("rw", database.roleTemplates, async () => {
+      const existing = await database.roleTemplates.get(role);
+      if (existing) return existing;
+      await database.roleTemplates.add(candidateRow);
+      return candidateRow;
+    });
+
+    return fromStorageRow<RoleTemplate>(row);
   }
 
   return {
