@@ -1,5 +1,5 @@
 import type { SezzAccountsDatabase } from "./schema";
-import { fromStorageRow, fromStorageRows } from "./encryptedRecord";
+import { fromStorageRows, fromStorageRowOrUndefined } from "./encryptedRecord";
 import { dedupeInFlight } from "@/lib/inFlightCache";
 import type { Debt, DebtPayment } from "@/types/models";
 
@@ -39,7 +39,8 @@ export async function getDebtSummary(
 ): Promise<DebtSummary | undefined> {
   const row = await database.debts.get(debtId);
   if (!row) return undefined;
-  const debt = await fromStorageRow<Debt>(row);
+  const debt = await fromStorageRowOrUndefined<Debt>(row);
+  if (!debt) return undefined;
 
   const paymentRows = await database.debtPayments.where("debtId").equals(debtId).toArray();
   const payments = await fromStorageRows<DebtPayment>(paymentRows);

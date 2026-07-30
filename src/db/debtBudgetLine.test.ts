@@ -25,6 +25,38 @@ describe("ensureDebtBudgetLine", () => {
     database = createTestDatabase();
   });
 
+  it("skips a category it can't decrypt while searching for an existing 'Dettes' match, rather than failing entirely", async () => {
+    // Simulates a category pulled in via sync from a device with a
+    // mismatched DEK — exactly the scenario DecryptionError's own message
+    // describes. This must not block creating the auto Dette line for
+    // everyone else just because one unrelated category is unreadable.
+    const { setActiveDek, clearActiveDek } = await import("@/lib/encryptionSession");
+    const { generateDekBytes } = await import("@/lib/encryption");
+    const { toStorageRow } = await import("./encryptedRecord");
+
+    const originalDek = generateDekBytes();
+    setActiveDek(originalDek);
+    setActiveDek(generateDekBytes()); // a different device's key
+    const mismatchedRow = await toStorageRow(
+      { id: "other-device-cat", name: "Une autre catégorie", createdAt: 1, updatedAt: 1 },
+      ["name"] as const,
+    );
+    await database.budgetCategories.add(mismatchedRow);
+    setActiveDek(originalDek);
+
+    await expect(ensureDebtBudgetLine(database)).resolves.not.toThrow();
+
+    const categoryRows = await database.budgetCategories.toArray();
+    const categories = await Promise.all(
+      categoryRows
+        .filter((r) => r.id !== "other-device-cat")
+        .map((r) => fromStorageRow<{ name: string }>(r)),
+    );
+    expect(categories).toContainEqual(expect.objectContaining({ name: "Dettes" }));
+    clearActiveDek();
+    setActiveDek(originalDek);
+  });
+
   it("creates a 'Dettes' category and a 'Dette' subcategory when neither exists", async () => {
     await ensureDebtBudgetLine(database);
 

@@ -5,7 +5,12 @@ import { generateId } from "@/lib/id";
 import { assertNonNegativeAmount } from "@/lib/money";
 import { ValidationError, NotFoundError } from "@/lib/errors";
 import { getAccountFlows, netOf } from "./accountFlows";
-import { toStorageRow, fromStorageRow, fromStorageRows } from "./encryptedRecord";
+import {
+  toStorageRow,
+  fromStorageRow,
+  fromStorageRows,
+  fromStorageRowOrUndefined,
+} from "./encryptedRecord";
 import { logDeletion } from "./deletionLog";
 
 const SENSITIVE_ACCOUNT_FIELDS = ["name", "initialBalance"] as const;
@@ -68,7 +73,7 @@ export function createAccountsRepository(database: SezzAccountsDatabase = defaul
 
     async getById(id: string): Promise<Account | undefined> {
       const row = await database.accounts.get(id);
-      return row ? decryptAccount(row) : undefined;
+      return fromStorageRowOrUndefined<Account>(row);
     },
 
     async update(id: string, patch: AccountUpdate): Promise<Account> {

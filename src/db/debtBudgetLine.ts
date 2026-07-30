@@ -1,7 +1,7 @@
 import type { SezzAccountsDatabase } from "./schema";
 import { db as defaultDb } from "./schema";
 import type { BudgetCategory, BudgetSubcategory, Debt, DebtPayment } from "@/types/models";
-import { toStorageRow, fromStorageRow, fromStorageRows } from "./encryptedRecord";
+import { toStorageRow, fromStorageRows, fromStorageRowOrUndefined } from "./encryptedRecord";
 import { monthsBetween } from "./debtSummary";
 
 const SENSITIVE_CATEGORY_FIELDS = ["name"] as const;
@@ -63,8 +63,13 @@ export async function ensureDebtBudgetLine(
     const categoryRows = await database.budgetCategories.toArray();
     let legacyMatch: string | undefined;
     for (const row of categoryRows) {
-      const category = await fromStorageRow<BudgetCategory>(row);
-      if (category.name === CATEGORY_NAME) {
+      // A category this device can't decrypt (a mismatched sync key —
+      // see DecryptionError) is simply irrelevant noise for this specific
+      // by-name search, not a reason to fail the whole lookup: one
+      // unrelated bad category anywhere in a household's data would
+      // otherwise block creating *any* new debt at all.
+      const category = await fromStorageRowOrUndefined<BudgetCategory>(row);
+      if (category?.name === CATEGORY_NAME) {
         legacyMatch = category.id;
         break;
       }

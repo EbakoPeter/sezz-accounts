@@ -8,7 +8,12 @@ import type {
 import { generateId } from "@/lib/id";
 import { assertNonNegativeAmount } from "@/lib/money";
 import { ValidationError, NotFoundError } from "@/lib/errors";
-import { toStorageRow, fromStorageRow, fromStorageRows } from "./encryptedRecord";
+import {
+  toStorageRow,
+  fromStorageRow,
+  fromStorageRows,
+  fromStorageRowOrUndefined,
+} from "./encryptedRecord";
 import { logDeletion } from "./deletionLog";
 
 const SENSITIVE_SUBCATEGORY_FIELDS = ["name", "monthlyAllocation"] as const;
@@ -84,7 +89,7 @@ export function createBudgetSubcategoriesRepository(database: SezzAccountsDataba
 
     async getById(id: string): Promise<BudgetSubcategory | undefined> {
       const row = await database.budgetSubcategories.get(id);
-      return row ? decryptSubcategory(row) : undefined;
+      return fromStorageRowOrUndefined<BudgetSubcategory>(row);
     },
 
     async update(id: string, patch: BudgetSubcategoryUpdate): Promise<BudgetSubcategory> {

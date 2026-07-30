@@ -14,7 +14,12 @@ import { generateSalt, generateDekBytes, wrapDek, unwrapDek } from "@/lib/encryp
 import { setActiveDek, requireActiveDek } from "@/lib/encryptionSession";
 import { generateRecoveryCode, normalizeRecoveryCode } from "@/lib/recoveryCode";
 import { computeLockoutDurationMs, remainingLockoutMs } from "@/lib/loginRateLimit";
-import { toStorageRow, fromStorageRow, fromStorageRows } from "./encryptedRecord";
+import {
+  toStorageRow,
+  fromStorageRow,
+  fromStorageRows,
+  fromStorageRowOrUndefined,
+} from "./encryptedRecord";
 import { logDeletion } from "./deletionLog";
 
 const MIN_PASSWORD_LENGTH = 4;
@@ -223,7 +228,7 @@ export function createUsersRepository(database: SezzAccountsDatabase = defaultDb
 
     async getById(id: string): Promise<User | undefined> {
       const row = (await database.users.get(id)) as UserRow | undefined;
-      return row ? decryptUser(row) : undefined;
+      return fromStorageRowOrUndefined<User>(row);
     },
 
     async getByUsername(username: string): Promise<User | undefined> {

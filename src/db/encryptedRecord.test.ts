@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { toStorageRow, fromStorageRow, fromStorageRows, DecryptionError } from "./encryptedRecord";
+import {
+  toStorageRow,
+  fromStorageRow,
+  fromStorageRows,
+  fromStorageRowOrUndefined,
+  DecryptionError,
+} from "./encryptedRecord";
 import { setActiveDek, clearActiveDek } from "@/lib/encryptionSession";
 import { generateDekBytes } from "@/lib/encryption";
 
@@ -95,5 +101,45 @@ describe("fromStorageRows resilience", () => {
     expect(consoleErrorSpy).toHaveBeenCalled();
 
     consoleErrorSpy.mockRestore();
+  });
+});
+
+describe("fromStorageRowOrUndefined", () => {
+  it("returns the decrypted record when it decrypts successfully", async () => {
+    const record: Fixture = { id: "1", createdAt: 1, updatedAt: 1, name: "Test", amount: 500 };
+    const row = await toStorageRow(record, SENSITIVE_FIELDS);
+
+    const recovered = await fromStorageRowOrUndefined<Fixture>(row);
+
+    expect(recovered).toEqual(record);
+  });
+
+  it("returns undefined instead of throwing when the record was encrypted under a different key", async () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const record: Fixture = { id: "1", createdAt: 1, updatedAt: 1, name: "Test", amount: 500 };
+    const row = await toStorageRow(record, SENSITIVE_FIELDS);
+
+    // same mismatched-key scenario as fromStorageRow's own test above —
+    // this is the one that must NOT throw, unlike that one
+    setActiveDek(generateDekBytes());
+
+    const recovered = await fromStorageRowOrUndefined<Fixture>(row);
+
+    expect(recovered).toBeUndefined();
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("returns undefined when given undefined, matching a plain 'not found' getById() result", async () => {
+    const recovered = await fromStorageRowOrUndefined<Fixture>(undefined);
+    expect(recovered).toBeUndefined();
+  });
+
+  it("still propagates an error that genuinely isn't a decryption failure", async () => {
+    const record: Fixture = { id: "1", createdAt: 1, updatedAt: 1, name: "Test", amount: 500 };
+    const row = await toStorageRow(record, SENSITIVE_FIELDS);
+    clearActiveDek(); // requireActiveDek() throws its own, different error
+
+    await expect(fromStorageRowOrUndefined<Fixture>(row)).rejects.toThrow(/session chiffrée/i);
   });
 });

@@ -4,7 +4,12 @@ import type { Engagement, NewEngagement, EngagementUpdate } from "@/types/models
 import { generateId } from "@/lib/id";
 import { assertPositiveAmount } from "@/lib/money";
 import { ValidationError, NotFoundError } from "@/lib/errors";
-import { toStorageRow, fromStorageRow, fromStorageRows } from "./encryptedRecord";
+import {
+  toStorageRow,
+  fromStorageRow,
+  fromStorageRows,
+  fromStorageRowOrUndefined,
+} from "./encryptedRecord";
 import { logDeletion } from "./deletionLog";
 
 const SENSITIVE_ENGAGEMENT_FIELDS = ["amount", "label", "note"] as const;
@@ -90,7 +95,7 @@ export function createEngagementsRepository(database: SezzAccountsDatabase = def
 
     async getById(id: string): Promise<Engagement | undefined> {
       const row = await database.engagements.get(id);
-      return row ? decryptEngagement(row) : undefined;
+      return fromStorageRowOrUndefined<Engagement>(row);
     },
 
     /** `status` is deliberately absent from EngagementUpdate — it isn't a

@@ -4,7 +4,12 @@ import type { Debt, NewDebt, DebtUpdate } from "@/types/models";
 import { generateId } from "@/lib/id";
 import { assertPositiveAmount } from "@/lib/money";
 import { ValidationError, NotFoundError } from "@/lib/errors";
-import { toStorageRow, fromStorageRow, fromStorageRows } from "./encryptedRecord";
+import {
+  toStorageRow,
+  fromStorageRow,
+  fromStorageRows,
+  fromStorageRowOrUndefined,
+} from "./encryptedRecord";
 import { logDeletion } from "./deletionLog";
 import { ensureDebtBudgetLine } from "./debtBudgetLine";
 
@@ -101,7 +106,7 @@ export function createDebtsRepository(database: SezzAccountsDatabase = defaultDb
 
     async getById(id: string): Promise<Debt | undefined> {
       const row = await database.debts.get(id);
-      return row ? decryptDebt(row) : undefined;
+      return fromStorageRowOrUndefined<Debt>(row);
     },
 
     async update(id: string, patch: DebtUpdate): Promise<Debt> {

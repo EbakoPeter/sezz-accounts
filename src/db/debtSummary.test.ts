@@ -47,6 +47,40 @@ describe("getDebtSummary / getAllDebtSummaries", () => {
     expect(await getDebtSummary("nope", database)).toBeUndefined();
   });
 
+  it("returns undefined (not a throw) for a debt it can't decrypt, matching its own not-found semantics", async () => {
+    // Simulates a debt pulled in via sync from a device with a mismatched
+    // DEK. A missing debt already returns undefined (see the test just
+    // above) — an undecryptable one must behave the same way, not crash
+    // whatever screen tries to show its summary.
+    const { setActiveDek, clearActiveDek } = await import("@/lib/encryptionSession");
+    const { generateDekBytes } = await import("@/lib/encryption");
+    const { toStorageRow } = await import("./encryptedRecord");
+
+    const originalDek = generateDekBytes();
+    setActiveDek(originalDek);
+    setActiveDek(generateDekBytes()); // a different device's key
+    const mismatchedRow = await toStorageRow(
+      {
+        id: "other-device-debt",
+        accountId,
+        kind: "debt" as const,
+        reference: "REF",
+        tiers: "Tiers",
+        amount: 10000,
+        date: "2026-01-01",
+        createdAt: 1,
+        updatedAt: 1,
+      },
+      ["tiers", "amount"] as const,
+    );
+    await database.debts.add(mismatchedRow);
+    setActiveDek(originalDek);
+
+    await expect(getDebtSummary("other-device-debt", database)).resolves.toBeUndefined();
+    clearActiveDek();
+    setActiveDek(originalDek);
+  });
+
   it("computes plannedMonthlyPayment from amount and months until due date", async () => {
     const debt = await debts.create({
       kind: "debt",

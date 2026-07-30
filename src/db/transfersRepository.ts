@@ -4,7 +4,12 @@ import type { Transfer, NewTransfer, TransferUpdate } from "@/types/models";
 import { generateId } from "@/lib/id";
 import { assertPositiveAmount } from "@/lib/money";
 import { ValidationError, NotFoundError } from "@/lib/errors";
-import { toStorageRow, fromStorageRow, fromStorageRows } from "./encryptedRecord";
+import {
+  toStorageRow,
+  fromStorageRow,
+  fromStorageRows,
+  fromStorageRowOrUndefined,
+} from "./encryptedRecord";
 import { logDeletion } from "./deletionLog";
 
 const SENSITIVE_TRANSFER_FIELDS = ["amount", "label", "note"] as const;
@@ -80,7 +85,7 @@ export function createTransfersRepository(database: SezzAccountsDatabase = defau
 
     async getById(id: string): Promise<Transfer | undefined> {
       const row = await database.transfers.get(id);
-      return row ? decryptTransfer(row) : undefined;
+      return fromStorageRowOrUndefined<Transfer>(row);
     },
 
     async update(id: string, patch: TransferUpdate): Promise<Transfer> {

@@ -72,6 +72,38 @@ export async function fromStorageRow<T>(row: WithEncrypted): Promise<T> {
 }
 
 /**
+ * Like fromStorageRow, but tolerant of a decryption failure the same way
+ * fromStorageRows already is for a whole list — returns undefined instead
+ * of throwing DecryptionError. Every repository's own list() already
+ * silently excludes a record it can't decrypt rather than taking the
+ * whole list down with it (see fromStorageRows below); a getById()-style
+ * single-record lookup had no equivalent, which meant looking up one of
+ * those exact same records directly — most commonly a foreign-key
+ * resolution, e.g. "look up this transaction's own accountId to show its
+ * name" — still threw and crashed the current view via ErrorBoundary,
+ * even though the very same record was already being silently skipped by
+ * any list rendering it. This makes the two consistent: a record
+ * encrypted under a mismatched key (the near-universal cause being
+ * multi-device sync — see DecryptionError's own message) is now
+ * "invisible until the key mismatch is resolved" everywhere, not "crashes
+ * the page" in some call paths and "silently skipped" in others.
+ */
+export async function fromStorageRowOrUndefined<T>(
+  row: WithEncrypted | undefined,
+): Promise<T | undefined> {
+  if (!row) return undefined;
+  try {
+    return await fromStorageRow<T>(row);
+  } catch (err) {
+    if (err instanceof DecryptionError) {
+      console.error("Enregistrement ignoré (déchiffrement impossible) :", err);
+      return undefined;
+    }
+    throw err;
+  }
+}
+
+/**
  * Like fromStorageRow, but for a whole list — and deliberately tolerant of
  * individual failures rather than propagating the first one and losing
  * the entire list. This matters specifically because of multi-device

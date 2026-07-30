@@ -13,9 +13,11 @@ Avant cet audit, **aucune configuration CI/CD n'existait** sur ce dépôt — ni
 ## Ce qui a été mis en place
 
 ### `.github/workflows/ci.yml` — porte de qualité sur chaque push/PR
+
 Lint (ESLint, zéro avertissement toléré) → format (Prettier) → typage strict (`tsc`) → suite de tests complète → build → vérification d'installabilité PWA. Échoue et bloque la fusion si une seule étape échoue.
 
 ### `.github/workflows/security.yml` — trois contrôles de sécurité dédiés
+
 - **Audit des dépendances** (`npm audit --omit=dev --audit-level=high`) : échoue sur toute vulnérabilité haute/critique dans les dépendances de **production** uniquement — une faille dans un outil de build (ESLint, etc.) n'atteint jamais le navigateur de l'utilisateur final, donc ne doit pas bloquer le pipeline pour un risque qui ne se matérialise jamais en production.
 - **Scan de secrets** (Gitleaks) : détecte toute clé, mot de passe ou jeton qui se serait glissé dans un commit.
 - **CodeQL** (analyse statique native GitHub) : détecte les vulnérabilités de code (injection, désérialisation dangereuse, etc.).
@@ -23,6 +25,7 @@ Lint (ESLint, zéro avertissement toléré) → format (Prettier) → typage str
 Ces trois contrôles tournent aussi **chaque semaine indépendamment de tout push** — une dépendance peut devenir vulnérable du jour au lendemain sans qu'aucun code n'ait changé ici.
 
 ### `.github/dependabot.yml`
+
 Mises à jour hebdomadaires automatisées, avec les dépendances de développement groupées en une seule PR (pour éviter dix PR séparées pour des bumps ESLint/Prettier/`@types/*`), et les dépendances de **production** laissées non groupées — un bump d'une dépendance réellement exécutée en production mérite sa propre revue individuelle.
 
 ## Vérifié concrètement, pas seulement écrit

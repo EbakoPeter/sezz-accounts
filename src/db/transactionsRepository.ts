@@ -4,7 +4,12 @@ import type { Transaction, NewTransaction, TransactionUpdate, Engagement } from 
 import { generateId } from "@/lib/id";
 import { assertPositiveAmount, formatFcfa } from "@/lib/money";
 import { ValidationError, NotFoundError } from "@/lib/errors";
-import { toStorageRow, fromStorageRow, fromStorageRows } from "./encryptedRecord";
+import {
+  toStorageRow,
+  fromStorageRow,
+  fromStorageRows,
+  fromStorageRowOrUndefined,
+} from "./encryptedRecord";
 import { logDeletion } from "./deletionLog";
 
 const SENSITIVE_TRANSACTION_FIELDS = ["label", "amount", "note"] as const;
@@ -178,7 +183,7 @@ export function createTransactionsRepository(database: SezzAccountsDatabase = de
 
     async getById(id: string): Promise<Transaction | undefined> {
       const row = await database.transactions.get(id);
-      return row ? decryptTransaction(row) : undefined;
+      return fromStorageRowOrUndefined<Transaction>(row);
     },
 
     async update(id: string, patch: TransactionUpdate): Promise<Transaction> {

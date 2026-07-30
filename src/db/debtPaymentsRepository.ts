@@ -4,7 +4,12 @@ import type { DebtPayment, NewDebtPayment, DebtPaymentUpdate } from "@/types/mod
 import { generateId } from "@/lib/id";
 import { assertPositiveAmount } from "@/lib/money";
 import { ValidationError, NotFoundError } from "@/lib/errors";
-import { toStorageRow, fromStorageRow, fromStorageRows } from "./encryptedRecord";
+import {
+  toStorageRow,
+  fromStorageRow,
+  fromStorageRows,
+  fromStorageRowOrUndefined,
+} from "./encryptedRecord";
 import { logDeletion } from "./deletionLog";
 
 const SENSITIVE_PAYMENT_FIELDS = ["amount"] as const;
@@ -74,7 +79,7 @@ export function createDebtPaymentsRepository(database: SezzAccountsDatabase = de
 
     async getById(id: string): Promise<DebtPayment | undefined> {
       const row = await database.debtPayments.get(id);
-      return row ? decryptPayment(row) : undefined;
+      return fromStorageRowOrUndefined<DebtPayment>(row);
     },
 
     async update(id: string, patch: DebtPaymentUpdate): Promise<DebtPayment> {

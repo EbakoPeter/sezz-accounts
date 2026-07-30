@@ -3,7 +3,12 @@ import { db as defaultDb } from "./schema";
 import type { BudgetCategory, NewBudgetCategory, BudgetCategoryUpdate } from "@/types/models";
 import { generateId } from "@/lib/id";
 import { ValidationError, NotFoundError } from "@/lib/errors";
-import { toStorageRow, fromStorageRow, fromStorageRows } from "./encryptedRecord";
+import {
+  toStorageRow,
+  fromStorageRow,
+  fromStorageRows,
+  fromStorageRowOrUndefined,
+} from "./encryptedRecord";
 import { logDeletion } from "./deletionLog";
 
 const SENSITIVE_CATEGORY_FIELDS = ["name"] as const;
@@ -52,7 +57,7 @@ export function createBudgetCategoriesRepository(database: SezzAccountsDatabase 
 
     async getById(id: string): Promise<BudgetCategory | undefined> {
       const row = await database.budgetCategories.get(id);
-      return row ? decryptCategory(row) : undefined;
+      return fromStorageRowOrUndefined<BudgetCategory>(row);
     },
 
     async update(id: string, patch: BudgetCategoryUpdate): Promise<BudgetCategory> {
