@@ -1,0 +1,20 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      # Bundles routine dev-tooling bumps into one PR instead of ten
+      # separate ones for eslint/prettier/@types/* etc. — production
+      # dependencies are deliberately left ungrouped, since a runtime
+      # dependency bump deserves its own individual review, not to be
+      # bundled in with nine unrelated ones.
+      dev-dependencies:
+        dependency-type: "development"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

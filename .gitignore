@@ -7,3 +7,9 @@ coverage/
 # Generated reports (downloaded via the app, or left over from local
 # testing of the report-generation code) — never part of the source.
 *.pdf
+
+# Nothing here currently reads from a real .env (no build-time secrets
+# exist on the client), but excluding it defensively costs nothing and
+# protects against ever adding one without remembering this file.
+.env
+.env.*

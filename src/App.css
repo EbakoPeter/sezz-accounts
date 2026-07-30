@@ -51,10 +51,12 @@
   --shadow-raised: 0 4px 20px rgba(22, 51, 62, 0.12);
   --transition: 150ms ease;
   /* The sticky top nav's own height (padding + tab-bar), referenced by
-     .page-header and table thead below so each can stack correctly
-     underneath it rather than each guessing its own offset. */
+     .page-header so it can stack correctly underneath the nav rather
+     than guessing its own offset. Table th no longer needs an entry
+     here — see its own comment in App.css for why its sticky top is a
+     plain 0 now, relative to .table-scroll's own scroll, not a global
+     page offset. */
   --nav-height: 60px;
-  --page-header-height: 52px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -107,35 +109,35 @@ body {
      accessibility floor, not just visual padding to trim. */
   :root {
     --nav-height: 52px;
-    --page-header-height: 40px;
   }
   .tab-bar-wrapper {
     padding-top: var(--space-1);
   }
-  .page-header {
-    padding: var(--space-2) var(--space-3);
-  }
-  .page-header h2 {
-    font-size: 1.1rem;
-  }
 }
 
 /* The one title every panel uses (see PageHeader.tsx) instead of each
-   writing its own <h2> — same sticky behavior, same centered/uppercase
-   treatment, same structure everywhere. Deliberately one disciplined
-   navy-and-gold statement repeated on every page rather than a
-   different hue per section (an earlier version varied color by
-   data-section — see PageHeader.tsx's own history) — restraint, not
-   variety, is what actually reads as "executive"/"private banking"
-   rather than a colorful rainbow undermining that tone. */
+   writing its own <h2> — same sticky behavior, same uppercase
+   treatment, same structure everywhere. Left-aligned (not centered) and
+   deliberately flush against the nav bar directly above it — flat top
+   corners, zero gap, the same navy background — so the two read as one
+   continuous bar rather than two separate navy shapes stacked with a
+   border-radius and a gap between them. */
 .page-header {
   position: sticky;
   top: var(--nav-height);
   z-index: 90;
-  text-align: center;
-  padding: var(--space-3) var(--space-4);
-  margin: 0 0 var(--space-5);
-  border-radius: var(--radius-md);
+  text-align: left;
+  padding: var(--space-3) var(--space-5);
+  /* Every panel renders this as the first child of a section that has
+     its own padding (see the base `section` rule) — without escaping
+     that padding box, this would sit var(--space-5) below and inset
+     from the nav above it, undermining the whole point of merging the
+     two into one flush bar. Bleeds to the section's full outer edge on
+     three sides (top, left, right) the same way .table-scroll already
+     does for its own horizontal bleed, and keeps the section's own
+     bottom margin/spacing beneath it via margin-bottom below. */
+  margin: calc(var(--space-5) * -1) calc(var(--space-5) * -1) var(--space-5);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
   background: var(--ink);
   border-bottom: 3px solid var(--gold);
   box-shadow: var(--shadow-card);
@@ -188,6 +190,21 @@ section {
   section {
     padding: var(--space-4);
     border-radius: var(--radius-md);
+  }
+  /* Moved here deliberately, not left in the earlier max-width: 600px
+     block above — that one comes before .page-header's own general
+     rule in source order, so with matching specificity the general
+     rule always won regardless of viewport width, silently making
+     those declarations dead code. This block runs after it, so these
+     actually apply on a narrow screen. Margin matches section's own
+     mobile padding (var(--space-4), not var(--space-5)) so the bleed
+     is exact, not 8px short or long of the section's real inset. */
+  .page-header {
+    padding: var(--space-2) var(--space-4);
+    margin: calc(var(--space-4) * -1) calc(var(--space-4) * -1) var(--space-5);
+  }
+  .page-header h2 {
+    font-size: 1.1rem;
   }
 }
 
@@ -409,9 +426,35 @@ button:disabled {
 /* Tables — wrapped in .table-scroll for touch-friendly horizontal
    scrolling on narrow screens, rather than squeezing 6+ columns until
    they're unreadable. A soft right-edge shadow hints there's more to
-   scroll to, without needing JS to detect scroll position. */
+   scroll to, without needing JS to detect scroll position.
+   overflow-y: auto plus a bounded max-height turns this into its own
+   self-contained scrolling viewport — Excel's own "freeze first row"
+   works the same way, a bounded data area with its own scrollbar, not
+   the whole application window scrolling underneath a floating header.
+   This is deliberate, not incidental: per the CSS spec, an ancestor
+   with *any* non-visible overflow (even overflow-x alone, as this
+   already had) becomes the containing block position: sticky resolves
+   against — meaning th's sticky top was already being computed
+   relative to this element, never the page, and had no scrollable
+   distance within it to actually stick against. Rows never stayed
+   frozen at all; they scrolled normally underneath a header that only
+   looked like it should freeze, which is what read as "rows
+   overlapping". Giving this element its own real vertical scroll (and
+   changing th's sticky top to 0, relative to *this* container, not a
+   global nav+header offset — see th below) is what makes the freeze
+   actually take effect, rather than fighting the spec. */
 .table-scroll {
   overflow-x: auto;
+  overflow-y: auto;
+  /* Genuinely adjusts with content, not a fixed box from the start —
+     max-height is a ceiling, not a set height: a 2-row table sits at
+     exactly its own content height with no internal scrollbar at all,
+     and only a table long enough to actually reach this cap gets its
+     own scroll. The cap itself accounts for the space the sticky nav
+     and page header stack already consumes, rather than a flat
+     fraction of the viewport that would waste room on a tall screen or
+     be too cramped on a short one. */
+  max-height: calc(100vh - var(--nav-height) - 160px);
   margin: 0 calc(var(--space-5) * -1);
   padding: 0 var(--space-5);
   -webkit-overflow-scrolling: touch;
@@ -437,7 +480,14 @@ button:disabled {
 table {
   width: 100%;
   min-width: 560px;
-  border-collapse: collapse;
+  /* position: sticky on th below does not reliably work with
+     border-collapse: collapse across browsers — this is what was
+     causing the frozen header row to render broken/overlapping rather
+     than behaving like Excel's own frozen first row. border-spacing: 0
+     keeps rows touching exactly as collapse did; only the border model
+     itself changes, not the visible spacing. */
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 0.85rem;
 }
 
@@ -451,12 +501,14 @@ th {
   text-transform: uppercase;
   border-bottom: 2px solid var(--ink);
   white-space: nowrap;
-  /* Stuck just below the nav + page header stack, so a long table's
-     column names stay visible while scrolling through its rows —
-     needs its own opaque background since a stuck header otherwise
-     lets scrolled-under row content show through it. */
+  /* Sticks to the top of .table-scroll's own scroll — see that class's
+     comment for why this is 0 and not some global nav+header offset:
+     that container is th's actual containing block for sticky purposes
+     regardless, so 0 is where it needs to freeze against. Needs its own
+     opaque background since a stuck header otherwise lets scrolled-
+     under row content show through it. */
   position: sticky;
-  top: calc(var(--nav-height) + var(--page-header-height));
+  top: 0;
   z-index: 10;
   background: var(--surface);
 }
@@ -606,14 +658,20 @@ tfoot th {
   z-index: 100;
   background: var(--paper);
   padding-top: var(--space-2);
-  margin: calc(var(--space-2) * -1) 0 var(--space-5);
+  /* No bottom margin — .page-header sits immediately below with zero
+     gap, so the two visually merge into one continuous navy block (see
+     .page-header's own comment) rather than reading as separate shapes. */
+  margin: calc(var(--space-2) * -1) 0 0;
 }
 
 .tab-bar {
   display: flex;
   gap: 2px;
   background: var(--ink);
-  border-radius: var(--radius-md);
+  /* Flat on the bottom, not rounded on every corner — merges seamlessly
+     into .page-header directly below it (see that rule's own comment),
+     rather than reading as two separate navy shapes stacked with a gap. */
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
   padding: 4px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;

@@ -1,0 +1,61 @@
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Catches a CVE disclosed *after* the last push touching this repo —
+    # a dependency doesn't need a code change here to become newly
+    # vulnerable, so this can't only run on push/PR.
+    - cron: "17 4 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-audit:
+    name: Dependency vulnerability scan (production dependencies)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # --omit=dev deliberately: a vulnerable *build tool* (eslint,
+      # vite-plugin-pwa, ...) never ships to an end user's browser the
+      # way a vulnerable runtime dependency would, and gating on dev-only
+      # findings here would fail the pipeline for risk that never
+      # actually reaches production. Full findings (including dev deps)
+      # are still visible in npm's own output, just not a hard failure.
+      - name: Fail on high/critical vulnerabilities reachable in production
+        run: npm audit --omit=dev --audit-level=high
+
+  secret-scan:
+    name: Scan for committed secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # gitleaks needs full history, not just the latest commit
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  codeql:
+    name: CodeQL static analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+      - uses: github/codeql-action/analyze@v3
