@@ -3,7 +3,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { usersRepository } from "@/repositories";
 import { useAuth } from "@/auth/AuthContext";
 import { BuildInfo } from "@/components/BuildInfo";
-import { loginSyncAccount, getSyncSession } from "@/sync/syncClient";
+import { loginSyncAccount, registerSyncAccount, getSyncSession } from "@/sync/syncClient";
 import { pullChanges } from "@/sync/syncEngine";
 
 type Mode = "login" | "forgot-password";
@@ -37,6 +37,28 @@ export function LoginScreen() {
   const [joinEmail, setJoinEmail] = useState("");
   const [joinPassword, setJoinPassword] = useState("");
   const [joining, setJoining] = useState(false);
+
+  // "Create an account" — a brand new customer with no existing household
+  // to join. Two steps, kept as separate state on purpose rather than
+  // reusing username/password below for both: step 1's password belongs
+  // to the *sync* account (a server-side login proving "this device may
+  // exchange data for this household"), step 2's is the *local* admin's
+  // own password (the one that actually protects the encryption key) —
+  // conflating the two fields would risk the same password silently
+  // ending up in both roles, which the rest of this app's design goes out
+  // of its way to keep separate. Registering the sync account first,
+  // before the local admin exists, means the very first user created
+  // below is already syncing from the moment they're created, rather than
+  // requiring a separate trip through Synchronisation afterward.
+  const [creatingAccount, setCreatingAccount] = useState(false);
+  const [syncAccountReady, setSyncAccountReady] = useState(false);
+  const [newAccountServerUrl, setNewAccountServerUrl] = useState(
+    import.meta.env.VITE_SYNC_SERVER_URL ?? "",
+  );
+  const [newAccountEmail, setNewAccountEmail] = useState("");
+  const [newAccountSyncPassword, setNewAccountSyncPassword] = useState("");
+  const [newAccountConfirmSyncPassword, setNewAccountConfirmSyncPassword] = useState("");
+  const [creatingSyncAccount, setCreatingSyncAccount] = useState(false);
 
   // Set once account creation or recovery produces a fresh recovery code
   // that must be shown and acknowledged before the person can proceed —
@@ -157,6 +179,27 @@ export function LoginScreen() {
     }
   }
 
+  async function handleRegisterSyncAccount(event: FormEvent) {
+    event.preventDefault();
+    setError(null);
+    if (newAccountSyncPassword !== newAccountConfirmSyncPassword) {
+      setError("Les deux mots de passe ne correspondent pas.");
+      return;
+    }
+    setCreatingSyncAccount(true);
+    try {
+      await registerSyncAccount(newAccountServerUrl, newAccountEmail, newAccountSyncPassword);
+      // Step 2 (below) creates the local admin next — already configured
+      // to sync the moment it's created, since registerSyncAccount just
+      // wrote the server/token/account details this device needs.
+      setSyncAccountReady(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur inattendue.");
+    } finally {
+      setCreatingSyncAccount(false);
+    }
+  }
+
   if (pendingRecoveryCode) {
     return (
       <div className="login-screen">
@@ -241,9 +284,67 @@ export function LoginScreen() {
               </p>
             )}
           </form>
+        ) : isFirstRun && creatingAccount && !syncAccountReady ? (
+          <form onSubmit={handleRegisterSyncAccount} aria-label="Créer un compte">
+            <p className="tagline">
+              Créez votre compte — vous pourrez ensuite synchroniser tous vos appareils. Vous
+              configurerez l&apos;administrateur principal de votre foyer à l&apos;étape suivante.
+            </p>
+            <div className="field">
+              <label htmlFor="new-account-server-url">Adresse du serveur</label>
+              <input
+                id="new-account-server-url"
+                placeholder="https://votre-serveur.exemple.com"
+                value={newAccountServerUrl}
+                onChange={(e) => setNewAccountServerUrl(e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="new-account-email">Adresse e-mail</label>
+              <input
+                id="new-account-email"
+                type="email"
+                value={newAccountEmail}
+                onChange={(e) => setNewAccountEmail(e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="new-account-password">Mot de passe</label>
+              <input
+                type="password"
+                id="new-account-password"
+                value={newAccountSyncPassword}
+                onChange={(e) => setNewAccountSyncPassword(e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="new-account-confirm-password">Confirmer le mot de passe</label>
+              <input
+                type="password"
+                id="new-account-confirm-password"
+                value={newAccountConfirmSyncPassword}
+                onChange={(e) => setNewAccountConfirmSyncPassword(e.target.value)}
+              />
+            </div>
+            <button type="submit" disabled={creatingSyncAccount}>
+              {creatingSyncAccount ? "Création…" : "Continuer"}
+            </button>
+            <button type="button" className="ghost" onClick={() => setCreatingAccount(false)}>
+              Retour
+            </button>
+            {error && (
+              <p role="alert" className="form-error">
+                {error}
+              </p>
+            )}
+          </form>
         ) : isFirstRun ? (
           <>
-            <p className="tagline">Premier lancement : créez le compte administrateur principal.</p>
+            <p className="tagline">
+              {syncAccountReady
+                ? "Compte créé — configurez maintenant l'administrateur principal de ce foyer."
+                : "Premier lancement : créez le compte administrateur principal."}
+            </p>
             <form onSubmit={handleCreateFirstAdmin} aria-label="Créer le compte administrateur">
               <div className="field">
                 <label htmlFor="first-username">Nom d&apos;utilisateur</label>
@@ -280,9 +381,16 @@ export function LoginScreen() {
                 />
               </div>
               <button type="submit">Créer et se connecter</button>
-              <button type="button" className="ghost" onClick={() => setJoiningViaSync(true)}>
-                Rejoindre un foyer existant via synchronisation
-              </button>
+              {!syncAccountReady && (
+                <>
+                  <button type="button" className="ghost" onClick={() => setCreatingAccount(true)}>
+                    Créer un compte (avec synchronisation)
+                  </button>
+                  <button type="button" className="ghost" onClick={() => setJoiningViaSync(true)}>
+                    Rejoindre un foyer existant via synchronisation
+                  </button>
+                </>
+              )}
               {error && (
                 <p role="alert" className="form-error">
                   {error}

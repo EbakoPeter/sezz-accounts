@@ -377,3 +377,116 @@ describe("LoginScreen — joining an existing household via sync", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(/aucune donnée/i);
   });
 });
+
+describe("LoginScreen — creating a brand new account", () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function jsonResponse(body: unknown, ok = true, status = ok ? 200 : 400): Response {
+    return { ok, status, json: () => Promise.resolve(body) } as Response;
+  }
+
+  it("shows a link to create a brand new account on the first-run screen", async () => {
+    renderLoginScreen();
+    expect(
+      await screen.findByRole("button", { name: /créer un compte \(avec synchronisation\)/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("switches to the create-account form and back", async () => {
+    const user = userEvent.setup();
+    renderLoginScreen();
+
+    await user.click(
+      await screen.findByRole("button", { name: /créer un compte \(avec synchronisation\)/i }),
+    );
+    expect(screen.getByLabelText(/adresse e-mail/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /^retour$/i }));
+    expect(await screen.findByText(/premier lancement/i)).toBeInTheDocument();
+  });
+
+  it("registers the sync account, then creates a local admin already configured to sync", async () => {
+    fetchMock.mockImplementation((url: string) => {
+      if (url.includes("/auth/register")) {
+        return Promise.resolve(jsonResponse({ token: "tok-new", syncAccountId: "acct-new" }));
+      }
+      // the auto-sync push that follows local admin creation
+      return Promise.resolve(jsonResponse({ accepted: [], rejected: [] }));
+    });
+
+    const user = userEvent.setup();
+    renderLoginScreen();
+    await user.click(
+      await screen.findByRole("button", { name: /créer un compte \(avec synchronisation\)/i }),
+    );
+
+    await user.type(screen.getByLabelText(/adresse du serveur/i), "https://sync.example.com");
+    await user.type(screen.getByLabelText(/adresse e-mail/i), "famille@example.com");
+    await user.type(screen.getByLabelText(/^mot de passe$/i), "sync-password-123");
+    await user.type(screen.getByLabelText(/confirmer le mot de passe/i), "sync-password-123");
+    await user.click(screen.getByRole("button", { name: /^continuer$/i }));
+
+    // step 2: local admin, with the updated tagline confirming the sync
+    // account is already in place, and neither of the other first-run
+    // alternatives shown (irrelevant once a brand new account was just made)
+    expect(await screen.findByText(/compte créé/i)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /créer un compte \(avec synchronisation\)/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /rejoindre un foyer existant/i }),
+    ).not.toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(/nom d'utilisateur/i), "admin");
+    await user.type(screen.getByLabelText(/nom affiché/i), "Admin");
+    await user.type(screen.getByLabelText(/^mot de passe$/i), "local-password-123");
+    await user.type(screen.getByLabelText(/confirmer le mot de passe/i), "local-password-123");
+    await user.click(screen.getByRole("button", { name: /créer et se connecter/i }));
+
+    expect(await screen.findByTestId("recovery-code")).toBeInTheDocument();
+  });
+
+  it("rejects mismatched passwords before ever contacting the server", async () => {
+    const user = userEvent.setup();
+    renderLoginScreen();
+    await user.click(
+      await screen.findByRole("button", { name: /créer un compte \(avec synchronisation\)/i }),
+    );
+
+    await user.type(screen.getByLabelText(/adresse e-mail/i), "famille@example.com");
+    await user.type(screen.getByLabelText(/^mot de passe$/i), "sync-password-123");
+    await user.type(screen.getByLabelText(/confirmer le mot de passe/i), "something-else");
+    await user.click(screen.getByRole("button", { name: /^continuer$/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/ne correspondent pas/i);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("shows the server's error and does not advance to step 2 when registration fails", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ error: "Cette adresse e-mail est déjà utilisée." }, false, 409),
+    );
+
+    const user = userEvent.setup();
+    renderLoginScreen();
+    await user.click(
+      await screen.findByRole("button", { name: /créer un compte \(avec synchronisation\)/i }),
+    );
+    await user.type(screen.getByLabelText(/adresse e-mail/i), "famille@example.com");
+    await user.type(screen.getByLabelText(/^mot de passe$/i), "sync-password-123");
+    await user.type(screen.getByLabelText(/confirmer le mot de passe/i), "sync-password-123");
+    await user.click(screen.getByRole("button", { name: /^continuer$/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/déjà utilisée/i);
+    expect(screen.getByLabelText(/adresse e-mail/i)).toBeInTheDocument(); // still on step 1
+  });
+});
