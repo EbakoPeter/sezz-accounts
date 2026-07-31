@@ -257,23 +257,6 @@ export function TransactionsPanel({
         ) : (
           <form onSubmit={handleCreate} aria-label="Ajouter une opération">
             <div className="field">
-              <label htmlFor="tx-account">Compte</label>
-              <select
-                id="tx-account"
-                value={accountId}
-                onChange={(e) => setAccountId(e.target.value)}
-              >
-                <option value="" disabled>
-                  Choisir…
-                </option>
-                {accounts?.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name} — {formatFcfa(a.balance)}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="field">
               <label htmlFor="tx-kind">Type</label>
               <select
                 id="tx-kind"
@@ -284,6 +267,31 @@ export function TransactionsPanel({
                 <option value="expense">Dépense</option>
               </select>
             </div>
+            {kind === "expense" &&
+              (settleableEngagements().length > 0 ? (
+                <div className="field">
+                  <label htmlFor="tx-engagement">Dépenses à Faire</label>
+                  <select
+                    id="tx-engagement"
+                    value={engagementId}
+                    onChange={(e) => setEngagementId(e.target.value)}
+                  >
+                    <option value="" disabled>
+                      Choisir…
+                    </option>
+                    {settleableEngagements().map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {engagementOptionLabel(e)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <p className="tagline">
+                  Aucun engagement disponible — créez d&apos;abord un engagement dans l&apos;onglet
+                  Budget Prévisionnel avant d&apos;enregistrer une dépense.
+                </p>
+              ))}
             <div className="field">
               <label htmlFor="tx-date">Date</label>
               <input
@@ -306,31 +314,23 @@ export function TransactionsPanel({
                 onChange={(e) => setAmount(e.target.value)}
               />
             </div>
-            {kind === "expense" &&
-              (settleableEngagements().length > 0 ? (
-                <div className="field">
-                  <label htmlFor="tx-engagement">Engagement</label>
-                  <select
-                    id="tx-engagement"
-                    value={engagementId}
-                    onChange={(e) => setEngagementId(e.target.value)}
-                  >
-                    <option value="" disabled>
-                      Choisir…
-                    </option>
-                    {settleableEngagements().map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {engagementOptionLabel(e)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ) : (
-                <p className="tagline">
-                  Aucun engagement disponible — créez d&apos;abord un engagement dans l&apos;onglet
-                  Budget Prévisionnel avant d&apos;enregistrer une dépense.
-                </p>
-              ))}
+            <div className="field">
+              <label htmlFor="tx-account">Compte</label>
+              <select
+                id="tx-account"
+                value={accountId}
+                onChange={(e) => setAccountId(e.target.value)}
+              >
+                <option value="" disabled>
+                  Choisir…
+                </option>
+                {accounts?.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name} — {formatFcfa(a.balance)}
+                  </option>
+                ))}
+              </select>
+            </div>
             <button type="submit">+ Ajouter</button>
             {formError && (
               <p role="alert" className="form-error">

@@ -201,7 +201,11 @@ export function HomePanel() {
 
   return (
     <section aria-labelledby="home-heading">
-      <PageHeader title="Accueil" section="home" id="home-heading" />
+      <PageHeader
+        title={`Bienvenue, ${currentUser?.displayName ?? ""} !`}
+        section="home"
+        id="home-heading"
+      />
       <p className="tagline">
         Vue d&apos;ensemble de votre situation, au {now.toLocaleDateString("fr-FR")}.
       </p>
@@ -375,6 +379,20 @@ export function HomePanel() {
           </section>
         </>
       )}
+
+      <section className="ad-slot" aria-label="Espace publicitaire">
+        <span className="ad-slot-label">Emplacement publicitaire</span>
+      </section>
+
+      <section aria-labelledby="home-video-heading">
+        <h3 id="home-video-heading">Découvrir SEZZ</h3>
+        <div className="video-slot">
+          <p className="video-slot-icon" aria-hidden="true">
+            ▶
+          </p>
+          <p className="tagline">Vidéo de présentation — bientôt disponible ici.</p>
+        </div>
+      </section>
     </section>
   );
 }

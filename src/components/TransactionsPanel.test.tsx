@@ -144,7 +144,7 @@ describe("TransactionsPanel", () => {
     await user.selectOptions(screen.getByLabelText(/type/i), "expense");
     await user.type(screen.getByLabelText(/libellé/i), "Courses");
     await user.type(screen.getByLabelText(/montant/i), "15000");
-    await user.selectOptions(await screen.findByLabelText(/^engagement$/i), "eng-1");
+    await user.selectOptions(await screen.findByLabelText(/^dépenses à faire$/i), "eng-1");
     await user.click(screen.getByRole("button", { name: /ajouter/i }));
 
     expect(await screen.findByText("Courses")).toBeInTheDocument();
@@ -262,7 +262,7 @@ describe("TransactionsPanel", () => {
     await user.selectOptions(await screen.findByLabelText(/compte$/i), "acc-1");
     await user.type(screen.getByLabelText(/libellé/i), "Trop cher");
     await user.type(screen.getByLabelText(/montant/i), "50000");
-    await user.selectOptions(await screen.findByLabelText(/^engagement$/i), "eng-1");
+    await user.selectOptions(await screen.findByLabelText(/^dépenses à faire$/i), "eng-1");
     await user.click(screen.getByRole("button", { name: /^\+ ajouter$/i }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/dépasse ce qui a été engagé/i);
@@ -292,7 +292,30 @@ describe("TransactionsPanel", () => {
 
     await screen.findByLabelText(/compte$/i);
     expect(await screen.findByText(/aucun engagement disponible/i)).toBeInTheDocument();
-    expect(screen.queryByLabelText(/^engagement$/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^dépenses à faire$/i)).not.toBeInTheDocument();
+  });
+
+  it("orders the expense form with Dépenses à Faire first and Compte last", async () => {
+    const session = await createTestUser("admin");
+    await seedAccount();
+    await seedEngagement({ amount: 20000, label: "Courses" });
+    const user = userEvent.setup();
+    renderWithSession(<TransactionsPanel />, session);
+
+    await user.selectOptions(await screen.findByLabelText(/^type$/i), "expense");
+    const form = await screen.findByRole("form", { name: /ajouter une opération/i });
+    const labels = within(form)
+      .getAllByText(/./, { selector: "label" })
+      .map((el) => el.textContent);
+
+    expect(labels).toEqual([
+      "Type",
+      "Dépenses à Faire",
+      "Date",
+      "Libellé",
+      "Montant (FCFA)",
+      "Compte",
+    ]);
   });
 
   describe("editing", () => {

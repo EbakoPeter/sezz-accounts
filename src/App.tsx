@@ -25,12 +25,6 @@ interface SubMenuDef {
 interface MenuDef {
   id: string;
   label: string;
-  /** Shown instead of the full label while this menu isn't the active
-   * one — a fixed, short length so every menu occupies the same-sized
-   * box regardless of how long its real name is, rather than the tab
-   * bar's width varying tab to tab. The full label still shows once a
-   * menu becomes active (see the tab button's own rendering below). */
-  abbrev: string;
   /** Menu (and every one of its submenus) is hidden entirely for a user
    * lacking this permission — showing a menu whose whole content is "you
    * can't do this" is worse than not showing it at all. */
@@ -39,20 +33,25 @@ interface MenuDef {
 }
 
 const MENUS: MenuDef[] = [
-  { id: "home", label: "Accueil", abbrev: "ACCU" },
   {
     id: "accounts",
     label: "Comptes",
-    abbrev: "CPTS",
     submenus: [
       { id: "list", label: "Listing" },
       { id: "new", label: "Nouveau Compte" },
     ],
   },
   {
+    id: "budget",
+    label: "Budget",
+    submenus: [
+      { id: "engagements", label: "Engagements" },
+      { id: "forecast", label: "Prévisionnel" },
+    ],
+  },
+  {
     id: "transactions",
     label: "Opérations",
-    abbrev: "OPER",
     submenus: [
       { id: "forecastCredit", label: "Crédit Prév (CP)" },
       { id: "operations", label: "Opérations" },
@@ -60,18 +59,8 @@ const MENUS: MenuDef[] = [
     ],
   },
   {
-    id: "budget",
-    label: "Budget",
-    abbrev: "BDGT",
-    submenus: [
-      { id: "engagements", label: "Engagements" },
-      { id: "forecast", label: "Prévisionnel" },
-    ],
-  },
-  {
     id: "debts",
     label: "Dettes & Créances",
-    abbrev: "D&C",
     submenus: [
       { id: "receivables", label: "Créances" },
       { id: "debts", label: "Dettes" },
@@ -80,7 +69,6 @@ const MENUS: MenuDef[] = [
   {
     id: "reports",
     label: "Rapports",
-    abbrev: "RAPP",
     requires: "viewReports",
     submenus: [
       { id: "general", label: "Général" },
@@ -89,11 +77,10 @@ const MENUS: MenuDef[] = [
       { id: "cashflow", label: "Trésorerie" },
     ],
   },
-  { id: "recommendations", label: "Recommandations", abbrev: "RECO", requires: "viewReports" },
+  { id: "recommendations", label: "Recommandations", requires: "viewReports" },
   {
     id: "users",
     label: "Utilisateurs",
-    abbrev: "UTIL",
     requires: "manageUsers",
     submenus: [
       { id: "list", label: "Listing" },
@@ -106,12 +93,18 @@ const MENUS: MenuDef[] = [
   // new permission flag (touching Permissions, ROLE_DEFAULT_PERMISSIONS,
   // every existing user's stored record, and their tests) for a single
   // tab wasn't proportionate to build in this first pass.
-  { id: "sync", label: "Synchronisation", abbrev: "SYNC", requires: "manageUsers" },
+  { id: "sync", label: "Synchronisation", requires: "manageUsers" },
 ];
 
 export function App() {
   const { currentUser, logout } = useAuth();
-  const [activeMenu, setActiveMenu] = useState("home");
+  const [activeMenu, setActiveMenu] = useState("accounts");
+  // The welcome screen (see HomePanel) is no longer one of the regular
+  // tabs in `menus` below — it's what's shown by default on login,
+  // separate from tab-based navigation entirely, with its own path back
+  // to it (clicking the SEZZ title) rather than being just another item
+  // in the tab list a person could otherwise never fully leave.
+  const [showingWelcome, setShowingWelcome] = useState(true);
   const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
   // Which top-level menu's submenu dropdown is currently unfolded, if
   // any — deliberately separate from activeMenu/activeSubmenu (which
@@ -127,6 +120,16 @@ export function App() {
   // so keeping it running even while sitting on the login screen (after a
   // logout, say) keeps this device's data fresh for whoever logs in next.
   useAutoSync();
+
+  // currentUser?.id (not just currentUser) as the dependency: this must
+  // fire again on every *new* login, but not on every re-render a
+  // logged-in session naturally causes (a user's own record refreshing
+  // after a permission change, for instance) — those still leave the
+  // same id, and shouldn't yank someone back to the welcome screen
+  // while they're in the middle of using a different tab.
+  useEffect(() => {
+    setShowingWelcome(true);
+  }, [currentUser?.id]);
 
   // Closes an open dropdown on an outside tap/click — the other half of
   // "behaves like a website's nav dropdown" alongside the toggle logic
@@ -157,6 +160,7 @@ export function App() {
       : (selectedMenu.submenus?.[0]?.id ?? null);
 
   function handleClickMenu(menu: MenuDef) {
+    setShowingWelcome(false);
     if (!menu.submenus) {
       // A leaf menu (Recommandations, Synchronisation) just navigates —
       // there is nothing to unfold.
@@ -179,6 +183,7 @@ export function App() {
   }
 
   function handleClickSubmenu(sub: SubMenuDef) {
+    setShowingWelcome(false);
     setActiveSubmenu(sub.id);
     setOpenDropdown(null);
   }
@@ -190,7 +195,17 @@ export function App() {
       <header>
         <div className="top-bar">
           <div>
-            <h1>SEZZ</h1>
+            <button
+              type="button"
+              className="brand-home-link"
+              onClick={() => {
+                setShowingWelcome(true);
+                setOpenDropdown(null);
+              }}
+              aria-label="Retour à l'accueil"
+            >
+              <h1>SEZZ</h1>
+            </button>
             <p className="tagline">Gestion budgétaire personnelle — fondation normalisée</p>
           </div>
           <div className="session-info">
@@ -213,16 +228,14 @@ export function App() {
                 type="button"
                 role="tab"
                 id={`tab-${menu.id}`}
-                aria-selected={selectedMenu.id === menu.id}
+                aria-selected={!showingWelcome && selectedMenu.id === menu.id}
                 aria-expanded={menu.submenus ? openDropdown === menu.id : undefined}
                 aria-haspopup={menu.submenus ? "true" : undefined}
                 aria-label={menu.label}
-                className={`tab-button${selectedMenu.id === menu.id ? " active" : ""}`}
+                className={`tab-button${!showingWelcome && selectedMenu.id === menu.id ? " active" : ""}`}
                 onClick={() => handleClickMenu(menu)}
               >
-                <span aria-hidden="true">
-                  {selectedMenu.id === menu.id ? menu.label : menu.abbrev}
-                </span>
+                <span aria-hidden="true">{menu.label}</span>
                 {menu.submenus && <span className="dropdown-caret" aria-hidden="true" />}
               </button>
             ))}
@@ -249,47 +262,54 @@ export function App() {
           )}
         </nav>
       </header>
-      <main
-        role="tabpanel"
-        id={`tabpanel-${selectedMenu.id}`}
-        aria-labelledby={`tab-${selectedMenu.id}`}
-      >
-        {selectedMenu.id === "home" && <HomePanel />}
-        {selectedMenu.id === "accounts" && (
-          <AccountsPanel view={selectedSubmenuId === "new" ? "new" : "list"} />
-        )}
-        {selectedMenu.id === "transactions" && selectedSubmenuId === "forecastCredit" && (
-          <ForecastCreditPanel />
-        )}
-        {selectedMenu.id === "transactions" && selectedSubmenuId !== "forecastCredit" && (
-          <TransactionsPanel
-            view={selectedSubmenuId === "transfers" ? "transfers" : "operations"}
-          />
-        )}
-        {selectedMenu.id === "budget" && (
-          <BudgetPanel view={selectedSubmenuId === "engagements" ? "engagements" : "forecast"} />
-        )}
-        {selectedMenu.id === "debts" && (
-          <DebtsPanel view={selectedSubmenuId === "receivables" ? "receivables" : "debts"} />
-        )}
-        {selectedMenu.id === "reports" && selectedSubmenuId === "monthly" && <MonthlyReportPanel />}
-        {selectedMenu.id === "reports" && selectedSubmenuId !== "monthly" && (
-          <ReportsPanel
-            section={
-              selectedSubmenuId === "general"
-                ? "general"
-                : selectedSubmenuId === "cashflow"
-                  ? "cashflow"
-                  : "custom"
-            }
-          />
-        )}
-        {selectedMenu.id === "recommendations" && <RecommendationsPanel />}
-        {selectedMenu.id === "users" && (
-          <UsersPanel view={selectedSubmenuId === "profile" ? "profile" : "list"} />
-        )}
-        {selectedMenu.id === "sync" && <SyncPanel />}
-      </main>
+      {showingWelcome ? (
+        <main aria-label="Accueil">
+          <HomePanel />
+        </main>
+      ) : (
+        <main
+          role="tabpanel"
+          id={`tabpanel-${selectedMenu.id}`}
+          aria-labelledby={`tab-${selectedMenu.id}`}
+        >
+          {selectedMenu.id === "accounts" && (
+            <AccountsPanel view={selectedSubmenuId === "new" ? "new" : "list"} />
+          )}
+          {selectedMenu.id === "transactions" && selectedSubmenuId === "forecastCredit" && (
+            <ForecastCreditPanel />
+          )}
+          {selectedMenu.id === "transactions" && selectedSubmenuId !== "forecastCredit" && (
+            <TransactionsPanel
+              view={selectedSubmenuId === "transfers" ? "transfers" : "operations"}
+            />
+          )}
+          {selectedMenu.id === "budget" && (
+            <BudgetPanel view={selectedSubmenuId === "engagements" ? "engagements" : "forecast"} />
+          )}
+          {selectedMenu.id === "debts" && (
+            <DebtsPanel view={selectedSubmenuId === "receivables" ? "receivables" : "debts"} />
+          )}
+          {selectedMenu.id === "reports" && selectedSubmenuId === "monthly" && (
+            <MonthlyReportPanel />
+          )}
+          {selectedMenu.id === "reports" && selectedSubmenuId !== "monthly" && (
+            <ReportsPanel
+              section={
+                selectedSubmenuId === "general"
+                  ? "general"
+                  : selectedSubmenuId === "cashflow"
+                    ? "cashflow"
+                    : "custom"
+              }
+            />
+          )}
+          {selectedMenu.id === "recommendations" && <RecommendationsPanel />}
+          {selectedMenu.id === "users" && (
+            <UsersPanel view={selectedSubmenuId === "profile" ? "profile" : "list"} />
+          )}
+          {selectedMenu.id === "sync" && <SyncPanel />}
+        </main>
+      )}
     </div>
   );
 }

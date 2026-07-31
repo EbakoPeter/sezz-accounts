@@ -170,6 +170,24 @@ header h1 {
   margin: 0 0 2px;
 }
 
+/* Wraps the SEZZ title so clicking it returns to the welcome screen —
+   reset to look exactly like the plain heading it wraps, not like a
+   button, since visually this should read as "click the brand name",
+   the same convention most websites already use for "go back home". */
+.brand-home-link {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  display: block;
+  text-align: left;
+}
+
+.brand-home-link h1 {
+  margin: 0 0 2px;
+}
+
 .tagline {
   color: var(--text-dim);
   margin-top: 0;
@@ -277,6 +295,41 @@ section.accent-ink h3 {
   margin-top: var(--space-4);
   padding-top: var(--space-4);
   border-top: 1px dashed var(--line);
+}
+
+/* Accueil's ad and video placeholders — a clearly-marked, honest "not
+   real content yet" box rather than something that looks broken or
+   accidentally empty. Same dashed-border placeholder language as
+   .budget-entry-section above, in a neutral tone rather than gold,
+   so it doesn't read as "an editable form area" the way that one does. */
+.ad-slot {
+  border: 2px dashed var(--line);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  margin-bottom: var(--space-5);
+  text-align: center;
+  color: var(--text-dim);
+  background: var(--surface);
+}
+
+.ad-slot-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.video-slot {
+  border: 2px dashed var(--line);
+  border-radius: var(--radius-md);
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+  background: var(--surface);
+}
+
+.video-slot-icon {
+  font-size: 2rem;
+  color: var(--text-dim);
+  margin: 0 0 var(--space-2);
 }
 
 section h2 {
@@ -755,15 +808,9 @@ tfoot th {
   color: rgba(244, 239, 226, 0.65);
   border: none;
   border-radius: var(--radius-sm);
-  padding: 10px 14px;
+  padding: 10px 18px;
   min-height: 44px;
-  /* Fixed, uniform width for every menu, sized for the abbreviation
-     each one shows while inactive — not the varying width a
-     content-sized box would have from "CPTS" next to "Dettes &
-     Créances". The active menu is deliberately excepted (see
-     .tab-button.active below): it shows its full name, and needs the
-     room that requires. */
-  width: 66px;
+  min-width: 44px;
   justify-content: center;
   display: flex;
   align-items: center;
@@ -796,10 +843,6 @@ tfoot th {
   background: var(--gold);
   color: var(--gold-text);
   font-weight: 700;
-  width: auto;
-  min-width: 66px;
-  padding-left: 18px;
-  padding-right: 18px;
 }
 
 .permission-notice {

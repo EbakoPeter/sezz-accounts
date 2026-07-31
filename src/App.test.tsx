@@ -23,31 +23,46 @@ describe("App menu navigation", () => {
     expect(await screen.findByText(/premier lancement/i)).toBeInTheDocument();
   });
 
-  it("defaults to the Accueil menu (dashboard), with no dropdown open", async () => {
+  it("shows the welcome screen by default, with the full tab list and no dropdown open", async () => {
     const session = await createTestUser("admin");
     renderWithSession(<App />, session);
 
+    // The welcome screen itself — no tab is "selected" here, since it's
+    // no longer one of the tabs at all
+    expect(await screen.findByText(/bienvenue/i)).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { selected: true })).not.toBeInTheDocument();
+
     const tabs = await screen.findAllByRole("tab");
     expect(tabs.map((t) => t.getAttribute("aria-label"))).toEqual([
-      "Accueil",
       "Comptes",
-      "Opérations",
       "Budget",
+      "Opérations",
       "Dettes & Créances",
       "Rapports",
       "Recommandations",
       "Utilisateurs",
       "Synchronisation",
     ]);
-    // the active tab shows its full name even visually — only the
-    // inactive ones are abbreviated
-    expect(tabs[0]).toHaveTextContent("Accueil");
-    expect(tabs[1]).toHaveTextContent("CPTS");
-    expect(screen.getByRole("tab", { name: /accueil/i })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("heading", { name: "Accueil" })).toBeInTheDocument();
+    // every tab shows its full name always — no abbreviation
+    expect(tabs[0]).toHaveTextContent("Comptes");
+    expect(tabs[1]).toHaveTextContent("Budget");
     // no dropdown unfolded on first load — it only appears once a menu
     // with submenus is actually clicked
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("returns to the welcome screen when the SEZZ title is clicked, leaving whichever tab was active", async () => {
+    const session = await createTestUser("admin");
+    const user = userEvent.setup();
+    renderWithSession(<App />, session);
+
+    await user.click(await screen.findByRole("tab", { name: "Comptes" }));
+    expect(screen.queryByText(/bienvenue/i)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /retour à l'accueil/i }));
+
+    expect(await screen.findByText(/bienvenue/i)).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { selected: true })).not.toBeInTheDocument();
   });
 
   it("unfolds a dropdown of submenus when a menu is clicked, closed by default", async () => {
@@ -102,22 +117,20 @@ describe("App menu navigation", () => {
     expect(screen.getByRole("heading", { name: "Engagement" })).toBeInTheDocument();
   });
 
-  it("shows a menu's abbreviation while inactive, and its full name once it becomes active", async () => {
+  it("shows a menu's full name at all times, active or not — no abbreviation", async () => {
     const session = await createTestUser("admin");
     const user = userEvent.setup();
     renderWithSession(<App />, session);
 
     const debtsTab = await screen.findByRole("tab", { name: "Dettes & Créances" });
-    expect(debtsTab).toHaveTextContent("D&C");
-    expect(debtsTab).not.toHaveTextContent("Dettes & Créances");
+    expect(debtsTab).toHaveTextContent("Dettes & Créances");
 
     await user.click(debtsTab);
-
     expect(debtsTab).toHaveTextContent("Dettes & Créances");
-    // switching away abbreviates it again
+
+    // switching away still shows the full name, not an abbreviation
     await user.click(screen.getByRole("tab", { name: "Comptes" }));
-    expect(debtsTab).toHaveTextContent("D&C");
-    expect(debtsTab).not.toHaveTextContent("Dettes & Créances");
+    expect(debtsTab).toHaveTextContent("Dettes & Créances");
   });
 
   it("switches which menu's dropdown is open when a different menu is clicked", async () => {
@@ -201,5 +214,26 @@ describe("App menu navigation", () => {
     await user.click(screen.getByRole("button", { name: /se déconnecter/i }));
 
     expect(await screen.findByRole("button", { name: /^se connecter$/i })).toBeInTheDocument();
+  });
+
+  it("shows the welcome screen again on a fresh login, even after leaving it before logging out", async () => {
+    const session = await createTestUser("admin");
+    const user = userEvent.setup();
+    renderWithSession(<App />, session);
+
+    // Navigate away from the welcome screen, then log out
+    await user.click(await screen.findByRole("tab", { name: "Comptes" }));
+    expect(screen.queryByText(/bienvenue/i)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /se déconnecter/i }));
+    await screen.findByRole("button", { name: /^se connecter$/i });
+
+    // Log back in as the same user, within the same rendered App instance
+    // — showingWelcome is component state that would otherwise still
+    // hold "false" from before logout if nothing reset it
+    await user.type(screen.getByLabelText(/nom d'utilisateur/i), session.user.username);
+    await user.type(screen.getByLabelText(/mot de passe/i), "test-password-123");
+    await user.click(screen.getByRole("button", { name: /^se connecter$/i }));
+
+    expect(await screen.findByText(/bienvenue/i)).toBeInTheDocument();
   });
 });
