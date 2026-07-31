@@ -1,6 +1,7 @@
 import { render } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { AuthProvider } from "@/auth/AuthContext";
+import { LanguageProvider } from "@/i18n/LanguageContext";
 import { usersRepository } from "@/repositories";
 import type { User, UserRole, Permissions } from "@/types/models";
 import { ROLE_DEFAULT_PERMISSIONS } from "@/lib/permissions";
@@ -81,9 +82,11 @@ export async function createTestUser(
  * between creating the user and rendering. */
 export function renderWithSession(ui: ReactElement, session: TestSession) {
   const utils = render(
-    <AuthProvider initialUser={session.user} initialDek={session.dek}>
-      {ui}
-    </AuthProvider>,
+    <LanguageProvider>
+      <AuthProvider initialUser={session.user} initialDek={session.dek}>
+        {ui}
+      </AuthProvider>
+    </LanguageProvider>,
   );
   return { ...utils, user: session.user, dek: session.dek };
 }

@@ -11,20 +11,23 @@ import { ReportsPanel } from "@/components/ReportsPanel";
 import { UsersPanel } from "@/components/UsersPanel";
 import { SyncPanel } from "@/components/SyncPanel";
 import { LoginScreen } from "@/components/LoginScreen";
+import { Logo } from "@/components/Logo";
 import { useAuth } from "@/auth/AuthContext";
 import { useAutoSync } from "@/sync/useAutoSync";
+import { useTranslation } from "@/i18n/LanguageContext";
+import { LANGUAGE_LABELS, type Language } from "@/i18n/translations";
 import { ROLE_LABELS } from "@/lib/permissions";
 import type { Permissions } from "@/types/models";
 import "./App.css";
 
 interface SubMenuDef {
   id: string;
-  label: string;
+  labelKey: string;
 }
 
 interface MenuDef {
   id: string;
-  label: string;
+  labelKey: string;
   /** Menu (and every one of its submenus) is hidden entirely for a user
    * lacking this permission — showing a menu whose whole content is "you
    * can't do this" is worse than not showing it at all. */
@@ -35,56 +38,56 @@ interface MenuDef {
 const MENUS: MenuDef[] = [
   {
     id: "accounts",
-    label: "Comptes",
+    labelKey: "nav.accounts",
     submenus: [
-      { id: "list", label: "Listing" },
-      { id: "new", label: "Nouveau Compte" },
+      { id: "list", labelKey: "nav.accounts.list" },
+      { id: "new", labelKey: "nav.accounts.new" },
     ],
   },
   {
     id: "budget",
-    label: "Budget",
+    labelKey: "nav.budget",
     submenus: [
-      { id: "engagements", label: "Engagements" },
-      { id: "forecast", label: "Prévisionnel" },
+      { id: "engagements", labelKey: "nav.budget.engagements" },
+      { id: "forecast", labelKey: "nav.budget.forecast" },
     ],
   },
   {
     id: "transactions",
-    label: "Opérations",
+    labelKey: "nav.transactions",
     submenus: [
-      { id: "forecastCredit", label: "Crédit Prév (CP)" },
-      { id: "operations", label: "Opérations" },
-      { id: "transfers", label: "Transferts" },
+      { id: "forecastCredit", labelKey: "nav.transactions.forecastCredit" },
+      { id: "operations", labelKey: "nav.transactions.operations" },
+      { id: "transfers", labelKey: "nav.transactions.transfers" },
     ],
   },
   {
     id: "debts",
-    label: "Dettes & Créances",
+    labelKey: "nav.debts",
     submenus: [
-      { id: "receivables", label: "Créances" },
-      { id: "debts", label: "Dettes" },
+      { id: "receivables", labelKey: "nav.debts.receivables" },
+      { id: "debts", labelKey: "nav.debts.debts" },
     ],
   },
   {
     id: "reports",
-    label: "Rapports",
+    labelKey: "nav.reports",
     requires: "viewReports",
     submenus: [
-      { id: "general", label: "Général" },
-      { id: "monthly", label: "Mensuel" },
-      { id: "custom", label: "Personnalisé" },
-      { id: "cashflow", label: "Trésorerie" },
+      { id: "general", labelKey: "nav.reports.general" },
+      { id: "monthly", labelKey: "nav.reports.monthly" },
+      { id: "custom", labelKey: "nav.reports.custom" },
+      { id: "cashflow", labelKey: "nav.reports.cashflow" },
     ],
   },
-  { id: "recommendations", label: "Recommandations", requires: "viewReports" },
+  { id: "recommendations", labelKey: "nav.recommendations", requires: "viewReports" },
   {
     id: "users",
-    label: "Utilisateurs",
+    labelKey: "nav.users",
     requires: "manageUsers",
     submenus: [
-      { id: "list", label: "Listing" },
-      { id: "profile", label: "Profil" },
+      { id: "list", labelKey: "nav.users.list" },
+      { id: "profile", labelKey: "nav.users.profile" },
     ],
   },
   // Reuses manageUsers rather than a dedicated permission: configuring
@@ -93,11 +96,12 @@ const MENUS: MenuDef[] = [
   // new permission flag (touching Permissions, ROLE_DEFAULT_PERMISSIONS,
   // every existing user's stored record, and their tests) for a single
   // tab wasn't proportionate to build in this first pass.
-  { id: "sync", label: "Synchronisation", requires: "manageUsers" },
+  { id: "sync", labelKey: "nav.sync", requires: "manageUsers" },
 ];
 
 export function App() {
   const { currentUser, logout } = useAuth();
+  const { t, language, setLanguage } = useTranslation();
   const [activeMenu, setActiveMenu] = useState("accounts");
   // The welcome screen (see HomePanel) is no longer one of the regular
   // tabs in `menus` below — it's what's shown by default on login,
@@ -202,19 +206,42 @@ export function App() {
                 setShowingWelcome(true);
                 setOpenDropdown(null);
               }}
-              aria-label="Retour à l'accueil"
+              aria-label={t("nav.home")}
             >
-              <h1>SEZZ</h1>
+              <Logo size={40} />
+              <h1 className="brand-name">
+                <span className="brand-name-primary">Le</span>
+                <span className="brand-name-accent">N&apos;KAP</span>
+              </h1>
             </button>
-            <p className="tagline">Gestion budgétaire personnelle — fondation normalisée</p>
+            <p className="tagline">{t("app.tagline")}</p>
           </div>
           <div className="session-info">
+            <label className="language-picker">
+              <span className="sr-only">{t("nav.language")}</span>
+              <select
+                value={language}
+                onChange={(e) => setLanguage(e.target.value as Language)}
+                aria-label={t("nav.language")}
+              >
+                {(Object.keys(LANGUAGE_LABELS) as Language[]).map((lang) => (
+                  <option key={lang} value={lang}>
+                    {LANGUAGE_LABELS[lang]}
+                  </option>
+                ))}
+              </select>
+            </label>
             {currentUser.displayName} ({ROLE_LABELS[currentUser.role]}){" "}
             <button type="button" onClick={logout}>
-              Se déconnecter
+              {t("nav.logout")}
             </button>
           </div>
         </div>
+
+        <section className="ad-slot" aria-label={t("home.ad.label")}>
+          <span className="ad-slot-label">{t("home.ad.label")}</span>
+        </section>
+
         <nav
           ref={navRef}
           className="tab-bar-wrapper"
@@ -231,17 +258,21 @@ export function App() {
                 aria-selected={!showingWelcome && selectedMenu.id === menu.id}
                 aria-expanded={menu.submenus ? openDropdown === menu.id : undefined}
                 aria-haspopup={menu.submenus ? "true" : undefined}
-                aria-label={menu.label}
+                aria-label={t(menu.labelKey)}
                 className={`tab-button${!showingWelcome && selectedMenu.id === menu.id ? " active" : ""}`}
                 onClick={() => handleClickMenu(menu)}
               >
-                <span aria-hidden="true">{menu.label}</span>
+                <span aria-hidden="true">{t(menu.labelKey)}</span>
                 {menu.submenus && <span className="dropdown-caret" aria-hidden="true" />}
               </button>
             ))}
           </div>
           {dropdownMenu?.submenus && (
-            <div className="submenu-dropdown" role="menu" aria-label={`${dropdownMenu.label} —`}>
+            <div
+              className="submenu-dropdown"
+              role="menu"
+              aria-label={`${t(dropdownMenu.labelKey)} —`}
+            >
               {dropdownMenu.submenus.map((sub) => (
                 <button
                   key={sub.id}
@@ -255,7 +286,7 @@ export function App() {
                   }`}
                   onClick={() => handleClickSubmenu(sub)}
                 >
-                  {sub.label}
+                  {t(sub.labelKey)}
                 </button>
               ))}
             </div>

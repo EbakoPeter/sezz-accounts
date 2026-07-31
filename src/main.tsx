@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { AuthProvider } from "@/auth/AuthContext";
+import { LanguageProvider } from "@/i18n/LanguageContext";
 import { App } from "./App";
 import { ErrorBoundary, ErrorScreen } from "./ErrorBoundary";
 
@@ -32,9 +33,11 @@ try {
   createRoot(rootElement).render(
     <StrictMode>
       <ErrorBoundary>
-        <AuthProvider>
-          <App />
-        </AuthProvider>
+        <LanguageProvider>
+          <AuthProvider>
+            <App />
+          </AuthProvider>
+        </LanguageProvider>
       </ErrorBoundary>
     </StrictMode>,
   );

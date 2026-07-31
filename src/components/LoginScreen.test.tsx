@@ -3,6 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { LoginScreen } from "./LoginScreen";
 import { AuthProvider, useAuth } from "@/auth/AuthContext";
+import { LanguageProvider } from "@/i18n/LanguageContext";
 import { db } from "@/db/schema";
 import { setActiveDek, clearActiveDek } from "@/lib/encryptionSession";
 import { generateDekBytes } from "@/lib/encryption";
@@ -30,9 +31,11 @@ function TestHarness() {
 
 function renderLoginScreen() {
   return render(
-    <AuthProvider>
-      <TestHarness />
-    </AuthProvider>,
+    <LanguageProvider>
+      <AuthProvider>
+        <TestHarness />
+      </AuthProvider>
+    </LanguageProvider>,
   );
 }
 

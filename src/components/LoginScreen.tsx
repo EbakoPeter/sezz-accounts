@@ -4,6 +4,8 @@ import { usersRepository } from "@/repositories";
 import { db } from "@/db/schema";
 import { useAuth } from "@/auth/AuthContext";
 import { BuildInfo } from "@/components/BuildInfo";
+import { Logo } from "@/components/Logo";
+import { useTranslation } from "@/i18n/LanguageContext";
 import { loginSyncAccount, registerSyncAccount, getSyncSession } from "@/sync/syncClient";
 import { pullChanges } from "@/sync/syncEngine";
 
@@ -12,6 +14,7 @@ type Mode = "login" | "forgot-password";
 export function LoginScreen() {
   const userCount = useLiveQuery(() => usersRepository.count(), []);
   const { login, recoverAccount } = useAuth();
+  const { t } = useTranslation();
 
   const [mode, setMode] = useState<Mode>("login");
 
@@ -241,7 +244,11 @@ export function LoginScreen() {
     return (
       <div className="login-screen">
         <div className="login-card">
-          <h1>SEZZ</h1>
+          <Logo size={40} />
+          <h1 className="brand-name">
+            <span className="brand-name-primary">Le</span>
+            <span className="brand-name-accent">N&apos;KAP</span>
+          </h1>
           <h2>Votre code de récupération</h2>
           <p className="tagline">
             Notez ce code et conservez-le en lieu sûr. Il est le seul moyen de retrouver
@@ -275,7 +282,11 @@ export function LoginScreen() {
   return (
     <div className="login-screen">
       <div className="login-card">
-        <h1>SEZZ</h1>
+        <Logo size={40} />
+        <h1 className="brand-name">
+          <span className="brand-name-primary">Le</span>
+          <span className="brand-name-accent">N&apos;KAP</span>
+        </h1>
         {isFirstRun && joiningViaSync ? (
           <form onSubmit={handleJoinViaSync} aria-label="Rejoindre un foyer existant">
             <p className="tagline">
@@ -438,7 +449,7 @@ export function LoginScreen() {
         ) : mode === "login" ? (
           <form onSubmit={handleLogin} aria-label="Se connecter">
             <div className="field">
-              <label htmlFor="login-username">Nom d&apos;utilisateur</label>
+              <label htmlFor="login-username">{t("login.username")}</label>
               <input
                 id="login-username"
                 value={username}
@@ -446,7 +457,7 @@ export function LoginScreen() {
               />
             </div>
             <div className="field">
-              <label htmlFor="login-password">Mot de passe</label>
+              <label htmlFor="login-password">{t("login.password")}</label>
               <input
                 type="password"
                 id="login-password"
@@ -454,9 +465,9 @@ export function LoginScreen() {
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
-            <button type="submit">Se connecter</button>
+            <button type="submit">{t("login.submit")}</button>
             <button type="button" className="ghost" onClick={() => setMode("forgot-password")}>
-              Mot de passe oublié ?
+              {t("login.forgotPassword")}
             </button>
             <button
               type="button"
@@ -464,7 +475,7 @@ export function LoginScreen() {
               onClick={handleResetForNewAccount}
               disabled={resettingDevice}
             >
-              {resettingDevice ? "Effacement…" : "Je n'ai pas de compte"}
+              {resettingDevice ? "Effacement…" : t("login.noAccount")}
             </button>
             {error && (
               <p role="alert" className="form-error">

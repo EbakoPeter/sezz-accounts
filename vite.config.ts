@@ -18,8 +18,8 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["favicon.png"],
       manifest: {
-        name: "SEZZ",
-        short_name: "SEZZ",
+        name: "LeN'KAP",
+        short_name: "LeN'KAP",
         description: "Gestion budgétaire personnelle — comptes, opérations, synchronisation",
         lang: "fr",
         theme_color: "#0D1B2A",

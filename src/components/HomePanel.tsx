@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useAuth } from "@/auth/AuthContext";
+import { useTranslation } from "@/i18n/LanguageContext";
 import { useAccountsWithBalances } from "@/hooks/useAccountsWithBalances";
 import { useBudgetSummary } from "@/hooks/useBudgetSummary";
 import { useRecommendations } from "@/hooks/useRecommendations";
@@ -120,6 +121,7 @@ function PieLegend({ slices }: { slices: PieSlice[] }) {
 
 export function HomePanel() {
   const { currentUser } = useAuth();
+  const { t, language } = useTranslation();
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
@@ -202,12 +204,14 @@ export function HomePanel() {
   return (
     <section aria-labelledby="home-heading">
       <PageHeader
-        title={`Bienvenue, ${currentUser?.displayName ?? ""} !`}
+        title={t("home.welcome", { name: currentUser?.displayName ?? "" })}
         section="home"
         id="home-heading"
       />
       <p className="tagline">
-        Vue d&apos;ensemble de votre situation, au {now.toLocaleDateString("fr-FR")}.
+        {t("home.overview", {
+          date: now.toLocaleDateString(language === "en" ? "en-US" : "fr-FR"),
+        })}
       </p>
 
       <div className="dashboard-grid">
@@ -380,17 +384,13 @@ export function HomePanel() {
         </>
       )}
 
-      <section className="ad-slot" aria-label="Espace publicitaire">
-        <span className="ad-slot-label">Emplacement publicitaire</span>
-      </section>
-
       <section aria-labelledby="home-video-heading">
-        <h3 id="home-video-heading">Découvrir SEZZ</h3>
+        <h3 id="home-video-heading">{t("home.video.title", { app: t("app.name") })}</h3>
         <div className="video-slot">
           <p className="video-slot-icon" aria-hidden="true">
             ▶
           </p>
-          <p className="tagline">Vidéo de présentation — bientôt disponible ici.</p>
+          <p className="tagline">{t("home.video.comingSoon")}</p>
         </div>
       </section>
     </section>

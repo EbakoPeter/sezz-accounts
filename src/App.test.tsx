@@ -3,6 +3,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App } from "./App";
 import { AuthProvider } from "@/auth/AuthContext";
+import { LanguageProvider } from "@/i18n/LanguageContext";
 import { db } from "@/db/schema";
 import { clearActiveDek } from "@/lib/encryptionSession";
 import { renderWithSession, createTestUser } from "@/test/renderAuthenticated";
@@ -16,9 +17,11 @@ afterEach(async () => {
 describe("App menu navigation", () => {
   it("shows the login screen when nobody is signed in", async () => {
     render(
-      <AuthProvider>
-        <App />
-      </AuthProvider>,
+      <LanguageProvider>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </LanguageProvider>,
     );
     expect(await screen.findByText(/premier lancement/i)).toBeInTheDocument();
   });
@@ -235,5 +238,18 @@ describe("App menu navigation", () => {
     await user.click(screen.getByRole("button", { name: /^se connecter$/i }));
 
     expect(await screen.findByText(/bienvenue/i)).toBeInTheDocument();
+  });
+
+  it("switches the whole interface's language via the picker, immediately and without a page reload", async () => {
+    const session = await createTestUser("admin");
+    const user = userEvent.setup();
+    renderWithSession(<App />, session);
+
+    expect(await screen.findByRole("tab", { name: "Comptes" })).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText(/langue|language/i), "en");
+
+    expect(await screen.findByRole("tab", { name: "Accounts" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /log out/i })).toBeInTheDocument();
   });
 });
