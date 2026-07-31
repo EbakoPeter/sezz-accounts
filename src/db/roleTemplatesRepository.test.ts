@@ -7,6 +7,7 @@ import {
   type RoleTemplatesRepository,
 } from "./roleTemplatesRepository";
 import { ROLE_DEFAULT_PERMISSIONS } from "@/lib/permissions";
+import type { UserRole } from "@/types/models";
 
 // This table has no sensitive fields (see its own comment in schema.ts),
 // but toStorageRow still requires an active encryption session
@@ -60,6 +61,47 @@ describe("RoleTemplatesRepository", () => {
       expect(secondRun.map((t) => t.id)).toEqual(["admin", "standard", "viewer"]);
       const stored = await database.roleTemplates.toArray();
       expect(stored).toHaveLength(3);
+    });
+
+    it("falls back to that role's default permissions, in memory only, when its stored template can't be decrypted — never crashes the whole Utilisateurs screen over one unreadable role", async () => {
+      // Reproduces a real production report: navigating to Utilisateurs
+      // threw a DecryptionError. Traced to exactly this — a role template
+      // synced in from a device with a mismatched key (see
+      // DecryptionError's own message) made list() throw for *all three*
+      // roles at once, since Profil's grid needs every one of them
+      // rendered together.
+      const { setActiveDek, clearActiveDek } = await import("@/lib/encryptionSession");
+      const { generateDekBytes } = await import("@/lib/encryption");
+      const { toStorageRow } = await import("./encryptedRecord");
+
+      const originalDek = generateDekBytes();
+      setActiveDek(originalDek);
+      setActiveDek(generateDekBytes()); // a different device's key
+      const mismatchedRow = await toStorageRow(
+        {
+          id: "standard" as UserRole,
+          permissions: ROLE_DEFAULT_PERMISSIONS.standard,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+        [] as const,
+      );
+      await database.roleTemplates.add(mismatchedRow);
+      setActiveDek(originalDek);
+
+      const templates = await roleTemplates.list();
+
+      expect(templates.map((t) => t.id)).toEqual(["admin", "standard", "viewer"]);
+      const standard = templates.find((t) => t.id === "standard")!;
+      expect(standard.permissions).toEqual(ROLE_DEFAULT_PERMISSIONS.standard);
+      // never persisted over the real (still-encrypted, just currently
+      // unreadable) row -- the fallback exists only in the value returned
+      // by this call, so the actual customized permissions (if any) are
+      // picked up again once the key mismatch resolves
+      const rawRow = await database.roleTemplates.get("standard");
+      expect(rawRow).toEqual(mismatchedRow);
+      clearActiveDek();
+      setActiveDek(originalDek);
     });
   });
 

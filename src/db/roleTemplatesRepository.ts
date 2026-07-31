@@ -2,7 +2,7 @@ import type { SezzAccountsDatabase } from "./schema";
 import { db as defaultDb } from "./schema";
 import type { RoleTemplate, RoleTemplateUpdate, UserRole } from "@/types/models";
 import { ROLE_DEFAULT_PERMISSIONS } from "@/lib/permissions";
-import { toStorageRow, fromStorageRow } from "./encryptedRecord";
+import { toStorageRow, fromStorageRowOrUndefined } from "./encryptedRecord";
 
 const ALL_ROLES: readonly UserRole[] = ["admin", "standard", "viewer"];
 
@@ -42,6 +42,21 @@ export function createRoleTemplatesRepository(database: SezzAccountsDatabase = d
    * request issued after throws PrematureCommitError. The transaction
    * body below is a plain, uninterrupted sequence of IndexedDB requests
    * only, which is what Dexie transactions actually require. */
+  /** What a role starts with before anyone has customized it, or what
+   * this read falls back to (in memory only, never written back) when
+   * the stored template exists but can't be decrypted right now — the
+   * exact same shape ensureSeeded already writes for a role it's never
+   * seen before, reused here rather than duplicated. */
+  function defaultTemplate(role: UserRole): RoleTemplate {
+    const now = Date.now();
+    return {
+      id: role,
+      permissions: ROLE_DEFAULT_PERMISSIONS[role],
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
   async function ensureSeeded(role: UserRole): Promise<RoleTemplate> {
     // Fast path first: the overwhelming majority of reads find the role
     // already seeded, and a plain (non-transactional) get() for that case
@@ -52,7 +67,18 @@ export function createRoleTemplatesRepository(database: SezzAccountsDatabase = d
     // write and retrigger reactive queries needlessly. Only escalate to
     // the transactional path below when seeding might actually be needed.
     const existingRow = await database.roleTemplates.get(role);
-    if (existingRow) return fromStorageRow<RoleTemplate>(existingRow);
+    if (existingRow) {
+      // Tolerant, not the throwing fromStorageRow: a template synced from
+      // a device with a mismatched key (see DecryptionError's own
+      // message) must not crash the entire Utilisateurs screen just
+      // because one of the three role rows happens to be unreadable
+      // right now. Falls back to this role's own defaults in memory only
+      // — never persisted here, so the real customized permissions (if
+      // any) are simply picked up again once the key mismatch resolves,
+      // rather than being permanently overwritten by a fallback.
+      const decrypted = await fromStorageRowOrUndefined<RoleTemplate>(existingRow);
+      return decrypted ?? defaultTemplate(role);
+    }
 
     const now = Date.now();
     const template: RoleTemplate = {
@@ -70,7 +96,7 @@ export function createRoleTemplatesRepository(database: SezzAccountsDatabase = d
       return candidateRow;
     });
 
-    return fromStorageRow<RoleTemplate>(row);
+    return (await fromStorageRowOrUndefined<RoleTemplate>(row)) ?? defaultTemplate(role);
   }
 
   return {
