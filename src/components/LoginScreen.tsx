@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { usersRepository } from "@/repositories";
+import { db } from "@/db/schema";
 import { useAuth } from "@/auth/AuthContext";
 import { BuildInfo } from "@/components/BuildInfo";
 import { loginSyncAccount, registerSyncAccount, getSyncSession } from "@/sync/syncClient";
@@ -69,6 +70,7 @@ export function LoginScreen() {
     loginPassword: string;
   } | null>(null);
   const [codeAcknowledged, setCodeAcknowledged] = useState(false);
+  const [resettingDevice, setResettingDevice] = useState(false);
 
   if (userCount === undefined) {
     return <p>Chargement…</p>;
@@ -198,6 +200,41 @@ export function LoginScreen() {
     } finally {
       setCreatingSyncAccount(false);
     }
+  }
+
+  /**
+   * "Je n'ai pas de compte" from the *returning-user* login screen — a
+   * genuinely different situation from the first-run screen's own
+   * "Créer un compte": if we're here at all, this device already has a
+   * household set up (userCount > 0 is exactly what puts LoginScreen in
+   * "login" mode rather than first-run). Local storage holds one
+   * household per device/browser origin, sharing one encryption key
+   * between whichever users exist on it — there is no notion of a second,
+   * independent household coexisting alongside the first, the same way
+   * there's no notion of a second DEK on one device. Creating a real,
+   * separate account for a different person standing in front of this
+   * same device requires clearing what's already here first, which is
+   * why this asks for explicit confirmation rather than silently
+   * attempting a create that usersRepository.create() would otherwise
+   * misinterpret as "add another member to the existing household."
+   *
+   * db.delete() removes the underlying IndexedDB database entirely;
+   * reloading afterward re-opens a fresh one, and userCount's own live
+   * query naturally reads 0 again — landing back on this same first-run
+   * screen, where "Créer un compte" is the button already built for it.
+   */
+  async function handleResetForNewAccount() {
+    const confirmed = window.confirm(
+      "Cet appareil est déjà configuré pour un autre foyer. Créer un compte séparé nécessite " +
+        "d'effacer les données locales de cet appareil (comptes, opérations, tout le reste) — " +
+        "cette action est irréversible. Si ce foyer existant est encore utile, sauvegardez-le " +
+        "d'abord (Synchronisation → Sauvegarde locale) avant de continuer. Voulez-vous vraiment " +
+        "effacer cet appareil pour créer un compte séparé ?",
+    );
+    if (!confirmed) return;
+    setResettingDevice(true);
+    await db.delete();
+    window.location.reload();
   }
 
   if (pendingRecoveryCode) {
@@ -420,6 +457,14 @@ export function LoginScreen() {
             <button type="submit">Se connecter</button>
             <button type="button" className="ghost" onClick={() => setMode("forgot-password")}>
               Mot de passe oublié ?
+            </button>
+            <button
+              type="button"
+              className="ghost"
+              onClick={handleResetForNewAccount}
+              disabled={resettingDevice}
+            >
+              {resettingDevice ? "Effacement…" : "Je n'ai pas de compte"}
             </button>
             {error && (
               <p role="alert" className="form-error">

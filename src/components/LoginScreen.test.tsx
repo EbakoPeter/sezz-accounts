@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { LoginScreen } from "./LoginScreen";
 import { AuthProvider, useAuth } from "@/auth/AuthContext";
@@ -488,5 +488,70 @@ describe("LoginScreen — creating a brand new account", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/déjà utilisée/i);
     expect(screen.getByLabelText(/adresse e-mail/i)).toBeInTheDocument(); // still on step 1
+  });
+});
+
+describe("LoginScreen — 'Je n'ai pas de compte' from the returning-user login screen", () => {
+  it("shows the link on the normal login screen, alongside forgot-password", async () => {
+    await usersRepository.create({
+      username: "peter",
+      displayName: "Peter",
+      password: "existing-password",
+      role: "admin",
+    });
+
+    renderLoginScreen();
+
+    expect(
+      await screen.findByRole("button", { name: /je n'ai pas de compte/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /mot de passe oublié/i })).toBeInTheDocument();
+  });
+
+  it("does nothing when the confirmation is cancelled — the existing household is untouched", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    await usersRepository.create({
+      username: "peter",
+      displayName: "Peter",
+      password: "existing-password",
+      role: "admin",
+    });
+
+    const user = userEvent.setup();
+    renderLoginScreen();
+    await user.click(await screen.findByRole("button", { name: /je n'ai pas de compte/i }));
+
+    expect(window.confirm).toHaveBeenCalledTimes(1);
+    // still on the normal login screen for the existing household
+    expect(screen.getByLabelText(/nom d'utilisateur/i)).toBeInTheDocument();
+    expect(await db.users.count()).toBe(1);
+  });
+
+  it("clears this device's local data and reloads once confirmed", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const reload = vi.fn();
+    vi.stubGlobal("location", { ...window.location, reload });
+    // Spied rather than left to actually run: db.delete() closes the
+    // real, shared, module-level db instance every other test file also
+    // imports — letting it truly execute here would break every test
+    // that runs afterward in the same process, not just this one.
+    const deleteSpy = vi.spyOn(db, "delete").mockResolvedValue(undefined as never);
+    await usersRepository.create({
+      username: "peter",
+      displayName: "Peter",
+      password: "existing-password",
+      role: "admin",
+    });
+
+    const user = userEvent.setup();
+    renderLoginScreen();
+    await user.click(await screen.findByRole("button", { name: /je n'ai pas de compte/i }));
+
+    await waitFor(() => {
+      expect(deleteSpy).toHaveBeenCalledTimes(1);
+      expect(reload).toHaveBeenCalledTimes(1);
+    });
+    deleteSpy.mockRestore();
+    vi.unstubAllGlobals();
   });
 });
