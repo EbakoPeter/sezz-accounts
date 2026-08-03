@@ -265,4 +265,174 @@ describe("getRecommendations", () => {
     expect(insights.some((i) => i.id.startsWith("negative-balance-"))).toBe(true);
     expect(insights.some((i) => i.id.startsWith("overdue-debt-"))).toBe(true);
   });
+
+  describe("month-end spending projection", () => {
+    async function seedBudgetLine(monthlyAllocation: number) {
+      const categories = createBudgetCategoriesRepository(database);
+      const subcategories = createBudgetSubcategoriesRepository(database);
+      const category = await categories.create({ name: "Vie Courante" });
+      return subcategories.create({
+        categoryId: category.id,
+        name: "Transport",
+        monthlyAllocation,
+      });
+    }
+
+    async function seedActual(subcategoryId: string, date: string, amount: number) {
+      const now = Date.now();
+      await database.transactions.add(
+        await encryptedFixture<Transaction, "label" | "amount" | "note">(
+          {
+            id: generateId(),
+            accountId,
+            kind: "expense",
+            date,
+            label: "Dépense",
+            amount,
+            subcategoryId,
+            createdAt: now,
+            updatedAt: now,
+          },
+          ["label", "amount", "note"],
+        ),
+      );
+    }
+
+    it("warns when the current daily pace projects an overrun by month's end", async () => {
+      // A 30-day month, on day 10, having already spent at a pace that
+      // would clearly exceed the allocation by day 30 if it continued.
+      const today = new Date(2026, 3, 10); // April 10, 2026 (30-day month)
+      const sub = await seedBudgetLine(10000);
+      await seedActual(sub.id, "2026-04-10", 5000); // 500/day pace -> 15000 projected
+
+      const insights = await getRecommendations(2026, 4, database, today);
+      const projection = insights.find((i) => i.id === "month-end-projection");
+      expect(projection?.severity).toBe("warning");
+      expect(projection?.message).toContain("15 000");
+    });
+
+    it("reports success when the current pace stays within the allocation", async () => {
+      const today = new Date(2026, 3, 10);
+      const sub = await seedBudgetLine(10000);
+      await seedActual(sub.id, "2026-04-10", 2000); // 200/day pace -> 6000 projected
+
+      const insights = await getRecommendations(2026, 4, database, today);
+      const projection = insights.find((i) => i.id === "month-end-projection");
+      expect(projection?.severity).toBe("success");
+    });
+
+    it("stays silent in the first two days of the month — no predictive value yet", async () => {
+      const today = new Date(2026, 3, 2);
+      const sub = await seedBudgetLine(10000);
+      await seedActual(sub.id, "2026-04-02", 8000);
+
+      const insights = await getRecommendations(2026, 4, database, today);
+      expect(insights.find((i) => i.id === "month-end-projection")).toBeUndefined();
+    });
+
+    it("stays silent for a month other than the one currently being lived", async () => {
+      const today = new Date(2026, 5, 10); // June, but asking about April
+      const sub = await seedBudgetLine(10000);
+      await seedActual(sub.id, "2026-04-10", 5000);
+
+      const insights = await getRecommendations(2026, 4, database, today);
+      expect(insights.find((i) => i.id === "month-end-projection")).toBeUndefined();
+    });
+  });
+
+  describe("emergency fund runway", () => {
+    it("reports the number of months the current balance would cover at this month's expense pace", async () => {
+      const accounts = createAccountsRepository(database);
+      // 1200 initial balance, minus the 300 expense itself (money leaving
+      // the accounts entirely, not moving between them) = 900 total
+      // balance against 300 of expense this month -- exactly 3 months.
+      await accounts.create({ name: "Épargne", initialBalance: 1200 });
+      await seedExpenseDirectly({ date: "2026-06-01", label: "X", amount: 300 });
+
+      const insights = await getRecommendations(2026, 6, database);
+      const fund = insights.find((i) => i.id === "emergency-fund");
+      expect(fund?.message).toContain("3.0 mois");
+    });
+
+    it("reports success once comfortably above the target", async () => {
+      const accounts = createAccountsRepository(database);
+      await accounts.create({ name: "Épargne", initialBalance: 10000 });
+      await seedExpenseDirectly({ date: "2026-06-01", label: "X", amount: 100 });
+
+      const insights = await getRecommendations(2026, 6, database);
+      expect(insights.find((i) => i.id === "emergency-fund")?.severity).toBe("success");
+    });
+
+    it("does not report a runway when there is no balance at all to measure", async () => {
+      await seedExpenseDirectly({ date: "2026-06-01", label: "X", amount: 100 });
+
+      const insights = await getRecommendations(2026, 6, database);
+      expect(insights.find((i) => i.id === "emergency-fund")).toBeUndefined();
+    });
+  });
+
+  describe("debt-to-income ratio", () => {
+    it("warns when monthly debt service exceeds the usual 35% guideline", async () => {
+      const transactions = createTransactionsRepository(database);
+      await transactions.create({
+        accountId,
+        kind: "income",
+        date: "2026-06-01",
+        label: "Salaire",
+        amount: 100000,
+      });
+      const debts = createDebtsRepository(database);
+      await debts.create({
+        kind: "debt",
+        counterparty: "Banque",
+        accountId,
+        amount: 480000, // 40000/month over 12 months -> 40% of the 100000 income
+        date: "2026-01-01",
+        dueDate: "2027-01-01",
+      });
+
+      const insights = await getRecommendations(2026, 6, database);
+      const ratio = insights.find((i) => i.id === "debt-to-income");
+      expect(ratio?.severity).toBe("warning");
+      expect(ratio?.message).toContain("40%");
+    });
+
+    it("reports 'info' rather than a warning below the guideline", async () => {
+      const transactions = createTransactionsRepository(database);
+      await transactions.create({
+        accountId,
+        kind: "income",
+        date: "2026-06-01",
+        label: "Salaire",
+        amount: 100000,
+      });
+      const debts = createDebtsRepository(database);
+      await debts.create({
+        kind: "debt",
+        counterparty: "Banque",
+        accountId,
+        amount: 120000, // 10000/month over 12 months -> 10% of income
+        date: "2026-01-01",
+        dueDate: "2027-01-01",
+      });
+
+      const insights = await getRecommendations(2026, 6, database);
+      expect(insights.find((i) => i.id === "debt-to-income")?.severity).toBe("info");
+    });
+
+    it("does not report a ratio when there is no income to divide by", async () => {
+      const debts = createDebtsRepository(database);
+      await debts.create({
+        kind: "debt",
+        counterparty: "Banque",
+        accountId,
+        amount: 120000,
+        date: "2026-01-01",
+        dueDate: "2027-01-01",
+      });
+
+      const insights = await getRecommendations(2026, 6, database);
+      expect(insights.find((i) => i.id === "debt-to-income")).toBeUndefined();
+    });
+  });
 });

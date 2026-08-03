@@ -63,16 +63,16 @@ export class InvalidBackupError extends Error {
  * way here as one arriving through sync (see fromStorageRows). */
 function assertValidBackup(value: unknown): asserts value is BackupFile {
   if (typeof value !== "object" || value === null) {
-    throw new InvalidBackupError("Ce fichier n'est pas une sauvegarde LeN'KAP valide.");
+    throw new InvalidBackupError("Ce fichier n'est pas une sauvegarde NKaP valide.");
   }
   const candidate = value as Record<string, unknown>;
   if (candidate["version"] !== BACKUP_FORMAT_VERSION) {
     throw new InvalidBackupError(
-      "Ce fichier provient d'une version incompatible de LeN'KAP, ou n'est pas une sauvegarde.",
+      "Ce fichier provient d'une version incompatible de NKaP, ou n'est pas une sauvegarde.",
     );
   }
   if (typeof candidate["tables"] !== "object" || candidate["tables"] === null) {
-    throw new InvalidBackupError("Ce fichier n'est pas une sauvegarde LeN'KAP valide.");
+    throw new InvalidBackupError("Ce fichier n'est pas une sauvegarde NKaP valide.");
   }
 }
 
@@ -85,7 +85,7 @@ export function parseBackup(fileContent: string): BackupFile {
   try {
     parsed = JSON.parse(fileContent);
   } catch {
-    throw new InvalidBackupError("Ce fichier n'est pas une sauvegarde LeN'KAP valide.");
+    throw new InvalidBackupError("Ce fichier n'est pas une sauvegarde NKaP valide.");
   }
   assertValidBackup(parsed);
   return parsed;

@@ -669,6 +669,14 @@ tfoot th {
   width: 100%;
 }
 
+.form-success {
+  color: #3d6b52;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: 8px 0 0;
+  width: 100%;
+}
+
 .login-screen {
   min-height: 100vh;
   display: flex;

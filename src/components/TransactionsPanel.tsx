@@ -4,6 +4,7 @@ import { transactionsRepository, transfersRepository, engagementsRepository } fr
 import { useAccountsWithBalances } from "@/hooks/useAccountsWithBalances";
 import { useBudgetSummary } from "@/hooks/useBudgetSummary";
 import { useAuth } from "@/auth/AuthContext";
+import { useTranslation } from "@/i18n/LanguageContext";
 import { formatFcfa } from "@/lib/money";
 import type { TransactionKind } from "@/types/models";
 import { PageHeader } from "./PageHeader";
@@ -20,15 +21,26 @@ function yearMonthOf(isoDate: string): { year: number; month: number } {
 export function TransactionsPanel({
   view = "both",
 }: {
-  view?: "transfers" | "operations" | "both";
+  view?: "transfers" | "operations" | "expense" | "income" | "both";
 }) {
   const accounts = useAccountsWithBalances();
-  const transactions = useLiveQuery(() => transactionsRepository.list(), []);
   const { currentUser } = useAuth();
+  const { t } = useTranslation();
   const canManage = currentUser?.permissions.manageTransactions ?? false;
 
+  // "expense" and "income" are dedicated, single-purpose tabs (Dépenses,
+  // and Revenus > Entrées) — each always creates that one kind, so there
+  // is nothing to choose and no Type selector to show at all, matching
+  // the "less typing, friendlier" goal these two tabs exist for.
+  const lockedKind = view === "expense" ? "expense" : view === "income" ? "income" : undefined;
+
+  const transactions = useLiveQuery(
+    () => transactionsRepository.list(lockedKind ? { kind: lockedKind } : {}),
+    [lockedKind],
+  );
+
   const [accountId, setAccountId] = useState("");
-  const [kind, setKind] = useState<TransactionKind>("expense");
+  const [kind, setKind] = useState<TransactionKind>(lockedKind ?? "expense");
   const [date, setDate] = useState(todayIso());
   const [label, setLabel] = useState("");
   const [amount, setAmount] = useState("");
@@ -103,16 +115,12 @@ export function TransactionsPanel({
       setAmount("");
       setEngagementId("");
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : "Erreur inattendue.");
+      setFormError(error instanceof Error ? error.message : t("common.unexpectedError"));
     }
   }
 
   async function handleDelete(id: string) {
-    if (
-      !window.confirm(
-        "Voulez-vous vraiment supprimer cette opération ? Cette action est irréversible.",
-      )
-    ) {
+    if (!window.confirm(t("tx.confirmDelete"))) {
       return;
     }
     await transactionsRepository.remove(id);
@@ -156,7 +164,7 @@ export function TransactionsPanel({
     } catch (error) {
       setRowError({
         id,
-        message: error instanceof Error ? error.message : "Erreur inattendue.",
+        message: error instanceof Error ? error.message : t("common.unexpectedError"),
       });
     }
   }
@@ -175,16 +183,12 @@ export function TransactionsPanel({
       setTransferAmount("");
       setTransferLabel("");
     } catch (error) {
-      setTransferError(error instanceof Error ? error.message : "Erreur inattendue.");
+      setTransferError(error instanceof Error ? error.message : t("common.unexpectedError"));
     }
   }
 
   async function handleDeleteTransfer(id: string) {
-    if (
-      !window.confirm(
-        "Voulez-vous vraiment supprimer ce transfert ? Cette action est irréversible.",
-      )
-    ) {
+    if (!window.confirm(t("transfer.confirmDelete"))) {
       return;
     }
     setTransferRowError(null);
@@ -193,7 +197,7 @@ export function TransactionsPanel({
     } catch (error) {
       setTransferRowError({
         id,
-        message: error instanceof Error ? error.message : "Erreur inattendue.",
+        message: error instanceof Error ? error.message : t("common.unexpectedError"),
       });
     }
   }
@@ -233,51 +237,70 @@ export function TransactionsPanel({
     } catch (error) {
       setTransferRowError({
         id,
-        message: error instanceof Error ? error.message : "Erreur inattendue.",
+        message: error instanceof Error ? error.message : t("common.unexpectedError"),
       });
     }
   }
 
   const hasAccounts = (accounts?.length ?? 0) > 0;
-  const pageTitle = view === "transfers" ? "Transferts" : "Opérations";
+  const pageTitle =
+    view === "transfers"
+      ? t("tx.title.transfers")
+      : view === "expense"
+        ? t("tx.title.expenses")
+        : view === "income"
+          ? t("tx.title.income")
+          : t("tx.title.operations");
 
   return (
     <section aria-labelledby="transactions-heading">
       <PageHeader title={pageTitle} section="operations" id="transactions-heading" />
 
-      {(view === "operations" || view === "both") &&
+      {(view === "operations" || view === "expense" || view === "income" || view === "both") &&
         (!canManage ? (
-          <p className="permission-notice">
-            Vous n&apos;avez pas la permission d&apos;enregistrer des opérations.
-          </p>
+          <p className="permission-notice">{t("tx.noPermission")}</p>
         ) : !hasAccounts ? (
           <p className="empty">
             Créez d&apos;abord un compte pour pouvoir enregistrer une opération.
           </p>
         ) : (
-          <form onSubmit={handleCreate} aria-label="Ajouter une opération">
-            <div className="field">
-              <label htmlFor="tx-kind">Type</label>
-              <select
-                id="tx-kind"
-                value={kind}
-                onChange={(e) => setKind(e.target.value as TransactionKind)}
-              >
-                <option value="income">Revenu</option>
-                <option value="expense">Dépense</option>
-              </select>
-            </div>
+          <form onSubmit={handleCreate} aria-label={t("tx.form.label")}>
+            {!lockedKind && (
+              <div className="field">
+                <label htmlFor="tx-kind">{t("field.type")}</label>
+                <select
+                  id="tx-kind"
+                  value={kind}
+                  onChange={(e) => setKind(e.target.value as TransactionKind)}
+                >
+                  <option value="income">{t("field.kind.income")}</option>
+                  <option value="expense">{t("field.kind.expense")}</option>
+                </select>
+              </div>
+            )}
             {kind === "expense" &&
               (settleableEngagements().length > 0 ? (
                 <div className="field">
-                  <label htmlFor="tx-engagement">Dépenses à Faire</label>
+                  <label htmlFor="tx-engagement">{t("tx.engagement")}</label>
                   <select
                     id="tx-engagement"
                     value={engagementId}
-                    onChange={(e) => setEngagementId(e.target.value)}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      setEngagementId(id);
+                      // Auto-fills Libellé from the engagement's own
+                      // label — one less field to type for what's
+                      // already the most common expense flow, and the
+                      // engagement's own label is normally exactly what
+                      // someone would have typed here anyway. Still
+                      // freely editable afterward for a more specific
+                      // wording on this one particular payment.
+                      const chosen = settleableEngagements().find((e) => e.id === id);
+                      if (chosen) setLabel(chosen.label);
+                    }}
                   >
                     <option value="" disabled>
-                      Choisir…
+                      {t("common.choose")}
                     </option>
                     {settleableEngagements().map((e) => (
                       <option key={e.id} value={e.id}>
@@ -287,13 +310,10 @@ export function TransactionsPanel({
                   </select>
                 </div>
               ) : (
-                <p className="tagline">
-                  Aucun engagement disponible — créez d&apos;abord un engagement dans l&apos;onglet
-                  Budget Prévisionnel avant d&apos;enregistrer une dépense.
-                </p>
+                <p className="tagline">{t("tx.engagement.none")}</p>
               ))}
             <div className="field">
-              <label htmlFor="tx-date">Date</label>
+              <label htmlFor="tx-date">{t("field.date")}</label>
               <input
                 id="tx-date"
                 type="date"
@@ -302,11 +322,11 @@ export function TransactionsPanel({
               />
             </div>
             <div className="field">
-              <label htmlFor="tx-label">Libellé</label>
+              <label htmlFor="tx-label">{t("field.label")}</label>
               <input id="tx-label" value={label} onChange={(e) => setLabel(e.target.value)} />
             </div>
             <div className="field">
-              <label htmlFor="tx-amount">Montant (FCFA)</label>
+              <label htmlFor="tx-amount">{t("field.amountFcfa")}</label>
               <input
                 id="tx-amount"
                 type="number"
@@ -315,14 +335,14 @@ export function TransactionsPanel({
               />
             </div>
             <div className="field">
-              <label htmlFor="tx-account">Compte</label>
+              <label htmlFor="tx-account">{t("field.account")}</label>
               <select
                 id="tx-account"
                 value={accountId}
                 onChange={(e) => setAccountId(e.target.value)}
               >
                 <option value="" disabled>
-                  Choisir…
+                  {t("common.choose")}
                 </option>
                 {accounts?.map((a) => (
                   <option key={a.id} value={a.id}>
@@ -331,7 +351,7 @@ export function TransactionsPanel({
                 ))}
               </select>
             </div>
-            <button type="submit">+ Ajouter</button>
+            <button type="submit">{t("common.add")}</button>
             {formError && (
               <p role="alert" className="form-error">
                 {formError}
@@ -340,21 +360,21 @@ export function TransactionsPanel({
           </form>
         ))}
 
-      {(view === "operations" || view === "both") &&
+      {(view === "operations" || view === "expense" || view === "income" || view === "both") &&
         (transactions === undefined ? (
-          <p>Chargement…</p>
+          <p>{t("common.loading")}</p>
         ) : transactions.length === 0 ? (
-          <p className="empty">Aucune opération enregistrée.</p>
+          <p className="empty">{t("tx.empty")}</p>
         ) : (
           <div className="table-scroll">
             <table>
               <thead>
                 <tr>
-                  <th>Date</th>
-                  <th>Compte</th>
-                  <th>Libellé</th>
-                  <th>Engagement</th>
-                  <th>Montant</th>
+                  <th>{t("field.date")}</th>
+                  <th>{t("field.account")}</th>
+                  <th>{t("field.label")}</th>
+                  <th>{t("tx.col.engagement")}</th>
+                  <th>{t("field.amount")}</th>
                   <th />
                 </tr>
               </thead>
@@ -406,7 +426,7 @@ export function TransactionsPanel({
                             onChange={(e) => setEditEngagementId(e.target.value)}
                           >
                             <option value="" disabled>
-                              Choisir…
+                              {t("common.choose")}
                             </option>
                             {settleableEngagements(tx.engagementId).map((e) => (
                               <option key={e.id} value={e.id}>
@@ -481,19 +501,19 @@ export function TransactionsPanel({
         ((canManage && hasAccounts && (accounts?.length ?? 0) >= 2) ||
           (transfers?.length ?? 0) > 0) && (
           <section className="accent-gold" aria-labelledby="transfers-heading">
-            <h3 id="transfers-heading">Transferts entre comptes</h3>
+            <h3 id="transfers-heading">{t("transfer.heading")}</h3>
             {canManage && (accounts?.length ?? 0) >= 2 && (
               <>
-                <form onSubmit={handleCreateTransfer} aria-label="Ajouter un transfert">
+                <form onSubmit={handleCreateTransfer} aria-label={t("transfer.form.label")}>
                   <div className="field">
-                    <label htmlFor="transfer-from">Compte source</label>
+                    <label htmlFor="transfer-from">{t("transfer.from")}</label>
                     <select
                       id="transfer-from"
                       value={transferFromId}
                       onChange={(e) => setTransferFromId(e.target.value)}
                     >
                       <option value="" disabled>
-                        Choisir…
+                        {t("common.choose")}
                       </option>
                       {accounts?.map((a) => (
                         <option key={a.id} value={a.id}>
@@ -503,14 +523,14 @@ export function TransactionsPanel({
                     </select>
                   </div>
                   <div className="field">
-                    <label htmlFor="transfer-to">Compte destination</label>
+                    <label htmlFor="transfer-to">{t("transfer.to")}</label>
                     <select
                       id="transfer-to"
                       value={transferToId}
                       onChange={(e) => setTransferToId(e.target.value)}
                     >
                       <option value="" disabled>
-                        Choisir…
+                        {t("common.choose")}
                       </option>
                       {accounts?.map((a) => (
                         <option key={a.id} value={a.id}>
@@ -520,7 +540,7 @@ export function TransactionsPanel({
                     </select>
                   </div>
                   <div className="field">
-                    <label htmlFor="transfer-amount">Montant</label>
+                    <label htmlFor="transfer-amount">{t("field.amount")}</label>
                     <input
                       id="transfer-amount"
                       type="number"
@@ -529,7 +549,7 @@ export function TransactionsPanel({
                     />
                   </div>
                   <div className="field">
-                    <label htmlFor="transfer-date">Date</label>
+                    <label htmlFor="transfer-date">{t("field.date")}</label>
                     <input
                       id="transfer-date"
                       type="date"
@@ -538,15 +558,15 @@ export function TransactionsPanel({
                     />
                   </div>
                   <div className="field">
-                    <label htmlFor="transfer-label">Libellé (optionnel)</label>
+                    <label htmlFor="transfer-label">{t("transfer.labelOptional")}</label>
                     <input
                       id="transfer-label"
                       value={transferLabel}
                       onChange={(e) => setTransferLabel(e.target.value)}
-                      placeholder="Ex : Vers épargne"
+                      placeholder={t("transfer.labelPlaceholder")}
                     />
                   </div>
-                  <button type="submit">+ Ajouter</button>
+                  <button type="submit">{t("common.add")}</button>
                   {transferError && (
                     <p role="alert" className="form-error">
                       {transferError}
@@ -561,11 +581,11 @@ export function TransactionsPanel({
                 <table>
                   <thead>
                     <tr>
-                      <th>Date</th>
-                      <th>De</th>
-                      <th>Vers</th>
-                      <th>Libellé</th>
-                      <th>Montant</th>
+                      <th>{t("field.date")}</th>
+                      <th>{t("transfer.col.from")}</th>
+                      <th>{t("transfer.col.to")}</th>
+                      <th>{t("field.label")}</th>
+                      <th>{t("field.amount")}</th>
                       <th />
                     </tr>
                   </thead>

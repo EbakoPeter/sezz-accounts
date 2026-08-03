@@ -254,7 +254,15 @@ export function SyncPanel() {
               )}
             </p>
           )}
-          {status && !status.success && (
+          {status && !status.success && status.requiresSubscription && (
+            <p role="alert" className="form-error">
+              La synchronisation nécessite un abonnement actif — votre période d&apos;essai ou votre
+              abonnement a expiré. Vos données restent utilisables normalement sur cet appareil ;
+              seul l&apos;échange avec vos autres appareils est en pause jusqu&apos;au
+              renouvellement.
+            </p>
+          )}
+          {status && !status.success && !status.requiresSubscription && (
             <p role="alert" className="form-error">
               Échec de la dernière synchronisation (
               {new Date(status.attemptedAt).toLocaleTimeString("fr-FR")}) : {status.error}

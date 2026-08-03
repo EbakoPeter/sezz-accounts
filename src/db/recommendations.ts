@@ -21,6 +21,13 @@ export interface Insight {
 const SAVINGS_RATE_GOOD = 20; // percent
 const SPENDING_INCREASE_ALERT = 15; // percent
 const BUDGET_OVERRUN_THRESHOLD = 100; // percent of allocation
+// A classic personal-finance guideline (not a rigid rule): total debt
+// service above this share of income is when a household's own margin
+// for absorbing a bad month starts getting genuinely tight.
+const DEBT_TO_INCOME_WARNING = 35; // percent
+// Common financial-planning guidance is 3 to 6 months of expenses set
+// aside; 3 is used here as the lower bound worth flagging below.
+const EMERGENCY_FUND_TARGET_MONTHS = 3;
 
 /**
  * Every rule here reads data that already exists elsewhere (Transactions,
@@ -32,6 +39,7 @@ export async function getRecommendations(
   year: number,
   month: number,
   database: SezzAccountsDatabase,
+  today: Date = new Date(),
 ): Promise<Insight[]> {
   const insights: Insight[] = [];
 
@@ -98,6 +106,45 @@ export async function getRecommendations(
     }
   }
 
+  // Projection de fin de mois — un modèle prédictif simple (rythme
+  // quotidien moyen extrapolé sur les jours restants), pas juste un
+  // constat rétrospectif : prévient un dépassement avant qu'il ne se
+  // produise plutôt que de le signaler après coup. Volontairement
+  // silencieux les tout premiers jours du mois (une moyenne sur 1 ou 2
+  // jours n'a aucune valeur prédictive) et une fois le mois quasiment
+  // terminé (la projection et le réel se confondent alors).
+  const isCurrentMonth = today.getFullYear() === year && today.getMonth() + 1 === month;
+  if (isCurrentMonth) {
+    const dayOfMonth = today.getDate();
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const totalAllocated = budgetSummary.reduce((sum, cat) => sum + cat.totalAllocation, 0);
+    const totalSpentSoFar = budgetSummary.reduce((sum, cat) => sum + cat.totalActual, 0);
+    if (
+      dayOfMonth >= 3 &&
+      dayOfMonth <= daysInMonth - 2 &&
+      totalAllocated > 0 &&
+      totalSpentSoFar > 0
+    ) {
+      const dailyAverage = totalSpentSoFar / dayOfMonth;
+      const projectedTotal = dailyAverage * daysInMonth;
+      if (projectedTotal > totalAllocated) {
+        insights.push({
+          id: "month-end-projection",
+          severity: "warning",
+          title: "Projection de fin de mois",
+          message: `Au rythme actuel (${formatFcfa(Math.round(dailyAverage))}/jour), les dépenses atteindraient environ ${formatFcfa(Math.round(projectedTotal))} d'ici la fin du mois — au-dessus du budget alloué de ${formatFcfa(totalAllocated)}.`,
+        });
+      } else {
+        insights.push({
+          id: "month-end-projection",
+          severity: "success",
+          title: "Projection de fin de mois",
+          message: `Au rythme actuel, les dépenses resteraient autour de ${formatFcfa(Math.round(projectedTotal))} d'ici la fin du mois, dans la limite du budget alloué (${formatFcfa(totalAllocated)}).`,
+        });
+      }
+    }
+  }
+
   const accountRows = await database.accounts.toArray();
   const accounts = await fromStorageRows<Account>(accountRows);
   const flows = await getAccountFlows(database);
@@ -113,6 +160,26 @@ export async function getRecommendations(
     }
   }
 
+  // Fonds d'urgence / autonomie financière — un repère classique de
+  // conseil financier (généralement 3 à 6 mois de dépenses courantes de
+  // côté), calculé ici à partir du solde total réel et du rythme de
+  // dépenses de ce mois-ci plutôt que d'une moyenne théorique.
+  if (currentRow && currentRow.expense > 0) {
+    const totalBalance = accounts.reduce(
+      (sum, acc) => sum + acc.initialBalance + netOf(flows.get(acc.id)),
+      0,
+    );
+    if (totalBalance > 0) {
+      const runwayMonths = totalBalance / currentRow.expense;
+      insights.push({
+        id: "emergency-fund",
+        severity: runwayMonths < EMERGENCY_FUND_TARGET_MONTHS ? "info" : "success",
+        title: "Fonds d'urgence",
+        message: `Le solde total actuel couvrirait environ ${runwayMonths.toFixed(1)} mois de dépenses au rythme de ce mois-ci — un repère courant est de viser ${EMERGENCY_FUND_TARGET_MONTHS} à 6 mois.`,
+      });
+    }
+  }
+
   const debtSummaries = await getAllDebtSummaries(database);
   for (const { debt, status, remaining } of debtSummaries) {
     if (status === "overdue") {
@@ -121,6 +188,30 @@ export async function getRecommendations(
         severity: "warning",
         title: `Échéance dépassée : ${debt.reference}`,
         message: `La dette ${debt.reference} (${debt.counterparty}) est en retard, solde restant ${formatFcfa(remaining)}.`,
+      });
+    }
+  }
+
+  // Ratio d'endettement (mensualités de dettes ÷ revenus du mois) — un
+  // repère classique de conseil financier : au-delà d'un certain seuil,
+  // la marge pour absorber un imprévu (perte de revenu, dépense urgente)
+  // devient structurellement plus étroite, indépendamment du fait que
+  // chaque dette prise isolément soit à jour ou non.
+  if (currentRow && currentRow.income > 0) {
+    const totalMonthlyDebtService = debtSummaries.reduce(
+      (sum, d) => sum + (d.plannedMonthlyPayment ?? 0),
+      0,
+    );
+    if (totalMonthlyDebtService > 0) {
+      const debtToIncomeRatio = (totalMonthlyDebtService / currentRow.income) * 100;
+      insights.push({
+        id: "debt-to-income",
+        severity: debtToIncomeRatio > DEBT_TO_INCOME_WARNING ? "warning" : "info",
+        title:
+          debtToIncomeRatio > DEBT_TO_INCOME_WARNING
+            ? "Ratio d'endettement élevé"
+            : "Ratio d'endettement",
+        message: `Les mensualités de dettes représentent environ ${Math.round(debtToIncomeRatio)}% des revenus du mois${debtToIncomeRatio > DEBT_TO_INCOME_WARNING ? ` — au-dessus du repère courant de ${DEBT_TO_INCOME_WARNING}%, qui laisse peu de marge en cas d'imprévu` : ""}.`,
       });
     }
   }

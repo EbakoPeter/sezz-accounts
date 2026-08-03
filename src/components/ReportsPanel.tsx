@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useAuth } from "@/auth/AuthContext";
+import { useTranslation } from "@/i18n/LanguageContext";
 import { db } from "@/db/schema";
 import { createTransactionsRepository } from "@/db/transactionsRepository";
 import { createAccountsRepository } from "@/db/accountsRepository";
@@ -33,6 +34,7 @@ export function ReportsPanel({
   section?: "general" | "custom" | "cashflow" | "all";
 }) {
   const { currentUser } = useAuth();
+  const { t } = useTranslation();
   const canView = currentUser?.permissions.viewReports ?? false;
 
   const { year: defaultYear, month: defaultMonth } = currentYearMonth();
@@ -73,20 +75,18 @@ export function ReportsPanel({
 
   const pageTitle =
     section === "general"
-      ? "Rapport Général"
+      ? t("reports.titleGeneral")
       : section === "custom"
-        ? "Rapport Personnalisé"
+        ? t("reports.titleCustom")
         : section === "cashflow"
-          ? "Trésorerie"
-          : "Rapports";
+          ? t("reports.titleCashflow")
+          : t("reports.title");
 
   if (!canView) {
     return (
       <section aria-labelledby="reports-heading">
         <PageHeader title={pageTitle} section="reports" id="reports-heading" />
-        <p className="permission-notice">
-          Vous n&apos;avez pas la permission de consulter les rapports.
-        </p>
+        <p className="permission-notice">{t("reports.noPermission")}</p>
       </section>
     );
   }
@@ -96,11 +96,11 @@ export function ReportsPanel({
     setGeneralBusy(true);
     try {
       const [year, month] = generalPeriod.split("-").map(Number);
-      if (!year || !month) throw new Error("Mois invalide.");
+      if (!year || !month) throw new Error(t("reports.invalidMonth"));
       const { downloadGeneralReport } = await import("@/reports/generalReport");
       await downloadGeneralReport(db, year, month);
     } catch (error) {
-      setGeneralError(error instanceof Error ? error.message : "Erreur inattendue.");
+      setGeneralError(error instanceof Error ? error.message : t("common.unexpectedError"));
     } finally {
       setGeneralBusy(false);
     }
@@ -110,11 +110,11 @@ export function ReportsPanel({
     setOpsError(null);
     setOpsBusy(true);
     try {
-      if (opsFrom > opsTo) throw new Error("La date de début doit précéder la date de fin.");
+      if (opsFrom > opsTo) throw new Error(t("reports.fromAfterTo"));
       const { downloadOperationsReport } = await import("@/reports/operationsReport");
       await downloadOperationsReport(db, opsFrom, opsTo, opsKind === "all" ? undefined : opsKind);
     } catch (error) {
-      setOpsError(error instanceof Error ? error.message : "Erreur inattendue.");
+      setOpsError(error instanceof Error ? error.message : t("common.unexpectedError"));
     } finally {
       setOpsBusy(false);
     }
@@ -124,11 +124,11 @@ export function ReportsPanel({
     setCashError(null);
     setCashBusy(true);
     try {
-      if (cashFrom > cashTo) throw new Error("Le mois de début doit précéder le mois de fin.");
+      if (cashFrom > cashTo) throw new Error(t("reports.fromAfterToMonth"));
       const { downloadCashFlowReport } = await import("@/reports/cashFlowReport");
       await downloadCashFlowReport(db, cashFrom, cashTo);
     } catch (error) {
-      setCashError(error instanceof Error ? error.message : "Erreur inattendue.");
+      setCashError(error instanceof Error ? error.message : t("common.unexpectedError"));
     } finally {
       setCashBusy(false);
     }
@@ -140,13 +140,10 @@ export function ReportsPanel({
 
       {(section === "general" || section === "all") && (
         <section className="accent-ink" aria-labelledby="general-report-heading">
-          <h3 id="general-report-heading">Rapport général</h3>
-          <p className="tagline">
-            Vue d&apos;ensemble d&apos;un mois : soldes des comptes, revenus et dépenses, budget
-            prévisionnel.
-          </p>
+          <h3 id="general-report-heading">{t("reports.general.heading")}</h3>
+          <p className="tagline">{t("reports.general.tagline")}</p>
           <div className="field">
-            <label htmlFor="general-report-month">Mois</label>
+            <label htmlFor="general-report-month">{t("reports.general.month")}</label>
             <input
               id="general-report-month"
               type="month"
@@ -155,7 +152,7 @@ export function ReportsPanel({
             />
           </div>
           <button type="button" onClick={handleDownloadGeneral} disabled={generalBusy}>
-            {generalBusy ? "Génération…" : "Télécharger en PDF"}
+            {generalBusy ? t("reports.generating") : t("reports.downloadPdf")}
           </button>
           {generalError && (
             <p role="alert" className="form-error">
@@ -167,12 +164,10 @@ export function ReportsPanel({
 
       {(section === "custom" || section === "all") && (
         <section className="accent-gold" aria-labelledby="operations-report-heading">
-          <h3 id="operations-report-heading">Rapport par opérations</h3>
-          <p className="tagline">
-            Relevé de toutes les opérations d&apos;une période donnée, comme un relevé bancaire.
-          </p>
+          <h3 id="operations-report-heading">{t("reports.custom.heading")}</h3>
+          <p className="tagline">{t("reports.custom.tagline")}</p>
           <div className="field">
-            <label htmlFor="ops-report-from">Du</label>
+            <label htmlFor="ops-report-from">{t("reports.custom.from")}</label>
             <input
               id="ops-report-from"
               type="date"
@@ -181,7 +176,7 @@ export function ReportsPanel({
             />
           </div>
           <div className="field">
-            <label htmlFor="ops-report-to">Au</label>
+            <label htmlFor="ops-report-to">{t("reports.custom.to")}</label>
             <input
               id="ops-report-to"
               type="date"
@@ -190,19 +185,19 @@ export function ReportsPanel({
             />
           </div>
           <div className="field">
-            <label htmlFor="ops-report-kind">Type</label>
+            <label htmlFor="ops-report-kind">{t("reports.custom.type")}</label>
             <select
               id="ops-report-kind"
               value={opsKind}
               onChange={(e) => setOpsKind(e.target.value as "all" | "income" | "expense")}
             >
-              <option value="all">Toutes les opérations</option>
-              <option value="income">Revenus uniquement</option>
-              <option value="expense">Dépenses uniquement</option>
+              <option value="all">{t("reports.custom.type.all")}</option>
+              <option value="income">{t("reports.custom.type.income")}</option>
+              <option value="expense">{t("reports.custom.type.expense")}</option>
             </select>
           </div>
           <button type="button" onClick={handleDownloadOperations} disabled={opsBusy}>
-            {opsBusy ? "Génération…" : "Télécharger en PDF"}
+            {opsBusy ? t("reports.generating") : t("reports.downloadPdf")}
           </button>
           {opsError && (
             <p role="alert" className="form-error">
@@ -211,24 +206,24 @@ export function ReportsPanel({
           )}
 
           <p className="tagline" style={{ marginTop: 16 }}>
-            Aperçu — {opsPreview?.length ?? 0} opération(s) correspondant aux filtres.
+            {t("reports.custom.preview", { count: String(opsPreview?.length ?? 0) })}
           </p>
           {opsFrom > opsTo ? (
-            <p className="empty">La date de début doit précéder la date de fin.</p>
+            <p className="empty">{t("reports.fromAfterTo")}</p>
           ) : opsPreview === undefined ? (
-            <p>Chargement…</p>
+            <p>{t("common.loading")}</p>
           ) : opsPreview.length === 0 ? (
-            <p className="empty">Aucune opération pour cette période et ce type.</p>
+            <p className="empty">{t("reports.custom.emptyPeriod")}</p>
           ) : (
             <div className="table-scroll">
               <table>
                 <thead>
                   <tr>
-                    <th>Date</th>
-                    <th>Compte</th>
-                    <th>Type</th>
-                    <th>Libellé</th>
-                    <th className="num">Montant</th>
+                    <th>{t("reports.custom.table.date")}</th>
+                    <th>{t("reports.custom.table.account")}</th>
+                    <th>{t("reports.custom.table.type")}</th>
+                    <th>{t("reports.custom.table.label")}</th>
+                    <th className="num">{t("reports.custom.table.amount")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -236,7 +231,11 @@ export function ReportsPanel({
                     <tr key={tx.id}>
                       <td>{tx.date}</td>
                       <td className="truncate">{tx.accountName}</td>
-                      <td>{tx.kind === "income" ? "Revenu" : "Dépense"}</td>
+                      <td>
+                        {tx.kind === "income"
+                          ? t("reports.custom.income")
+                          : t("reports.custom.expense")}
+                      </td>
                       <td className="truncate">{tx.label}</td>
                       <td className={`num ${tx.kind === "expense" ? "negative" : ""}`}>
                         {tx.kind === "expense" ? "-" : "+"}
@@ -253,12 +252,10 @@ export function ReportsPanel({
 
       {(section === "cashflow" || section === "all") && (
         <section className="accent-sage" aria-labelledby="cashflow-report-heading">
-          <h3 id="cashflow-report-heading">Rapport de trésorerie</h3>
-          <p className="tagline">
-            Évolution du solde de chaque compte, mois par mois, sur la période choisie.
-          </p>
+          <h3 id="cashflow-report-heading">{t("reports.cashflow.heading")}</h3>
+          <p className="tagline">{t("reports.cashflow.tagline")}</p>
           <div className="field">
-            <label htmlFor="cashflow-report-from">Du mois</label>
+            <label htmlFor="cashflow-report-from">{t("reports.cashflow.from")}</label>
             <input
               id="cashflow-report-from"
               type="month"
@@ -267,7 +264,7 @@ export function ReportsPanel({
             />
           </div>
           <div className="field">
-            <label htmlFor="cashflow-report-to">Au mois</label>
+            <label htmlFor="cashflow-report-to">{t("reports.cashflow.to")}</label>
             <input
               id="cashflow-report-to"
               type="month"
@@ -276,7 +273,7 @@ export function ReportsPanel({
             />
           </div>
           <button type="button" onClick={handleDownloadCashFlow} disabled={cashBusy}>
-            {cashBusy ? "Génération…" : "Télécharger en PDF"}
+            {cashBusy ? t("reports.generating") : t("reports.downloadPdf")}
           </button>
           {cashError && (
             <p role="alert" className="form-error">

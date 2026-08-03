@@ -13,9 +13,3 @@ coverage/
 # protects against ever adding one without remembering this file.
 .env
 .env.*
-
-# wrangler files
-.wrangler
-.dev.vars*
-!.dev.vars.example
-!.env.example

@@ -1,28 +1,15 @@
 import { useState } from "react";
 import { useMonthlyReport } from "@/hooks/useMonthlyReport";
 import { useAuth } from "@/auth/AuthContext";
+import { useTranslation } from "@/i18n/LanguageContext";
 import { formatFcfa } from "@/lib/money";
 import { PageHeader } from "./PageHeader";
-
-const MONTH_NAMES = [
-  "Janvier",
-  "Février",
-  "Mars",
-  "Avril",
-  "Mai",
-  "Juin",
-  "Juillet",
-  "Août",
-  "Septembre",
-  "Octobre",
-  "Novembre",
-  "Décembre",
-];
 
 export const MONTHLY_CHART_WIDTH = 760;
 export const MONTHLY_CHART_HEIGHT = 220;
 
 export function MonthlyBarChart({ rows }: { rows: { income: number; expense: number }[] }) {
+  const { t } = useTranslation();
   const maxValue = Math.max(1, ...rows.map((r) => Math.max(r.income, r.expense)));
   const groupWidth = MONTHLY_CHART_WIDTH / 12;
   const barWidth = groupWidth * 0.32;
@@ -32,7 +19,7 @@ export function MonthlyBarChart({ rows }: { rows: { income: number; expense: num
     <svg
       viewBox={`0 0 ${MONTHLY_CHART_WIDTH} ${MONTHLY_CHART_HEIGHT + 24}`}
       role="img"
-      aria-label="Graphique des revenus et dépenses par mois"
+      aria-label={t("monthlyReport.chart.ariaLabel")}
       style={{ width: "100%", maxWidth: 800, height: "auto" }}
     >
       <line
@@ -72,7 +59,7 @@ export function MonthlyBarChart({ rows }: { rows: { income: number; expense: num
               textAnchor="middle"
               fill="#726B5E"
             >
-              {MONTH_NAMES[i]?.slice(0, 3)}
+              {t(`month.${i + 1}`).slice(0, 3)}
             </text>
           </g>
         );
@@ -85,6 +72,7 @@ export function MonthlyReportPanel() {
   const [year, setYear] = useState(new Date().getFullYear());
   const rows = useMonthlyReport(year);
   const { currentUser } = useAuth();
+  const { t } = useTranslation();
 
   const totalIncome = rows?.reduce((sum, r) => sum + r.income, 0) ?? 0;
   const totalExpense = rows?.reduce((sum, r) => sum + r.expense, 0) ?? 0;
@@ -93,21 +81,23 @@ export function MonthlyReportPanel() {
   if (!currentUser?.permissions.viewReports) {
     return (
       <section aria-labelledby="monthly-report-heading">
-        <PageHeader title="Rapport Mensuel" section="reports" id="monthly-report-heading" />
-        <p className="permission-notice">
-          Vous n&apos;avez pas la permission de consulter les rapports.
-        </p>
+        <PageHeader
+          title={t("monthlyReport.title")}
+          section="reports"
+          id="monthly-report-heading"
+        />
+        <p className="permission-notice">{t("monthlyReport.noPermission")}</p>
       </section>
     );
   }
 
   return (
     <section aria-labelledby="monthly-report-heading">
-      <PageHeader title="Rapport Mensuel" section="reports" id="monthly-report-heading" />
-      <p className="tagline">Revenus et dépenses, triés de janvier à décembre.</p>
+      <PageHeader title={t("monthlyReport.title")} section="reports" id="monthly-report-heading" />
+      <p className="tagline">{t("monthlyReport.tagline")}</p>
 
       <div className="field" style={{ marginBottom: 16 }}>
-        <label htmlFor="report-year">Année</label>
+        <label htmlFor="report-year">{t("monthlyReport.year")}</label>
         <input
           id="report-year"
           type="number"
@@ -118,7 +108,7 @@ export function MonthlyReportPanel() {
       </div>
 
       {rows === undefined ? (
-        <p>Chargement…</p>
+        <p>{t("common.loading")}</p>
       ) : (
         <>
           <MonthlyBarChart rows={rows} />
@@ -142,7 +132,7 @@ export function MonthlyReportPanel() {
                   marginRight: 5,
                 }}
               />
-              Revenus
+              {t("monthlyReport.income")}
             </span>
             <span>
               <span
@@ -155,7 +145,7 @@ export function MonthlyReportPanel() {
                   marginRight: 5,
                 }}
               />
-              Dépenses
+              {t("monthlyReport.expense")}
             </span>
           </div>
 
@@ -163,17 +153,17 @@ export function MonthlyReportPanel() {
             <table>
               <thead>
                 <tr>
-                  <th>Mois</th>
-                  <th>Revenus</th>
-                  <th>Dépenses</th>
-                  <th>Solde net</th>
-                  <th>Solde cumulé</th>
+                  <th>{t("monthlyReport.table.month")}</th>
+                  <th>{t("monthlyReport.income")}</th>
+                  <th>{t("monthlyReport.expense")}</th>
+                  <th>{t("monthlyReport.table.net")}</th>
+                  <th>{t("monthlyReport.table.cumulative")}</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((row) => (
                   <tr key={row.month}>
-                    <td>{MONTH_NAMES[row.month - 1]}</td>
+                    <td>{t(`month.${row.month}`)}</td>
                     <td className="num pos">{formatFcfa(row.income)}</td>
                     <td className="num negative">{formatFcfa(row.expense)}</td>
                     <td className={`num ${row.net < 0 ? "negative" : ""}`}>
@@ -187,7 +177,7 @@ export function MonthlyReportPanel() {
               </tbody>
               <tfoot>
                 <tr>
-                  <td>TOTAL ANNÉE</td>
+                  <td>{t("monthlyReport.table.yearTotal")}</td>
                   <td className="num">{formatFcfa(totalIncome)}</td>
                   <td className="num">{formatFcfa(totalExpense)}</td>
                   <td className={`num ${totalIncome - totalExpense < 0 ? "negative" : ""}`}>

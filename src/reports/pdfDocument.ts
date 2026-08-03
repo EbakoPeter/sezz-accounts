@@ -24,7 +24,7 @@ export function createReportDocument(title: string, subtitle: string): jsPDF {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(18);
   doc.setTextColor(INK);
-  doc.text("LeN'KAP", 14, 18);
+  doc.text("NKaP", 14, 18);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);

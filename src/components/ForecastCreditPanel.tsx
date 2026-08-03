@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useAuth } from "@/auth/AuthContext";
+import { useTranslation } from "@/i18n/LanguageContext";
 import { formatFcfa } from "@/lib/money";
 import { creditForecastAccount, FORECAST_ACCOUNT_NAME } from "@/db/forecastAccount";
 import { createAccountsRepository } from "@/db/accountsRepository";
@@ -33,6 +34,7 @@ function todayIso(): string {
  */
 export function ForecastCreditPanel() {
   const { currentUser } = useAuth();
+  const { t } = useTranslation();
   const canManage = currentUser?.permissions.manageTransactions ?? false;
 
   const credits = useLiveQuery(async () => {
@@ -61,35 +63,30 @@ export function ForecastCreditPanel() {
       setAmount("");
       setDate(todayIso());
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : "Erreur inattendue.");
+      setFormError(error instanceof Error ? error.message : t("common.unexpectedError"));
     }
   }
 
   return (
     <section aria-labelledby="forecast-credit-heading">
-      <PageHeader title="Crédit Prév (CP)" section="operations" id="forecast-credit-heading" />
-      <p className="tagline">
-        Enregistre une entrée d&apos;argent prévisionnelle — source, montant et date — créditée
-        automatiquement sur le compte prévisionnel, sans avoir à choisir un compte à chaque fois.
-      </p>
+      <PageHeader title={t("forecast.title")} section="operations" id="forecast-credit-heading" />
+      <p className="tagline">{t("forecast.tagline")}</p>
 
       {!canManage ? (
-        <p className="permission-notice">
-          Vous n&apos;avez pas la permission d&apos;enregistrer des opérations.
-        </p>
+        <p className="permission-notice">{t("forecast.noPermission")}</p>
       ) : (
-        <form onSubmit={handleCredit} aria-label="Créditer le compte prévisionnel">
+        <form onSubmit={handleCredit} aria-label={t("forecast.form")}>
           <div className="field">
-            <label htmlFor="cp-source">Source</label>
+            <label htmlFor="cp-source">{t("forecast.form.source")}</label>
             <input
               id="cp-source"
               value={source}
               onChange={(e) => setSource(e.target.value)}
-              placeholder="Salaire, vente, remboursement…"
+              placeholder={t("forecast.form.sourcePlaceholder")}
             />
           </div>
           <div className="field">
-            <label htmlFor="cp-amount">Montant (FCFA)</label>
+            <label htmlFor="cp-amount">{t("forecast.form.amount")}</label>
             <input
               id="cp-amount"
               type="number"
@@ -98,7 +95,7 @@ export function ForecastCreditPanel() {
             />
           </div>
           <div className="field">
-            <label htmlFor="cp-date">Date</label>
+            <label htmlFor="cp-date">{t("forecast.form.date")}</label>
             <input
               id="cp-date"
               type="date"
@@ -106,7 +103,7 @@ export function ForecastCreditPanel() {
               onChange={(e) => setDate(e.target.value)}
             />
           </div>
-          <button type="submit">+ Créditer</button>
+          <button type="submit">{t("forecast.submit")}</button>
           {formError && (
             <p role="alert" className="form-error">
               {formError}
@@ -115,19 +112,19 @@ export function ForecastCreditPanel() {
         </form>
       )}
 
-      <h3>Historique des crédits prévisionnels</h3>
+      <h3>{t("forecast.historyTitle")}</h3>
       {credits === undefined ? (
-        <p>Chargement…</p>
+        <p>{t("common.loading")}</p>
       ) : credits.length === 0 ? (
-        <p className="empty">Aucun crédit prévisionnel enregistré pour le moment.</p>
+        <p className="empty">{t("forecast.empty")}</p>
       ) : (
         <div className="table-scroll">
           <table>
             <thead>
               <tr>
-                <th>Date</th>
-                <th>Source</th>
-                <th className="num">Montant</th>
+                <th>{t("forecast.table.date")}</th>
+                <th>{t("forecast.table.source")}</th>
+                <th className="num">{t("forecast.table.amount")}</th>
               </tr>
             </thead>
             <tbody>

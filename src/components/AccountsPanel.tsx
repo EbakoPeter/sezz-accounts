@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { accountsRepository } from "@/repositories";
 import { useAccountsWithBalances } from "@/hooks/useAccountsWithBalances";
 import { useAuth } from "@/auth/AuthContext";
+import { useTranslation } from "@/i18n/LanguageContext";
 import { formatFcfa } from "@/lib/money";
 import { PageHeader } from "./PageHeader";
 
@@ -9,6 +10,7 @@ export function AccountsPanel({ view = "both" }: { view?: "new" | "list" | "both
   const accounts = useAccountsWithBalances();
   const totalBalance = (accounts ?? []).reduce((sum, a) => sum + a.balance, 0);
   const { currentUser } = useAuth();
+  const { t } = useTranslation();
   const canManage = currentUser?.permissions.manageAccounts ?? false;
   const [name, setName] = useState("");
   const [initialBalance, setInitialBalance] = useState("0");
@@ -30,14 +32,12 @@ export function AccountsPanel({ view = "both" }: { view?: "new" | "list" | "both
       setName("");
       setInitialBalance("0");
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : "Erreur inattendue.");
+      setFormError(error instanceof Error ? error.message : t("common.unexpectedError"));
     }
   }
 
   async function handleDelete(id: string) {
-    if (
-      !window.confirm("Voulez-vous vraiment supprimer ce compte ? Cette action est irréversible.")
-    ) {
+    if (!window.confirm(t("accounts.confirmDelete"))) {
       return;
     }
     setRowError(null);
@@ -46,7 +46,7 @@ export function AccountsPanel({ view = "both" }: { view?: "new" | "list" | "both
     } catch (error) {
       setRowError({
         id,
-        message: error instanceof Error ? error.message : "Erreur inattendue.",
+        message: error instanceof Error ? error.message : t("common.unexpectedError"),
       });
     }
   }
@@ -73,13 +73,17 @@ export function AccountsPanel({ view = "both" }: { view?: "new" | "list" | "both
     } catch (error) {
       setRowError({
         id,
-        message: error instanceof Error ? error.message : "Erreur inattendue.",
+        message: error instanceof Error ? error.message : t("common.unexpectedError"),
       });
     }
   }
 
   const pageTitle =
-    view === "new" ? "Nouveau Compte" : view === "list" ? "Listing des Comptes" : "Comptes";
+    view === "new"
+      ? t("accounts.new")
+      : view === "list"
+        ? t("accounts.listTitle")
+        : t("accounts.title");
 
   return (
     <section aria-labelledby="accounts-heading">
@@ -87,22 +91,20 @@ export function AccountsPanel({ view = "both" }: { view?: "new" | "list" | "both
 
       {(view === "new" || view === "both") &&
         (!canManage ? (
-          <p className="permission-notice">
-            Vous n&apos;avez pas la permission de créer ou modifier des comptes.
-          </p>
+          <p className="permission-notice">{t("accounts.noPermission")}</p>
         ) : (
-          <form onSubmit={handleCreate} aria-label="Ajouter un compte">
+          <form onSubmit={handleCreate} aria-label={t("accounts.addForm")}>
             <div className="field">
-              <label htmlFor="account-name">Nom du compte</label>
+              <label htmlFor="account-name">{t("accounts.form.name")}</label>
               <input
                 id="account-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Ex : Compte Principal"
+                placeholder={t("accounts.form.namePlaceholder")}
               />
             </div>
             <div className="field">
-              <label htmlFor="account-initial">Solde initial</label>
+              <label htmlFor="account-initial">{t("accounts.form.initialBalance")}</label>
               <input
                 id="account-initial"
                 type="number"
@@ -110,7 +112,7 @@ export function AccountsPanel({ view = "both" }: { view?: "new" | "list" | "both
                 onChange={(e) => setInitialBalance(e.target.value)}
               />
             </div>
-            <button type="submit">+ Ajouter</button>
+            <button type="submit">{t("common.add")}</button>
             {formError && (
               <p role="alert" className="form-error">
                 {formError}
@@ -121,17 +123,17 @@ export function AccountsPanel({ view = "both" }: { view?: "new" | "list" | "both
 
       {(view === "list" || view === "both") &&
         (accounts === undefined ? (
-          <p>Chargement…</p>
+          <p>{t("common.loading")}</p>
         ) : accounts.length === 0 ? (
-          <p className="empty">Aucun compte pour le moment.</p>
+          <p className="empty">{t("accounts.empty")}</p>
         ) : (
           <div className="table-scroll">
             <table>
               <thead>
                 <tr>
-                  <th>Compte</th>
-                  <th>Solde initial</th>
-                  <th>Solde actuel</th>
+                  <th>{t("accounts.table.account")}</th>
+                  <th>{t("accounts.form.initialBalance")}</th>
+                  <th>{t("accounts.table.currentBalance")}</th>
                   <th />
                 </tr>
               </thead>
@@ -141,14 +143,14 @@ export function AccountsPanel({ view = "both" }: { view?: "new" | "list" | "both
                     <tr key={account.id}>
                       <td>
                         <input
-                          aria-label={`Nom de ${account.name}`}
+                          aria-label={t("accounts.aria.nameOf", { name: account.name })}
                           value={editName}
                           onChange={(e) => setEditName(e.target.value)}
                         />
                       </td>
                       <td>
                         <input
-                          aria-label={`Solde initial de ${account.name}`}
+                          aria-label={t("accounts.aria.initialBalanceOf", { name: account.name })}
                           type="number"
                           value={editInitialBalance}
                           onChange={(e) => setEditInitialBalance(e.target.value)}
@@ -159,10 +161,10 @@ export function AccountsPanel({ view = "both" }: { view?: "new" | "list" | "both
                       </td>
                       <td>
                         <button type="button" onClick={() => handleSaveEdit(account.id)}>
-                          Enregistrer
+                          {t("common.save")}
                         </button>{" "}
                         <button type="button" className="ghost" onClick={handleCancelEdit}>
-                          Annuler
+                          {t("common.cancel")}
                         </button>
                         {rowError?.id === account.id && (
                           <p role="alert" className="form-error">
@@ -182,10 +184,10 @@ export function AccountsPanel({ view = "both" }: { view?: "new" | "list" | "both
                         {canManage && (
                           <span className="row-actions">
                             <button type="button" onClick={() => handleStartEdit(account)}>
-                              Modifier
+                              {t("common.edit")}
                             </button>
                             <button type="button" onClick={() => handleDelete(account.id)}>
-                              Supprimer
+                              {t("common.delete")}
                             </button>
                           </span>
                         )}
@@ -201,7 +203,7 @@ export function AccountsPanel({ view = "both" }: { view?: "new" | "list" | "both
               </tbody>
               <tfoot>
                 <tr>
-                  <th scope="row">Total</th>
+                  <th scope="row">{t("common.total")}</th>
                   <td />
                   <td className={`num ${totalBalance < 0 ? "negative" : ""}`}>
                     <strong>{formatFcfa(totalBalance)}</strong>

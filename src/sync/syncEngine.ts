@@ -13,6 +13,22 @@ import type {
   RoleTemplateRow,
 } from "@/db/schema";
 import { db as defaultDb } from "@/db/schema";
+
+/**
+ * Thrown specifically for a 402 response from either sync endpoint —
+ * distinct from a plain Error so the UI (see SyncPanel) can show an
+ * upgrade prompt rather than a generic "sync failed, try again" message,
+ * which would be actively misleading here: retrying does nothing until
+ * the account's subscription is actually renewed.
+ */
+export class SubscriptionRequiredError extends Error {
+  subscriptionStatus: string;
+  constructor(message: string, subscriptionStatus: string) {
+    super(message);
+    this.name = "SubscriptionRequiredError";
+    this.subscriptionStatus = subscriptionStatus;
+  }
+}
 import type { UserRole } from "@/types/models";
 import type { SyncSession } from "./syncClient";
 
@@ -265,6 +281,12 @@ export async function pushChanges(
       }),
     });
     const body = await parseJsonResponse(response);
+    if (response.status === 402) {
+      throw new SubscriptionRequiredError(
+        typeof body["error"] === "string" ? body["error"] : "Abonnement requis.",
+        typeof body["subscriptionStatus"] === "string" ? body["subscriptionStatus"] : "expired",
+      );
+    }
     if (!response.ok) {
       throw new Error(
         typeof body["error"] === "string" ? body["error"] : "Échec de l'envoi vers le serveur.",
@@ -346,6 +368,12 @@ export async function pullChanges(
     headers: authHeaders(session),
   });
   const body = await parseJsonResponse(response);
+  if (response.status === 402) {
+    throw new SubscriptionRequiredError(
+      typeof body["error"] === "string" ? body["error"] : "Abonnement requis.",
+      typeof body["subscriptionStatus"] === "string" ? body["subscriptionStatus"] : "expired",
+    );
+  }
   if (!response.ok) {
     throw new Error(
       typeof body["error"] === "string"
@@ -390,6 +418,10 @@ export interface SyncStatus {
   pulled?: number;
   deleted?: number;
   error?: string;
+  /** Set specifically when the last failure was a SubscriptionRequiredError
+   * — lets the UI show a clear upgrade prompt on a later page load, not
+   * only in the moment a sync attempt is actively failing live. */
+  requiresSubscription?: boolean;
   /** How many of this device's own pushed changes were refused because
    * they'd changed elsewhere first — each one's current server state has
    * already been applied locally by the time this is recorded (see
@@ -453,6 +485,7 @@ export async function syncNow(
       attemptedAt: Date.now(),
       success: false,
       error: err instanceof Error ? err.message : "Erreur inattendue lors de la synchronisation.",
+      requiresSubscription: err instanceof SubscriptionRequiredError,
     });
     throw err;
   }

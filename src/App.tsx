@@ -12,6 +12,7 @@ import { UsersPanel } from "@/components/UsersPanel";
 import { SyncPanel } from "@/components/SyncPanel";
 import { LoginScreen } from "@/components/LoginScreen";
 import { Logo } from "@/components/Logo";
+import { NotificationImportPanel } from "@/components/NotificationImportPanel";
 import { useAuth } from "@/auth/AuthContext";
 import { useAutoSync } from "@/sync/useAutoSync";
 import { useTranslation } from "@/i18n/LanguageContext";
@@ -42,6 +43,7 @@ const MENUS: MenuDef[] = [
     submenus: [
       { id: "list", labelKey: "nav.accounts.list" },
       { id: "new", labelKey: "nav.accounts.new" },
+      { id: "import", labelKey: "nav.accounts.import" },
     ],
   },
   {
@@ -52,13 +54,14 @@ const MENUS: MenuDef[] = [
       { id: "forecast", labelKey: "nav.budget.forecast" },
     ],
   },
+  { id: "expenses", labelKey: "nav.expenses" },
   {
-    id: "transactions",
-    labelKey: "nav.transactions",
+    id: "income",
+    labelKey: "nav.income",
     submenus: [
-      { id: "forecastCredit", labelKey: "nav.transactions.forecastCredit" },
-      { id: "operations", labelKey: "nav.transactions.operations" },
-      { id: "transfers", labelKey: "nav.transactions.transfers" },
+      { id: "entries", labelKey: "nav.income.entries" },
+      { id: "forecast", labelKey: "nav.income.forecast" },
+      { id: "transfers", labelKey: "nav.income.transfers" },
     ],
   },
   {
@@ -210,8 +213,8 @@ export function App() {
             >
               <Logo size={40} />
               <h1 className="brand-name">
-                <span className="brand-name-primary">Le</span>
-                <span className="brand-name-accent">N&apos;KAP</span>
+                <span className="brand-name-primary">N</span>
+                <span className="brand-name-accent">KaP</span>
               </h1>
             </button>
             <p className="tagline">{t("app.tagline")}</p>
@@ -303,17 +306,22 @@ export function App() {
           id={`tabpanel-${selectedMenu.id}`}
           aria-labelledby={`tab-${selectedMenu.id}`}
         >
-          {selectedMenu.id === "accounts" && (
+          {selectedMenu.id === "accounts" && selectedSubmenuId === "import" && (
+            <NotificationImportPanel />
+          )}
+          {selectedMenu.id === "accounts" && selectedSubmenuId !== "import" && (
             <AccountsPanel view={selectedSubmenuId === "new" ? "new" : "list"} />
           )}
-          {selectedMenu.id === "transactions" && selectedSubmenuId === "forecastCredit" && (
+          {selectedMenu.id === "expenses" && <TransactionsPanel view="expense" />}
+          {selectedMenu.id === "income" && selectedSubmenuId === "forecast" && (
             <ForecastCreditPanel />
           )}
-          {selectedMenu.id === "transactions" && selectedSubmenuId !== "forecastCredit" && (
-            <TransactionsPanel
-              view={selectedSubmenuId === "transfers" ? "transfers" : "operations"}
-            />
+          {selectedMenu.id === "income" && selectedSubmenuId === "transfers" && (
+            <TransactionsPanel view="transfers" />
           )}
+          {selectedMenu.id === "income" &&
+            selectedSubmenuId !== "forecast" &&
+            selectedSubmenuId !== "transfers" && <TransactionsPanel view="income" />}
           {selectedMenu.id === "budget" && (
             <BudgetPanel view={selectedSubmenuId === "engagements" ? "engagements" : "forecast"} />
           )}

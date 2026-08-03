@@ -139,6 +139,38 @@ describe("SyncPanel", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(/session invalide/i);
   });
 
+  it("shows a clear subscription-required message, distinct from a generic sync failure, on a 402 response", async () => {
+    const fetch = mockFetch();
+    fetch.mockResolvedValueOnce(jsonResponse({ token: "tok-1", syncAccountId: "acct-1" }));
+    const user = userEvent.setup();
+    await renderAuthenticated(<SyncPanel />);
+
+    await user.type(
+      await screen.findByLabelText(/adresse du serveur/i),
+      "https://sync.example.com",
+    );
+    await user.type(screen.getByLabelText(/adresse e-mail/i), "peter@example.com");
+    await user.type(screen.getByLabelText(/^mot de passe$/i), "password123");
+    await user.click(screen.getByRole("button", { name: /créer le compte de synchronisation/i }));
+    await screen.findByText(/connecté à/i);
+
+    fetch.mockResolvedValueOnce(
+      jsonResponse(
+        {
+          error: "La synchronisation nécessite un abonnement actif.",
+          subscriptionStatus: "expired",
+        },
+        false,
+        402,
+      ),
+    );
+    await user.click(screen.getByRole("button", { name: /synchroniser maintenant/i }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/abonnement actif/i);
+    expect(alert).toHaveTextContent(/restent utilisables normalement sur cet appareil/i);
+  });
+
   it("disconnects and shows the connection form again", async () => {
     mockFetch().mockResolvedValue(jsonResponse({ token: "tok-1", syncAccountId: "acct-1" }));
     const user = userEvent.setup();

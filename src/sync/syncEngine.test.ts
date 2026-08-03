@@ -1,7 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createTestDatabase } from "@/test/testDatabase";
 import type { SezzAccountsDatabase } from "@/db/schema";
-import { pushChanges, pullChanges, syncNow, getLastSyncStatus } from "./syncEngine";
+import {
+  pushChanges,
+  pullChanges,
+  syncNow,
+  getLastSyncStatus,
+  SubscriptionRequiredError,
+} from "./syncEngine";
 import type { SyncSession } from "./syncClient";
 
 const session: SyncSession = {
@@ -170,6 +176,25 @@ describe("pushChanges", () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ error: "Session invalide." }, false, 401));
 
     await expect(pushChanges(session, database)).rejects.toThrow(/session invalide/i);
+  });
+
+  it("throws SubscriptionRequiredError specifically on a 402 response, carrying the account's subscription status", async () => {
+    await seedAccountRow("acc-1", 1000);
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(
+        {
+          error: "La synchronisation nécessite un abonnement actif.",
+          subscriptionStatus: "expired",
+        },
+        false,
+        402,
+      ),
+    );
+
+    const error = await pushChanges(session, database).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(SubscriptionRequiredError);
+    expect((error as SubscriptionRequiredError).subscriptionStatus).toBe("expired");
+    expect((error as Error).message).toMatch(/abonnement actif/i);
   });
 
   describe("when the server rejects a record (compare-and-swap conflict)", () => {
@@ -491,6 +516,23 @@ describe("syncNow", () => {
 
     const status = await getLastSyncStatus(database);
     expect(status?.success).toBe(true);
+  });
+
+  it("records requiresSubscription specifically for a 402 failure, not for a generic one", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ error: "Abonnement requis.", subscriptionStatus: "expired" }, false, 402),
+    );
+    await expect(syncNow(session, database)).rejects.toThrow(SubscriptionRequiredError);
+
+    const status = await getLastSyncStatus(database);
+    expect(status?.success).toBe(false);
+    expect(status?.requiresSubscription).toBe(true);
+
+    fetchMock.mockResolvedValueOnce(jsonResponse({ error: "Panne serveur." }, false, 500));
+    await expect(syncNow(session, database)).rejects.toThrow();
+
+    const secondStatus = await getLastSyncStatus(database);
+    expect(secondStatus?.requiresSubscription).toBeFalsy();
   });
 });
 

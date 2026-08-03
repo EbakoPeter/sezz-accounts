@@ -7,7 +7,7 @@
  */
 export function Logo({ size = 48 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" role="img" aria-label="Logo LeN'KAP">
+    <svg width={size} height={size} viewBox="0 0 100 100" role="img" aria-label="Logo NKaP">
       <circle cx="50" cy="50" r="46" fill="#0D1B2A" stroke="#C98A3B" strokeWidth="5" />
       <path
         d="M32,68 L32,32 L68,68 L68,32"

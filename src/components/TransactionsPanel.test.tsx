@@ -318,6 +318,72 @@ describe("TransactionsPanel", () => {
     ]);
   });
 
+  it("auto-fills Libellé from the selected engagement's own label", async () => {
+    const session = await createTestUser("admin");
+    await seedAccount();
+    await seedEngagement({ amount: 20000, label: "Courses de la semaine" });
+    const user = userEvent.setup();
+    renderWithSession(<TransactionsPanel />, session);
+
+    await user.selectOptions(await screen.findByLabelText(/^type$/i), "expense");
+    await user.selectOptions(await screen.findByLabelText(/^dépenses à faire$/i), "eng-1");
+
+    expect(screen.getByLabelText(/^libellé$/i)).toHaveValue("Courses de la semaine");
+  });
+
+  it("still lets the auto-filled Libellé be edited afterward for a more specific wording", async () => {
+    const session = await createTestUser("admin");
+    await seedAccount();
+    await seedEngagement({ amount: 20000, label: "Courses de la semaine" });
+    const user = userEvent.setup();
+    renderWithSession(<TransactionsPanel />, session);
+
+    await user.selectOptions(await screen.findByLabelText(/^type$/i), "expense");
+    await user.selectOptions(await screen.findByLabelText(/^dépenses à faire$/i), "eng-1");
+    const libelle = screen.getByLabelText(/^libellé$/i);
+    await user.clear(libelle);
+    await user.type(libelle, "Courses chez Carrefour");
+
+    expect(libelle).toHaveValue("Courses chez Carrefour");
+  });
+
+  it("view='expense' hides the Type selector entirely and always creates an expense", async () => {
+    const session = await createTestUser("admin");
+    await seedAccount();
+    await seedEngagement({ amount: 20000, label: "Courses" });
+    const user = userEvent.setup();
+    renderWithSession(<TransactionsPanel view="expense" />, session);
+
+    expect(await screen.findByLabelText(/^dépenses à faire$/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/^type$/i)).not.toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText(/^dépenses à faire$/i), "eng-1");
+    await user.type(screen.getByLabelText(/montant/i), "5000");
+    await user.selectOptions(screen.getByLabelText(/compte$/i), "acc-1");
+    await user.click(screen.getByRole("button", { name: /ajouter/i }));
+
+    const row = await screen.findByRole("row", { name: /courses/i });
+    expect(row).toBeInTheDocument();
+  });
+
+  it("view='income' hides both the Type selector and the engagement field, and always creates income", async () => {
+    const session = await createTestUser("admin");
+    await seedAccount();
+    const user = userEvent.setup();
+    renderWithSession(<TransactionsPanel view="income" />, session);
+
+    await screen.findByLabelText(/^libellé$/i);
+    expect(screen.queryByLabelText(/^type$/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^dépenses à faire$/i)).not.toBeInTheDocument();
+
+    await user.type(screen.getByLabelText(/^libellé$/i), "Salaire");
+    await user.type(screen.getByLabelText(/montant/i), "150000");
+    await user.selectOptions(screen.getByLabelText(/compte$/i), "acc-1");
+    await user.click(screen.getByRole("button", { name: /ajouter/i }));
+
+    expect(await screen.findByRole("row", { name: /salaire/i })).toBeInTheDocument();
+  });
+
   describe("editing", () => {
     it("edits a transaction's label and amount", async () => {
       const session = await createTestUser("admin");

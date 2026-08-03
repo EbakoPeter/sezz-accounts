@@ -1,5 +1,6 @@
 import { useRecommendations } from "@/hooks/useRecommendations";
 import { useAuth } from "@/auth/AuthContext";
+import { useTranslation } from "@/i18n/LanguageContext";
 import type { InsightSeverity } from "@/db/recommendations";
 import { PageHeader } from "./PageHeader";
 
@@ -16,32 +17,32 @@ export function RecommendationsPanel() {
   const now = new Date();
   const insights = useRecommendations(now.getFullYear(), now.getMonth() + 1);
   const { currentUser } = useAuth();
+  const { t } = useTranslation();
 
   if (!currentUser?.permissions.viewReports) {
     return (
       <section aria-labelledby="recommendations-heading">
         <PageHeader
-          title="Recommandations"
+          title={t("recommendations.title")}
           section="recommendations"
           id="recommendations-heading"
         />
-        <p className="permission-notice">
-          Vous n&apos;avez pas la permission de consulter les recommandations.
-        </p>
+        <p className="permission-notice">{t("recommendations.noPermission")}</p>
       </section>
     );
   }
 
   return (
     <section aria-labelledby="recommendations-heading">
-      <PageHeader title="Recommandations" section="recommendations" id="recommendations-heading" />
-      <p className="tagline">
-        Analyse automatique du mois en cours, calculée uniquement à partir de vos données — rien
-        n&apos;est envoyé à l&apos;extérieur.
-      </p>
+      <PageHeader
+        title={t("recommendations.title")}
+        section="recommendations"
+        id="recommendations-heading"
+      />
+      <p className="tagline">{t("recommendations.tagline")}</p>
 
       {insights === undefined ? (
-        <p>Chargement…</p>
+        <p>{t("common.loading")}</p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {insights.map((insight) => {

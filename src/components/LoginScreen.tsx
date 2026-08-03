@@ -37,7 +37,7 @@ export function LoginScreen() {
   // otherwise generate its own separate encryption key. See
   // handleJoinViaSync below for how this actually avoids that.
   const [joiningViaSync, setJoiningViaSync] = useState(false);
-  const [joinServerUrl, setJoinServerUrl] = useState("");
+  const [joinServerUrl, setJoinServerUrl] = useState(import.meta.env.VITE_SYNC_SERVER_URL ?? "");
   const [joinEmail, setJoinEmail] = useState("");
   const [joinPassword, setJoinPassword] = useState("");
   const [joining, setJoining] = useState(false);
@@ -246,8 +246,8 @@ export function LoginScreen() {
         <div className="login-card">
           <Logo size={40} />
           <h1 className="brand-name">
-            <span className="brand-name-primary">Le</span>
-            <span className="brand-name-accent">N&apos;KAP</span>
+            <span className="brand-name-primary">N</span>
+            <span className="brand-name-accent">KaP</span>
           </h1>
           <h2>Votre code de récupération</h2>
           <p className="tagline">
@@ -284,8 +284,8 @@ export function LoginScreen() {
       <div className="login-card">
         <Logo size={40} />
         <h1 className="brand-name">
-          <span className="brand-name-primary">Le</span>
-          <span className="brand-name-accent">N&apos;KAP</span>
+          <span className="brand-name-primary">N</span>
+          <span className="brand-name-accent">KaP</span>
         </h1>
         {isFirstRun && joiningViaSync ? (
           <form onSubmit={handleJoinViaSync} aria-label="Rejoindre un foyer existant">

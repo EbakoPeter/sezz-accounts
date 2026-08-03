@@ -39,7 +39,8 @@ describe("App menu navigation", () => {
     expect(tabs.map((t) => t.getAttribute("aria-label"))).toEqual([
       "Comptes",
       "Budget",
-      "Opérations",
+      "Dépenses",
+      "Revenus",
       "Dettes & Créances",
       "Rapports",
       "Recommandations",
